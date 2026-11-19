@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*'
+      - 'verify-packaging-v*'
 
 permissions:
   contents: write
@@ -12,34 +13,62 @@ concurrency:
   group: release-${{ github.ref }}
 
 jobs:
-  publish:
-    runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-      RELEASE_TAG: ${{ github.ref_name }}
+  package:
+    runs-on: windows-2025
     steps:
-      - name: Verify and publish the release
-        shell: bash
+      - name: Stage and verify the portable executable
+        shell: pwsh
         run: |
-          set -euo pipefail
-          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Expected a stable vX.Y.Z tag." >&2
-            exit 1
-          fi
-          cd "$(mktemp -d)"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $tag = $env:GITHUB_REF_NAME -creplace '^verify-packaging-', ''
+          if ($tag -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Expected a stable vX.Y.Z tag.' }
+          $version = $tag.Substring(1)
+          $repository = "https://github.com/$env:GITHUB_REPOSITORY.git"
           git init --quiet
-          git fetch --quiet --no-tags --depth=1 "https://github.com/$GH_REPO.git" "refs/heads/release-assets/$RELEASE_TAG"
-          git archive FETCH_HEAD -- LG-Launcher.exe LG-Launcher.exe.sha256 RELEASE-NOTES.md | tar -xf -
-          sha256sum --check LG-Launcher.exe.sha256
-          if draft="$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)"; then
-            if [[ "$draft" != true ]]; then
-              echo "This release is already published." >&2
-              exit 1
-            fi
-          else
-            gh release create "$RELEASE_TAG" --verify-tag --draft \
-              --title "LG Launcher ${RELEASE_TAG#v}" --notes-file RELEASE-NOTES.md
-          fi
-          gh release upload "$RELEASE_TAG" --clobber LG-Launcher.exe LG-Launcher.exe.sha256
-          gh release edit "$RELEASE_TAG" --draft=false --latest
+          git fetch --quiet --no-tags --depth=1 $repository $env:GITHUB_REF
+          git checkout --quiet --detach FETCH_HEAD
+          git fetch --quiet --no-tags --depth=1 $repository "refs/heads/release-assets/$tag"
+          $stage = (New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP 'release-assets')).FullName
+          $archive = Join-Path $env:RUNNER_TEMP 'release-assets.tar'
+          git archive "--output=$archive" FETCH_HEAD -- LG-Launcher.exe LG-Launcher.exe.sha256 RELEASE-NOTES.md
+          tar.exe -xf $archive -C $stage
+          $portable = Get-Item -LiteralPath (Join-Path $stage 'LG-Launcher.exe')
+          $checksum = (Get-Content -Raw -LiteralPath (Join-Path $stage 'LG-Launcher.exe.sha256')).Trim()
+          if ($checksum -notmatch '^([a-f0-9]{64}) [ *]LG-Launcher\.exe$' -or
+              $Matches[1] -ne (Get-FileHash -LiteralPath $portable.FullName).Hash) {
+            throw 'The staged portable checksum is invalid.'
+          }
+          if ($portable.VersionInfo.ProductVersion -ne $version) {
+            throw "The staged portable version does not match $tag."
+          }
+          @("RELEASE_TAG=$tag", "RELEASE_VERSION=$version", "RELEASE_STAGE=$stage") >> $env:GITHUB_ENV
+
+      - name: Build and smoke-test the Windows installer
+        shell: pwsh
+        run: |
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          $portable = Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe'
+          & .\build-installer.ps1 -Launcher $portable -Compiler $compiler -Smoke
+          $setup = Get-Item -LiteralPath "build\LG-Launcher-Setup-$env:RELEASE_VERSION.exe"
+          "RELEASE_SETUP=$($setup.FullName)" >> $env:GITHUB_ENV
+
+      - name: Publish the verified assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false
+          $draft = gh release view $env:RELEASE_TAG --json isDraft --jq .isDraft 2>$null
+          $found = $LASTEXITCODE -eq 0
+          $PSNativeCommandUseErrorActionPreference = $true
+          if ($found) {
+            if ($draft -cne 'true') { throw 'This release is already published.' }
+          } else {
+            gh release create $env:RELEASE_TAG --verify-tag --draft --title "LG Launcher $env:RELEASE_VERSION" `
+              --notes-file (Join-Path $env:RELEASE_STAGE 'RELEASE-NOTES.md')
+          }
+          gh release upload $env:RELEASE_TAG --clobber (Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe') `
+            (Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe.sha256') $env:RELEASE_SETUP
+          gh release edit $env:RELEASE_TAG --draft=false --latest
