@@ -30,8 +30,8 @@ jobs:
           cd "$(mktemp -d)"
           git init --quiet
           git fetch --quiet --no-tags --depth=1 "https://github.com/$GH_REPO.git" "refs/heads/release-assets/$RELEASE_TAG"
-          git archive FETCH_HEAD -- 'LG Launcher.exe' 'LG Launcher.exe.sha256' RELEASE-NOTES.md | tar -xf -
-          sha256sum --check 'LG Launcher.exe.sha256'
+          git archive FETCH_HEAD -- LG-Launcher.exe LG-Launcher.exe.sha256 RELEASE-NOTES.md | tar -xf -
+          sha256sum --check LG-Launcher.exe.sha256
           if draft="$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)"; then
             if [[ "$draft" != true ]]; then
               echo "This release is already published." >&2
@@ -41,5 +41,5 @@ jobs:
             gh release create "$RELEASE_TAG" --verify-tag --draft \
               --title "LG Launcher ${RELEASE_TAG#v}" --notes-file RELEASE-NOTES.md
           fi
-          gh release upload "$RELEASE_TAG" --clobber 'LG Launcher.exe' 'LG Launcher.exe.sha256'
+          gh release upload "$RELEASE_TAG" --clobber LG-Launcher.exe LG-Launcher.exe.sha256
           gh release edit "$RELEASE_TAG" --draft=false --latest
