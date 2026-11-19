@@ -1,0 +1,41 @@
+name: Attach Windows installer
+
+on:
+  push:
+    tags:
+      - 'installer-v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: installer-${{ github.ref }}
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      INSTALLER_TAG: ${{ github.ref_name }}
+    steps:
+      - name: Verify and attach the installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$INSTALLER_TAG" =~ ^installer-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected an installer-vX.Y.Z tag." >&2
+            exit 1
+          fi
+          release="${INSTALLER_TAG#installer-}"
+          filename="LG-Launcher-Setup-${release#v}.exe"
+          if [[ "$(gh release view "$release" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" != false ]]; then
+            echo "The installer requires a published stable release." >&2
+            exit 1
+          fi
+          cd "$(mktemp -d)"
+          git init --quiet
+          git fetch --quiet --no-tags --depth=1 "https://github.com/$GH_REPO.git" "refs/heads/installer-assets/$release"
+          git archive FETCH_HEAD -- "$filename" "$filename.sha256" | tar -xf -
+          sha256sum --check "$filename.sha256"
+          gh release upload "$release" "$filename"
