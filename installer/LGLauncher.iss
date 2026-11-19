@@ -44,7 +44,12 @@ SolidCompression=yes
 Name: desktopicon; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Files]
+#if ReleaseVersion == "0.1.6"
+; Replace the private launcher executable when migrating from the old 1.x numbering.
+Source: "{#LauncherBinary}"; DestDir: "{app}"; DestName: "LG-Launcher.exe"; Flags: ignoreversion
+#else
 Source: "{#LauncherBinary}"; DestDir: "{app}"; DestName: "LG-Launcher.exe"
+#endif
 
 [Icons]
 Name: "{group}\LG Launcher"; Filename: "{app}\LG-Launcher.exe"; WorkingDir: "{app}"
