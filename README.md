@@ -8,6 +8,6 @@ LG Launcher checks this repository's public [latest release endpoint](https://ap
 
 Build and verify the executable in the launcher workspace. Commit it as `LG-Launcher.exe` with a GNU-format SHA-256 checksum named `LG-Launcher.exe.sha256` and `RELEASE-NOTES.md` on the `release-assets/vX.Y.Z` staging branch. Push that branch before pushing the matching `vX.Y.Z` tag from `main`. The Windows release workflow verifies the portable executable, builds and smoke-tests `LG-Launcher-Setup-X.Y.Z.exe` from it, and uploads the portable executable, its checksum, and setup to a draft before publishing.
 
-To test packaging against a staged build, push a `verify-packaging-vX.Y.Z` tag from `main`. This runs the same Windows build and smoke test without creating a GitHub release.
+To test packaging against a staged build, push a `verify-packaging-vX.Y.Z` tag from `main`. Add a numeric suffix such as `-2` for another run. This runs the same Windows build and smoke test without creating a GitHub release.
 
 For historical releases that lack setup, stage a tested `LG-Launcher-Setup-X.Y.Z.exe` with its GNU-format SHA-256 checksum on `installer-assets/vX.Y.Z`, then push the matching `installer-vX.Y.Z` tag from `main`.

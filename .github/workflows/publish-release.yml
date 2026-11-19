@@ -20,7 +20,7 @@ jobs:
         shell: pwsh
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          $tag = $env:GITHUB_REF_NAME -creplace '^verify-packaging-', ''
+          $tag = $env:GITHUB_REF_NAME -creplace '^verify-packaging-(v[0-9]+\.[0-9]+\.[0-9]+)(?:-[0-9]+)?$', '$1'
           if ($tag -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Expected a stable vX.Y.Z tag.' }
           $version = $tag.Substring(1)
           $repository = "https://github.com/$env:GITHUB_REPOSITORY.git"
@@ -53,7 +53,7 @@ jobs:
           "RELEASE_SETUP=$($setup.FullName)" >> $env:GITHUB_ENV
 
       - name: Publish the verified assets
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.ref_name == env.RELEASE_TAG
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
