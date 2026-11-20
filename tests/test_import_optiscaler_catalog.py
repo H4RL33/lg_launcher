@@ -111,7 +111,8 @@ class CatalogPublicationTests(unittest.TestCase):
     def test_rejects_invalid_document_limits_and_fields(self):
         document = json.loads(build_catalog(self.entries, REVISION))
         for replacement in (
-            {"page": "Route%2FPath"}, {"note": "a" * 4097}, {"title": "🧪" * 129},
+            {"page": "Route%2FPath"}, {"page": "Title²"}, {"page": "Title𠀀"},
+            {"note": "a" * 4097}, {"title": "🧪" * 129},
             {"steamId": True}, {"status": "Blocked"}, {"recipe": {}}
         ):
             with self.subTest(replacement=list(replacement)):
@@ -124,6 +125,15 @@ class CatalogPublicationTests(unittest.TestCase):
                      for index in range(510)]
         with self.assertRaisesRegex(ValueError, "2 MiB"):
             build_catalog(oversized, REVISION)
+
+    def test_increments_a_version_larger_than_signed_32_bits(self):
+        previous = json.loads(build_catalog(self.entries, REVISION))
+        previous["version"] = 2_147_483_648
+        changed = [dict(entry, note="Revised advisory") for entry in self.entries]
+
+        updated = json.loads(build_catalog(changed, REVISION, json.dumps(previous).encode("utf-8")))
+
+        self.assertEqual(updated["version"], 2_147_483_649)
 
 
 if __name__ == "__main__":

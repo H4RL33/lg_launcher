@@ -32,7 +32,8 @@ MARKDOWN_LINK = re.compile(r"\[([^\]\n]+)\]\((<?(?:[^()<>\s]|\([^()\n]*\))+>?)\)
 TABLE_PIPE = re.compile(r"(?<!\\)\|")
 REVISION = re.compile(r"[a-fA-F0-9]{40}")
 MAX_BYTES = 2 * 1024 * 1024
-MAX_INTEGER = 2_147_483_647
+MAX_STEAM_ID = 2_147_483_647
+MAX_VERSION = 9_223_372_036_854_775_807
 ENTRY_LENGTHS = {"title": 256, "page": 160, "inputs": 256, "note": 4096}
 ENTRY_KEYS = {*ENTRY_LENGTHS, "status", "steamId"}
 
@@ -56,9 +57,14 @@ def table_cells(line):
     return [cell.strip() for cell in cells]
 
 
+def is_dotnet_letter_or_digit(character):
+    category = unicodedata.category(character)
+    return ord(character) <= 0xFFFF and (category.startswith("L") or category == "Nd")
+
+
 def page_slug_is_valid(page):
     return page not in (".", "..") and all(
-        character in "-_.'&()‐–" or character.isalnum() for character in page
+        character in "-_.'&()‐–" or is_dotnet_letter_or_digit(character) for character in page
     )
 
 
@@ -70,7 +76,7 @@ def game_link(target):
                 return "", 0
             if url.netloc.lower() == "store.steampowered.com":
                 steam_id = re.match(r"/app/([0-9]{1,10})(?:/|$)", url.path)
-                if steam_id and 0 < int(steam_id[1]) <= MAX_INTEGER:
+                if steam_id and 0 < int(steam_id[1]) <= MAX_STEAM_ID:
                     return "", int(steam_id[1])
             if url.netloc.lower() != "github.com" or not url.path.lower().startswith(WIKI_PATH):
                 return "", 0
@@ -87,7 +93,7 @@ def game_link(target):
 
 def title_key(title):
     title = unicodedata.normalize("NFKC", title.replace("™", "").replace("®", ""))
-    return "".join(character for character in title if character.isalnum()).upper()
+    return "".join(character for character in title if is_dotnet_letter_or_digit(character)).upper()
 
 
 def parse_entry(cells, section, line_number):
@@ -176,7 +182,7 @@ def parse_wiki(markdown):
 def validate_catalog(document):
     if (not isinstance(document, dict) or set(document) != {"schemaVersion", "version", "revision", "entries"}
             or type(document["schemaVersion"]) is not int or document["schemaVersion"] != 1
-            or type(document["version"]) is not int or not 1 <= document["version"] <= MAX_INTEGER
+            or type(document["version"]) is not int or not 1 <= document["version"] <= MAX_VERSION
             or not isinstance(document["revision"], str) or not REVISION.fullmatch(document["revision"])
             or not isinstance(document["entries"], list) or not 1 <= len(document["entries"]) <= 10_000):
         raise ValueError("Invalid catalog schema, version, revision, or entry count.")
@@ -186,7 +192,7 @@ def validate_catalog(document):
     for entry in document["entries"]:
         if (not isinstance(entry, dict) or set(entry) != ENTRY_KEYS
                 or entry["status"] not in ("Reported", "Notes")
-                or type(entry["steamId"]) is not int or not 0 <= entry["steamId"] <= MAX_INTEGER):
+                or type(entry["steamId"]) is not int or not 0 <= entry["steamId"] <= MAX_STEAM_ID):
             raise ValueError("Invalid catalog entry fields.")
         for field, limit in ENTRY_LENGTHS.items():
             value = entry[field]
@@ -224,7 +230,7 @@ def build_catalog(entries, revision, previous=None):
         if len(old_entries.keys() - new_entries.keys()) * 10 > len(old_entries):
             raise ValueError("Update removes more than 10% of the published game titles.")
         document["version"] = old_document["version"] + 1
-        if document["version"] > MAX_INTEGER:
+        if document["version"] > MAX_VERSION:
             raise ValueError("Catalog version is out of range.")
 
     lines = ",\n".join("    " + json.dumps(entry, ensure_ascii=False, separators=(",", ":")) for entry in entries)
