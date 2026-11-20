@@ -1,0 +1,87 @@
+name: Publish OptiScaler compatibility
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/optiscaler-catalog.yml'
+      - 'scripts/import_optiscaler_catalog.py'
+      - 'tests/test_import_optiscaler_catalog.py'
+      - 'tests/fixtures/optiscaler-compatibility.md'
+  schedule:
+    - cron: '37 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: optiscaler-catalog
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'H4RL33/lg_launcher' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the publisher
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test the importer
+        run: python3 -B -m unittest discover -s tests -p 'test_import_optiscaler_catalog.py'
+
+      - name: Read the official wiki and publish changes
+        shell: bash
+        run: |
+          set -eu
+          stage=$(mktemp -d "$RUNNER_TEMP/optiscaler-catalog.XXXXXX")
+          wiki="$stage/wiki"
+          publication="$stage/publication"
+          catalog_ref='refs/heads/compatibility-catalog'
+          catalog_name='optiscaler-v1.json'
+
+          git clone --depth=1 --quiet https://github.com/optiscaler/OptiScaler.wiki.git "$wiki"
+
+          previous=()
+          if git ls-remote --exit-code --heads origin "$catalog_ref" >/dev/null; then
+            git fetch --quiet --no-tags origin "$catalog_ref"
+            git worktree add --quiet --detach "$publication" FETCH_HEAD
+            if [[ ! -f "$publication/$catalog_name" || -L "$publication/$catalog_name" ]]; then
+              echo 'The publication branch has no valid previous catalog file.' >&2
+              exit 1
+            fi
+            previous=(--previous "$publication/$catalog_name")
+          else
+            if [[ $? != 2 ]]; then
+              echo 'Could not check the publication branch.' >&2
+              exit 1
+            fi
+            git worktree add --quiet --detach "$publication" HEAD
+            git -C "$publication" switch --quiet --orphan optiscaler-catalog-bootstrap
+          fi
+
+          python3 scripts/import_optiscaler_catalog.py \
+            --wiki-dir "$wiki" --output "$stage/$catalog_name" "${previous[@]}"
+          commit_options=()
+          if cmp --silent "$stage/$catalog_name" "$publication/$catalog_name"; then
+            latest_commit=$(git -C "$publication" log -1 --format=%ct)
+            now=$(date +%s)
+            if (( now - latest_commit < 30 * 86400 )); then
+              echo 'The published advisory entries are current.'
+              exit 0
+            fi
+            message='Keep OptiScaler compatibility publication active'
+            commit_options=(--allow-empty)
+          else
+            mv -- "$stage/$catalog_name" "$publication/$catalog_name"
+            git -C "$publication" add -- "$catalog_name"
+            message='Update OptiScaler compatibility catalog'
+          fi
+
+          git -C "$publication" -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit --quiet "${commit_options[@]}" -m "$message"
+          commit=$(git -C "$publication" rev-parse HEAD)
+          git push origin "$commit:$catalog_ref"
