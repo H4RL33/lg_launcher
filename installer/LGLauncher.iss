@@ -21,11 +21,11 @@ AppVersion={#ReleaseVersion}
 AppPublisher=LG Launcher
 AppPublisherURL=https://github.com/H4RL33/lg_launcher
 AppUpdatesURL=https://github.com/H4RL33/lg_launcher/releases/latest
-DefaultDirName={localappdata}\Programs\LG Launcher
+DefaultDirName={autopf}\{#InstallerGroup}
 DefaultGroupName={#InstallerGroup}
 DisableProgramGroupPage=yes
 DisableWelcomePage=no
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
@@ -45,18 +45,24 @@ Name: desktopicon; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Files]
 #if ReleaseVersion == "0.1.6"
-; Replace the private launcher executable when migrating from the old 1.x numbering.
+; Replace the launcher executable when migrating from the old 1.x numbering.
 Source: "{#LauncherBinary}"; DestDir: "{app}"; DestName: "LG-Launcher.exe"; Flags: ignoreversion
 #else
 Source: "{#LauncherBinary}"; DestDir: "{app}"; DestName: "LG-Launcher.exe"
 #endif
+
+[INI]
+Filename: "{app}\LG-Launcher.install.ini"; Section: "Installation"; Key: "Scope"; String: "Machine"
 
 [Icons]
 Name: "{group}\LG Launcher"; Filename: "{app}\LG-Launcher.exe"; WorkingDir: "{app}"
 Name: "{autodesktop}\LG Launcher"; Filename: "{app}\LG-Launcher.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\LG-Launcher.exe"; Description: "Launch LG Launcher"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\LG-Launcher.exe"; Description: "Launch LG Launcher"; Flags: nowait postinstall runasoriginaluser skipifsilent
+
+[UninstallDelete]
+Type: files; Name: "{app}\LG-Launcher.install.ini"
 
 [Code]
 function HasDotNet10(const Root: String): Boolean;
