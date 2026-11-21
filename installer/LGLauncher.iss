@@ -14,6 +14,10 @@
   #define InstallerGroup "LG Launcher"
 #endif
 
+#ifndef InstallerAppMutex
+  #define InstallerAppMutex "Local\LGLauncher.Desktop"
+#endif
+
 [Setup]
 AppId={#InstallerAppId}
 AppName=LG Launcher
@@ -21,15 +25,15 @@ AppVersion={#ReleaseVersion}
 AppPublisher=LG Launcher
 AppPublisherURL=https://github.com/H4RL33/lg_launcher
 AppUpdatesURL=https://github.com/H4RL33/lg_launcher/releases/latest
-DefaultDirName={autopf}\{#InstallerGroup}
+DefaultDirName={localappdata}\Programs\{#InstallerGroup}
 DefaultGroupName={#InstallerGroup}
 DisableProgramGroupPage=yes
 DisableWelcomePage=no
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
-AppMutex=Local\LGLauncher.Desktop
+AppMutex={#InstallerAppMutex}
 CloseApplications=yes
 RestartApplications=no
 SetupIconFile=..\assets\launcher.ico
@@ -52,14 +56,14 @@ Source: "{#LauncherBinary}"; DestDir: "{app}"; DestName: "LG-Launcher.exe"
 #endif
 
 [INI]
-Filename: "{app}\LG-Launcher.install.ini"; Section: "Installation"; Key: "Scope"; String: "Machine"
+Filename: "{app}\LG-Launcher.install.ini"; Section: "Installation"; Key: "Scope"; String: "User"
 
 [Icons]
 Name: "{group}\LG Launcher"; Filename: "{app}\LG-Launcher.exe"; WorkingDir: "{app}"
 Name: "{autodesktop}\LG Launcher"; Filename: "{app}\LG-Launcher.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\LG-Launcher.exe"; Description: "Launch LG Launcher"; Flags: nowait postinstall runasoriginaluser skipifsilent
+Filename: "{app}\LG-Launcher.exe"; Description: "Launch LG Launcher"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: files; Name: "{app}\LG-Launcher.install.ini"

@@ -2,11 +2,13 @@
 
 Download the Windows setup executable or the portable `LG-Launcher.exe` from the [latest stable release](https://github.com/H4RL33/lg_launcher/releases/latest). The Windows build requires the x64 .NET 10 Runtime.
 
+Windows Setup installs for the current account under `%LOCALAPPDATA%\Programs\LG Launcher`. It supports **Install update** and optional automatic updates without administrator approval. The release notes explain how to switch from the earlier machine-wide installation and keep your library and settings.
+
 LG Launcher checks this repository's public [latest release endpoint](https://api.github.com/repos/H4RL33/lg_launcher/releases/latest) when it starts.
 
 ## Publishing
 
-Build and verify the executable in the launcher workspace. Commit it as `LG-Launcher.exe` with a GNU-format SHA-256 checksum named `LG-Launcher.exe.sha256` and `RELEASE-NOTES.md` on the `release-assets/vX.Y.Z` staging branch. Push that branch before pushing the matching `vX.Y.Z` tag from `main`. The Windows release workflow verifies the portable executable, builds and smoke-tests `LG-Launcher-Setup-X.Y.Z.exe` from it, and uploads the portable executable, its checksum, and setup to a draft before publishing.
+Build and verify the executable in the launcher workspace. Commit it as `LG-Launcher.exe` with a GNU-format SHA-256 checksum named `LG-Launcher.exe.sha256` and `RELEASE-NOTES.md` on the `release-assets/vX.Y.Z` staging branch. Push that branch before pushing the matching `vX.Y.Z` tag from `main`. The Windows release workflow verifies the portable executable, builds and smoke-tests the per-user `LG-Launcher-Setup-X.Y.Z.exe` from it, and uploads the portable executable, its checksum, and setup to a draft before publishing.
 
 After publishing, the workflow checks all three public downloads and deletes the staging branch if it still points to the commit it verified. If the release is already published and the staging branch is still present, a retry checks the existing downloads before attempting cleanup again.
 
