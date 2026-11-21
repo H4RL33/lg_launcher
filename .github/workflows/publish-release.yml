@@ -24,13 +24,15 @@ jobs:
           if ($tag -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Expected a stable vX.Y.Z tag.' }
           $version = $tag.Substring(1)
           $repository = "https://github.com/$env:GITHUB_REPOSITORY.git"
+          $assetRef = "refs/heads/release-assets/$tag"
           git init --quiet
           git fetch --quiet --no-tags --depth=1 $repository $env:GITHUB_REF
           git checkout --quiet --detach FETCH_HEAD
-          git fetch --quiet --no-tags --depth=1 $repository "refs/heads/release-assets/$tag"
+          git fetch --quiet --no-tags --depth=1 $repository $assetRef
+          $assetCommit = git rev-parse --verify FETCH_HEAD
           $stage = (New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP 'release-assets')).FullName
           $archive = Join-Path $env:RUNNER_TEMP 'release-assets.tar'
-          git archive "--output=$archive" FETCH_HEAD -- LG-Launcher.exe LG-Launcher.exe.sha256 RELEASE-NOTES.md
+          git archive "--output=$archive" $assetCommit -- LG-Launcher.exe LG-Launcher.exe.sha256 RELEASE-NOTES.md
           tar.exe -xf $archive -C $stage
           $portable = Get-Item -LiteralPath (Join-Path $stage 'LG-Launcher.exe')
           $checksum = (Get-Content -Raw -LiteralPath (Join-Path $stage 'LG-Launcher.exe.sha256')).Trim()
@@ -41,7 +43,8 @@ jobs:
           if ($portable.VersionInfo.ProductVersion -ne $version) {
             throw "The staged portable version does not match $tag."
           }
-          @("RELEASE_TAG=$tag", "RELEASE_VERSION=$version", "RELEASE_STAGE=$stage") >> $env:GITHUB_ENV
+          @("RELEASE_TAG=$tag", "RELEASE_VERSION=$version", "RELEASE_STAGE=$stage",
+            "RELEASE_ASSET_REF=$assetRef", "RELEASE_ASSET_COMMIT=$assetCommit") >> $env:GITHUB_ENV
 
       - name: Build and smoke-test the Windows installer
         shell: pwsh
@@ -63,12 +66,47 @@ jobs:
           $draft = gh release view $env:RELEASE_TAG --json isDraft --jq .isDraft 2>$null
           $found = $LASTEXITCODE -eq 0
           $PSNativeCommandUseErrorActionPreference = $true
-          if ($found) {
-            if ($draft -cne 'true') { throw 'This release is already published.' }
-          } else {
-            gh release create $env:RELEASE_TAG --verify-tag --draft --title "LG Launcher $env:RELEASE_VERSION" `
-              --notes-file (Join-Path $env:RELEASE_STAGE 'RELEASE-NOTES.md')
+          $alreadyPublished = $found -and $draft -cne 'true'
+          $portable = Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe'
+          $checksum = Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe.sha256'
+          $notes = Join-Path $env:RELEASE_STAGE 'RELEASE-NOTES.md'
+          $downloads = @($portable, $checksum, $env:RELEASE_SETUP)
+          if (!$alreadyPublished) {
+            if (!$found) {
+              gh release create $env:RELEASE_TAG --verify-tag --draft --title "LG Launcher $env:RELEASE_VERSION" `
+                --notes-file $notes
+            }
+            gh release upload $env:RELEASE_TAG --clobber @downloads
+            gh release edit $env:RELEASE_TAG --notes-file $notes --draft=false --latest
           }
-          gh release upload $env:RELEASE_TAG --clobber (Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe') `
-            (Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe.sha256') $env:RELEASE_SETUP
-          gh release edit $env:RELEASE_TAG --draft=false --latest
+
+          $release = gh api "repos/$env:GH_REPO/releases/tags/$env:RELEASE_TAG" | ConvertFrom-Json
+          if ($release.tag_name -cne $env:RELEASE_TAG -or $release.draft -ne $false -or $release.prerelease -ne $false) {
+            throw "Expected a published stable release for $env:RELEASE_TAG."
+          }
+          $stagedNotes = [string](Get-Content -LiteralPath $notes -Raw)
+          $publishedNotes = [string]$release.body
+          if ($stagedNotes.Replace("`r`n", "`n").TrimEnd("`n") -cne $publishedNotes.Replace("`r`n", "`n").TrimEnd("`n")) {
+            throw "Published release notes do not match $notes."
+          }
+          foreach ($file in $downloads) {
+            $name = Split-Path -Leaf $file
+            $asset = $release.assets | Where-Object name -CEQ $name
+            if (!$asset -or $asset.state -cne 'uploaded' -or $asset.size -le 0 -or
+                $asset.digest -cnotmatch '^sha256:[0-9a-f]{64}$') {
+              throw "Missing or incomplete release download: $name"
+            }
+            # A retry builds a new installer, which can differ from the one already published.
+            if (!$alreadyPublished -or $file -cne $env:RELEASE_SETUP) {
+              $sha256 = (Get-FileHash -LiteralPath $file).Hash.ToLowerInvariant()
+              if ($asset.digest -cne "sha256:$sha256") { throw "Published checksum mismatch: $name" }
+            }
+            $url = "$env:GITHUB_SERVER_URL/$env:GH_REPO/releases/download/$env:RELEASE_TAG/$name"
+            if ($asset.browser_download_url -cne $url) { throw "Unexpected download URL for $name." }
+            $response = Invoke-WebRequest -Uri $url -Method Head -MaximumRetryCount 3 -RetryIntervalSec 2 -TimeoutSec 30
+            if ($response.StatusCode -ne 200) { throw "Release download is unavailable: $name" }
+          }
+
+          gh auth setup-git --hostname github.com
+          $lease = "--force-with-lease=$($env:RELEASE_ASSET_REF):$env:RELEASE_ASSET_COMMIT"
+          git push $lease "$env:GITHUB_SERVER_URL/$env:GH_REPO.git" ":$env:RELEASE_ASSET_REF"
