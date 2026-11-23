@@ -23,6 +23,7 @@ internal static class ModVerification
             VerifyManagedSpoofing(root).GetAwaiter().GetResult();
             VerifyPlanning(root).GetAwaiter().GetResult();
             VerifyCompatibilityCatalog(root).GetAwaiter().GetResult();
+            VerifyRenoDx(root).GetAwaiter().GetResult();
             if (archives != null) VerifyOfficialArchives(root, archives).GetAwaiter().GetResult();
             File.WriteAllText(report, "Mod fixtures passed.");
             return 0;
@@ -149,7 +150,7 @@ internal static class ModVerification
             Files = new Dictionary<string, string> { [ModPackageStore.ReShadeModule] = ModPackageStore.StandardReShadeModuleDigest }
         }));
         Require(store.List(ModProviderId.ReShade).Single().Key == oldKey, "The standard ReShade fixture cache was not recognized.");
-        foreach (var provider in Enum.GetValues<ModProviderId>())
+        foreach (var provider in ModPackageStore.FixedPackageProviders)
         {
             var descriptor = ModPackageStore.Approved(provider);
             Require((await store.CheckAsync(provider, CancellationToken.None)).Status == $"version {descriptor.Key.Version} available",
@@ -168,6 +169,7 @@ internal static class ModVerification
             "The older standard cache prevented downloading the full add-on package.");
         await VerifyReShadeStandalone(root, store);
         await VerifyReShadeVulkan(root, store, standard);
+        await VerifyStandaloneReFramework(root, store);
         var gameRoot = Path.Combine(root, "stack-fixture");
         var executable = Path.Combine(gameRoot, "Project", "Binaries", "Win64", "Project-Win64-Shipping.exe");
         var launcher = Path.Combine(gameRoot, "Project.exe");
@@ -182,7 +184,7 @@ internal static class ModVerification
         var specialK = ModPackageStore.Approved(ModProviderId.SpecialK).Key;
         var recipe = new ModRecipe(42, ["Project.exe"], target.Executable, target.Build, opti.Version, opti.Digest, "dxgi.dll",
             [new(re.Provider, re.Version, re.Digest, "dinput8.dll"), new(specialK.Provider, specialK.Version, specialK.Digest, "plugins/dxgi.dll")],
-            [], [], true);
+            [], true);
         var catalog = new ModCompatibility([], [recipe]);
         var planner = new ModInstallPlanner(catalog, store);
         var request = new ModSetupRequest(game, gameRoot, executable, "", true, true);
@@ -207,7 +209,7 @@ internal static class ModVerification
         await File.WriteAllTextAsync(Path.Combine(reShade.ContentDirectory, ModPackageStore.ReShadeModule), "Changed cache");
         await Reject(() => planner.PreviewReShadeAsync(game, gameRoot, executable, ModReShadeApi.Dxgi, true,
             service.FindForGame(launcher).Single(), CancellationToken.None));
-        foreach (var provider in Enum.GetValues<ModProviderId>())
+        foreach (var provider in ModPackageStore.FixedPackageProviders)
             await store.DeleteAsync(ModPackageStore.Approved(provider).Key, CancellationToken.None);
         await service.UninstallAsync(record.Id, archiveEditedConfiguration: false, CancellationToken.None);
         Require(Directory.GetFileSystemEntries(folder).SequenceEqual(new[] { executable }), "Uninstall left owned stack files or directories behind.");
@@ -223,26 +225,56 @@ internal static class ModVerification
         var service = new ModTransactions(root);
         var loader = Path.Combine(folder, "dxgi.dll");
         var preset = Path.Combine(folder, "ReShadePreset.ini");
-        File.WriteAllText(loader, "Occupied proxy");
+        File.WriteAllText(loader, "Original game library");
         File.WriteAllText(preset, "Personal preset");
-        Require((await Preview(ModReShadeApi.Dxgi)).Plan == null && File.ReadAllText(loader) == "Occupied proxy",
-            "Standalone ReShade could overwrite an existing DXGI loader.");
-        File.Delete(loader);
         foreach (var (api, name) in new[] { (ModReShadeApi.Dxgi, "dxgi.dll"), (ModReShadeApi.Direct3D9, "d3d9.dll"),
             (ModReShadeApi.OpenGl, "opengl32.dll") })
         {
             var plan = (await Preview(api)).Plan ?? throw new InvalidOperationException("ReShade preview failed.");
-            Require(plan.Changes.Single().Relative == name, "The ReShade preview used the wrong graphics API loader.");
+            var change = plan.Changes.Single();
+            Require(change.Relative == name && (change.ExpectedHash != null) == (api == ModReShadeApi.Dxgi),
+                "The ReShade preview used the wrong loader or missed the existing game library.");
             Require((await service.InstallAsync(plan, CancellationToken.None)).Message == "ReShade installed.",
                 "The standalone ReShade transaction did not report its provider.");
             var record = service.FindForGame(executable).Single();
             Require(record.Files.Single().DeployedHash == ModPackageStore.ReShadeModuleDigest, "The ReShade payload did not match upstream.");
             await service.UninstallAsync(record.Id, false, CancellationToken.None, ModProviderId.ReShade);
-            Require(!File.Exists(Path.Combine(folder, name)) && File.ReadAllText(preset) == "Personal preset" &&
+            var restored = api == ModReShadeApi.Dxgi ? File.ReadAllText(loader) == "Original game library" :
+                !File.Exists(Path.Combine(folder, name));
+            Require(restored && File.ReadAllText(preset) == "Personal preset" &&
                 service.FindForGame(executable).Count == 0, "Standalone uninstall changed the user's preset or left a managed loader.");
         }
 
         Task<ModPlanPreview> Preview(ModReShadeApi api) => planner.PreviewReShadeAsync(game, folder, executable, api, true, null, CancellationToken.None);
+    }
+
+    private static async Task VerifyStandaloneReFramework(string root, ModPackageStore store)
+    {
+        var token = CancellationToken.None;
+        var folder = Directory.CreateDirectory(Path.Combine(root, "standalone-reframework")).FullName;
+        var executable = Path.Combine(folder, "re9.exe");
+        File.Copy(Path.Combine(Environment.SystemDirectory, "cmd.exe"), executable);
+        var game = new Game { Title = "Resident Evil Requiem", Path = executable, SteamId = 3764200 };
+        var loader = Path.Combine(folder, "dinput8.dll");
+        var optiLoader = Path.Combine(folder, "dxgi.dll");
+        File.WriteAllText(loader, "original dinput8");
+        File.WriteAllText(optiLoader, "original dxgi");
+        var service = new ModTransactions(root);
+        var planner = new ModInstallPlanner(ModCompatibility.Load(), store);
+        var request = new ModSetupRequest(game, folder, executable, "dxgi.dll", false, true);
+        Require((await planner.PreviewAsync(request, token)).Plan == null, "OptiScaler ignored the game's REFramework requirement.");
+        var standalone = await planner.PreviewAddonAsync(game, folder, executable, true, null,
+            ModPackageStore.Approved(ModProviderId.ReFramework), null, token);
+        await service.InstallAsync(standalone.Plan ?? throw new InvalidOperationException(standalone.Message), token);
+        var existing = service.FindForGame(executable).Single();
+        var opti = await planner.PreviewAsync(request with { Existing = existing }, token);
+        await service.InstallAsync(opti.Plan ?? throw new InvalidOperationException(opti.Message), token);
+        var stack = service.FindForGame(executable).Single();
+        Require(stack.Id == existing.Id && stack.InstalledDependentsOf(ModProviderId.ReFramework).SequenceEqual([ModProviderId.OptiScaler]),
+            "OptiScaler did not attach its dependency to the standalone installation.");
+        await service.UninstallAsync(stack.Id, false, token);
+        Require(File.ReadAllText(loader) == "original dinput8" && File.ReadAllText(optiLoader) == "original dxgi",
+            "Adding a second mod did not preserve both original backups.");
     }
 
     private static async Task VerifyReShadeCoexistence(string root, Game game, ModInstallPlanner planner, ModTransactions service,
@@ -712,6 +744,9 @@ internal static class ModVerification
         game.Title = "Resident Evil 4 (2023)";
         game.SteamId = 0;
         Require(catalog.Assess(game).Status == ModCompatibilityStatus.Dependency, "A third-party dependency was missed.");
+        Require(ModCompatibility.OptiScalerRequirements(catalog.Advisory(game), null)
+            .Any(requirement => requirement.Required == ModProviderId.ReFramework && requirement.Variant == "pd-upscaler"),
+            "The compatibility entry lost the required REFramework variant.");
         game.Title = "EA Sports WRC";
         Require(catalog.Assess(game).Status == ModCompatibilityStatus.Blocked, "An unsupported game was missed.");
         game.Title = "EA SPORTS™ WRC";
@@ -724,6 +759,144 @@ internal static class ModVerification
         Require(preview.Plan == null && preview.Missing.Length == 0, "A game without an exact recipe offered verified setup.");
         preview = await planner.PreviewAsync(new(game, target.Root, target.ExePath, "dxgi.dll", false, true), CancellationToken.None);
         Require(preview.Plan == null && preview.Missing.SequenceEqual(new[] { ModProviderId.OptiScaler }), "Guided setup did not request the approved master package.");
+
+        var profile = Path.Combine(root, "guided-replacement");
+        var approved = ModPackageStore.Approved(ModProviderId.OptiScaler);
+        var cache = Path.Combine(profile, "mods", "packages", approved.Key.StoreId);
+        var hashes = new Dictionary<string, string>();
+        foreach (var member in approved.Files)
+        {
+            var bytes = member == "OptiScaler.ini" ? "[Spoofing]\nDxgi=auto\n"u8.ToArray() : "fixture payload"u8.ToArray();
+            var path = ModPaths.Within(Path.Combine(cache, "files"), member);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, bytes);
+            hashes.Add(member, ModFileSnapshot.For(bytes).Hash);
+        }
+        ModInstallState.Write(Path.Combine(cache, "package.json"), new { approved.Key, Files = hashes });
+        var replacementRoot = Directory.CreateDirectory(Path.Combine(profile, "game")).FullName;
+        var replacementExe = Path.Combine(replacementRoot, "game.exe");
+        File.Copy(executable, replacementExe);
+        game.Path = replacementExe;
+        var original = Path.Combine(replacementRoot, "libxess.dll");
+        var config = Path.Combine(replacementRoot, "OptiScaler.ini");
+        File.WriteAllText(original, "original game library");
+        File.WriteAllText(config, "original game configuration");
+        var before = ModFileSnapshot.Read(original);
+        var replacementPlanner = new ModInstallPlanner(catalog, new(profile));
+        var request = new ModSetupRequest(game, replacementRoot, replacementExe, "dxgi.dll", false, true);
+        preview = await replacementPlanner.PreviewAsync(request, CancellationToken.None);
+        var plan = preview.Plan ?? throw new InvalidOperationException(preview.Message);
+        Require(plan.Changes.Single(change => change.Relative == "libxess.dll").ExpectedHash == before?.Hash,
+            "The original library did not appear as a replacement.");
+        var service = new ModTransactions(profile);
+        File.WriteAllText(original, "changed since preview");
+        await Reject(() => service.InstallAsync(plan, CancellationToken.None));
+        File.WriteAllText(original, "original game library");
+        await service.InstallAsync(plan, CancellationToken.None);
+        Require(File.ReadAllText(original) == "fixture payload", "The game library was not replaced.");
+        var installation = service.FindForGame(replacementExe).Single();
+        File.Delete(original);
+        File.AppendAllText(config, "; fixture settings edit");
+        await service.UninstallAsync(installation.Id, true, CancellationToken.None);
+        Require(ModFileSnapshot.Read(original)?.Hash == before?.Hash, "Uninstall did not restore the missing original game library.");
+        var archived = Path.Combine(profile, "mods", "installations", installation.Id.ToString("N"), "saved-configuration");
+        Require(File.ReadAllText(config) == "original game configuration" &&
+            File.ReadAllText(Directory.GetFiles(archived, "OptiScaler.ini", SearchOption.AllDirectories).Single()).Contains("fixture settings edit", StringComparison.Ordinal),
+            "Uninstall did not restore the original configuration and save the edited mod settings.");
+    }
+
+    internal static (byte[] Index, byte[] Release) RenoDxFixture(string title, int appId, byte[] binary)
+    {
+        var filenames = new[] { "renodx-fixture-hdr.addon64", "renodx-fixture-sdr.addon64" };
+        var index = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            games = new[]
+            {
+                new
+                {
+                    title, steam_appid = appId, aliases = new[] { "RenoDX fixture alias" },
+                    mods = filenames.Select((name, number) => new
+                    {
+                        title = "Fixture", variant = number == 0 ? "HDR" : "SDR", category = "game", status = "stable",
+                        deploy = new { api = "d3d12" },
+                        artifacts = new[] { new { name, arch = "x64", size = binary.Length, url = $"./{name}" } }
+                    })
+                }
+            }
+        });
+        var release = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            tag_name = "snapshot",
+            assets = filenames.Select(name => Asset(name, binary)).Prepend(Asset("games-index.json", index))
+        });
+        return (index, release);
+
+        static object Asset(string name, byte[] bytes) => new
+        {
+            name, size = bytes.Length, digest = "sha256:" + ModFileSnapshot.For(bytes).Hash,
+            browser_download_url = new Uri(ModRenoDxCatalog.ReleaseFiles, name).AbsoluteUri, updated_at = "2026-11-12T04:58:28Z"
+        };
+    }
+
+    private static async Task VerifyRenoDx(string root)
+    {
+        var token = CancellationToken.None;
+        var profile = Path.Combine(root, "renodx-fixture");
+        var binary = File.ReadAllBytes(Path.Combine(Environment.SystemDirectory, "version.dll"));
+        var (index, release) = RenoDxFixture("RenoDX fixture", 1675830, binary);
+        var catalog = new ModRenoDxCatalog(profile);
+        using var http = new HttpClient(new ResponseHandler(request =>
+        {
+            if (request.RequestUri == ModRenoDxCatalog.Source) return new(HttpStatusCode.OK) { Content = new ByteArrayContent(index) };
+            if (request.RequestUri == ModRenoDxCatalog.Release) return new(HttpStatusCode.OK) { Content = new ByteArrayContent(release) };
+            Require(request.RequestUri == new Uri(ModRenoDxCatalog.ReleaseFiles, "renodx-fixture-hdr.addon64"),
+                "The add-on did not download from the official snapshot.");
+            return new(HttpStatusCode.OK) { Content = new ByteArrayContent(binary) };
+        }));
+        Require(await catalog.RefreshAsync(token, http), "The RenoDX catalog did not accept the matching official index and release.");
+        var game = new Game { Title = "Different library title", SteamId = 1675830 };
+        var option = catalog.Find(game)?.Options.FirstOrDefault() ?? throw new InvalidOperationException("The RenoDX Steam match was missed.");
+        index = "{}"u8.ToArray();
+        Require(!await catalog.RefreshAsync(token, http) && catalog.Find(game)?.Options.Length == 2,
+            "A mismatched RenoDX index replaced the verified one.");
+        var alias = new Game { Title = "RenoDX fixture alias" };
+        Require(new ModRenoDxCatalog(profile).Find(alias)?.Options.Length == 2 &&
+            catalog.Find(new Game { Title = alias.Title, SteamId = 1 }) == null, "RenoDX offline matching returned an incorrect title or Steam ID.");
+
+        var folder = Directory.CreateDirectory(Path.Combine(profile, "game")).FullName;
+        var exe = Path.Combine(folder, "game.exe");
+        File.Copy(Path.Combine(Environment.SystemDirectory, "cmd.exe"), exe);
+        game.Path = exe;
+        var store = new ModPackageStore(profile, http);
+        var planner = new ModInstallPlanner(new ModCompatibility([], []), store);
+        var target = GameInstallTarget.Capture(folder, exe);
+        var service = new ModTransactions(profile);
+        var reShade = ModPackageStore.Approved(ModProviderId.ReShade).Key;
+        Require((await Preview(null)).Missing.Length == 0, "RenoDX offered a download without full add-on ReShade.");
+        var limited = new ModInstallationRecord(Guid.NewGuid(), target, [reShade with { Variant = "standard x64" }],
+            [new("dxgi.dll", "", ModProviderId.ReShade, null, null)], []);
+        Require((await Preview(limited)).Missing.Length == 0, "Standard ReShade satisfied the RenoDX requirement.");
+        await service.InstallAsync(new(target, [new("dxgi.dll", null, "fixture ReShade"u8.ToArray(), reShade.Provider)], [reShade]), token);
+        var existing = service.FindInstallations().Single();
+        Require((await Preview(existing)).Missing.SequenceEqual([ModProviderId.RenoDx]), "RenoDX did not offer to download its matched add-on.");
+        await store.AcquireAsync(option.Package, token);
+        var addon = Path.Combine(folder, option.File);
+        File.WriteAllText(addon, "original game add-on");
+        var preview = await Preview(existing);
+        var plan = preview.Plan ?? throw new InvalidOperationException(preview.Message);
+        File.WriteAllText(Path.Combine(folder, "dxgi.dll"), "changed after preview");
+        await Reject(() => service.InstallAsync(plan, token));
+        File.WriteAllText(Path.Combine(folder, "dxgi.dll"), "fixture ReShade");
+        await service.InstallAsync(plan, token);
+        existing = service.FindInstallations().Single();
+        Require(existing.InstalledDependentsOf(ModProviderId.ReShade).SequenceEqual([ModProviderId.RenoDx]) &&
+            ModFileSnapshot.Read(addon)?.Hash == option.Digest, "RenoDX deployment did not retain its ReShade dependency.");
+        await service.UninstallAsync(existing.Id, false, token, ModProviderId.RenoDx);
+        Require(File.ReadAllText(addon) == "original game add-on" && service.FindInstallations().Single().Files.Single().Owner == ModProviderId.ReShade,
+            "Removing RenoDX did not restore its original and preserve the ReShade installation.");
+
+        Task<ModPlanPreview> Preview(ModInstallationRecord? record) =>
+            planner.PreviewAddonAsync(game, folder, exe, true, record, option.Package, option, token);
     }
 
     private static byte[] Zip(params (string Name, string Value)[] entries)

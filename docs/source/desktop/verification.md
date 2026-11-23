@@ -35,6 +35,8 @@ The Mods fixture verifies the warning count, intermediate clipping during reveal
 
 The ReShade cache fixture seeds three downloads, including two variants of the same version. It checks and captures the single trash action and its shared version menu at 730, 1230, and 1600 pixels wide. It also checks confirmation, cancellation, and that deleting one download keeps the other versions and variants.
 
+The Mods fixture checks standalone REFramework setup, OptiScaler and RenoDX prerequisite warnings, and RenoDX’s full add-on ReShade requirement. It compares the available-mod names and order in Settings and the game list and checks that legacy Special K still opens its manager. It verifies that RenoDX’s Settings action opens the game-specific Info dialog and that the row has no global download action. It checks the per-mod Lucide symbols and captures both lists, the Info dialog, the warning panel, and the animated OptiScaler DLL and RenoDX add-on pickers at 730, 1230, and 1600 pixels wide. It verifies that the selected DLL reaches the install preview and that the add-on picker applies a selected variant.
+
 The ReShade dialog fixture checks the Settings entry, rendering executable, shared graphics API picker, Vulkan guidance, preview action, and return to the game Mods list. It also checks the full add-on upgrade action and confirmation. With `-Archives`, the package fixture verifies both official ReShade editions and checks registration, reuse, upgrade, removal, and coexistence using an isolated registry substitute.
 
 The ReShade coexistence preview fixture checks and captures the blue **Modified** row for an edited `OptiScaler.ini` beside the green **Add** row for the ReShade DLL at 730, 1230, and 1600 pixels wide.

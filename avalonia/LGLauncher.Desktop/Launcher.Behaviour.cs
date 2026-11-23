@@ -16,7 +16,10 @@ internal sealed partial class Launcher
 
     private Control SettingsRow(string title, string icon, Page page) => SettingsRow(title, icon, () => Navigate(page));
 
-    private Button SettingsRow(string title, string icon, Action open, TextBlock? description = null)
+    private Button SettingsRow(string title, string icon, Action open, TextBlock? description = null) =>
+        SettingsRow(title, Symbol(icon, 19), open, description);
+
+    private Button SettingsRow(string title, SymbolIcon icon, Action open, TextBlock? description = null)
     {
         var arrow = Symbol("LG.Icon.Chevron");
         Control text = description == null ? Label(title) : new StackPanel { Spacing = 2, Children = { Label(title), description } };
@@ -25,7 +28,7 @@ internal sealed partial class Launcher
         {
             ColumnDefinitions = ColumnDefinitions.Parse("22,*,18"),
             ColumnSpacing = 11,
-            Children = { Symbol(icon, 19), text, arrow }
+            Children = { icon, text, arrow }
         };
         Grid.SetColumn(text, 1);
         Grid.SetColumn(arrow, 2);

@@ -372,7 +372,7 @@
     {"title":"MINOS Demo","steamId":0,"status":"Reported","page":"","inputs":"DLSS, XeSS","note":""},
     {"title":"MONGIL: STAR DIVE","steamId":0,"status":"Reported","page":"","inputs":"DLSS, FSR3.1, XeSS","note":""},
     {"title":"Monster Hunter Rise","steamId":0,"status":"Reported","page":"Monster-Hunter-Rise","inputs":"DLSS","note":""},
-    {"title":"Monster Hunter Stories 3: Twisted Reflection","steamId":0,"status":"Reported","page":"Monster-Hunter-Stories-3-Twisted-Reflection","inputs":"DLSS, FSR3.1","note":""},
+    {"title":"Monster Hunter Stories 3: Twisted Reflection","steamId":2852190,"status":"Dependency","page":"Monster-Hunter-Stories-3-Twisted-Reflection","inputs":"DLSS, FSR3.1","note":"Requires REFramework."},
     {"title":"Monster Hunter Wilds","steamId":2246340,"status":"Dependency","page":"Monster-Hunter-Wilds","inputs":"DLSS, FSR3.1/4, XeSS","note":"The wiki specifies REFramework and game-specific configuration. Review the documented options before installing."},
     {"title":"Morbid Metal","steamId":0,"status":"Reported","page":"","inputs":"DLSS","note":""},
     {"title":"Moroi","steamId":0,"status":"Reported","page":"","inputs":"DLSS","note":""},
@@ -453,7 +453,7 @@
     {"title":"Redout 2","steamId":0,"status":"Reported","page":"Redout-2","inputs":"XeSS","note":""},
     {"title":"Remnant II","steamId":0,"status":"Reported","page":"","inputs":"DLSS, FSR3, XeSS","note":""},
     {"title":"Remothered: Red Nun's Legacy","steamId":0,"status":"Reported","page":"","inputs":"DLSS, FSR3.1/4","note":""},
-    {"title":"Resident Evil 9 Requiem","steamId":0,"status":"Dependency","page":"Resident-Evil-9-Requiem","inputs":"DLSS, FSR3.1/4","note":""},
+    {"title":"Resident Evil 9 Requiem","steamId":3764200,"status":"Dependency","page":"Resident-Evil-9-Requiem","inputs":"DLSS, FSR3.1/4","note":"Requires REFramework.","aliases":["Resident Evil Requiem"]},
     {"title":"Returnal","steamId":0,"status":"Reported","page":"Returnal","inputs":"DLSS, XeSS","note":""},
     {"title":"Revenge of the Savage Planet","steamId":0,"status":"Reported","page":"Revenge-of-the-Savage-Planet","inputs":"DLSS, FSR3.1, XeSS","note":""},
     {"title":"Ripout","steamId":0,"status":"Reported","page":"","inputs":"DLSS","note":""},
@@ -686,11 +686,11 @@
     {"title":"Persona 5 Royal","steamId":0,"status":"Dependency","page":"Persona-5-Royal","inputs":"DLSS","note":""},
     {"title":"Prey (2017)","steamId":0,"status":"Dependency","page":"Prey-Luma-Remastered-mod","inputs":"DLSS","note":""},
     {"title":"Quantum Break","steamId":0,"status":"Dependency","page":"Quantum-Break","inputs":"DLSS","note":""},
-    {"title":"Resident Evil 2 (2019)","steamId":0,"status":"Dependency","page":"Resident-Evil-2-(2019)","inputs":"DLSS, XeSS","note":""},
-    {"title":"Resident Evil 3 (2020)","steamId":0,"status":"Dependency","page":"Resident-Evil-3-(2020)","inputs":"DLSS, XeSS","note":""},
+    {"title":"Resident Evil 2 (2019)","steamId":883710,"status":"Dependency","page":"Resident-Evil-2-(2019)","inputs":"DLSS, XeSS","note":"","aliases":["Resident Evil 2"]},
+    {"title":"Resident Evil 3 (2020)","steamId":952060,"status":"Dependency","page":"Resident-Evil-3-(2020)","inputs":"DLSS, XeSS","note":"","aliases":["Resident Evil 3"]},
     {"title":"Resident Evil 4 (2023)","steamId":2050650,"status":"Dependency","page":"Resident-Evil-4-(2023)","inputs":"DLSS, XeSS","note":"Requires the pd-upscaler variant of REFramework and a compatible UpscalerBasePlugin."},
-    {"title":"Resident Evil 7 Biohazard","steamId":0,"status":"Dependency","page":"Resident-Evil-7-Biohazard","inputs":"DLSS, XeSS","note":""},
-    {"title":"Resident Evil 8 Village","steamId":0,"status":"Dependency","page":"Resident-Evil-8-Village","inputs":"DLSS, XeSS","note":""},
+    {"title":"Resident Evil 7 Biohazard","steamId":418370,"status":"Dependency","page":"Resident-Evil-7-Biohazard","inputs":"DLSS, XeSS","note":""},
+    {"title":"Resident Evil 8 Village","steamId":1196590,"status":"Dependency","page":"Resident-Evil-8-Village","inputs":"DLSS, XeSS","note":"","aliases":["Resident Evil Village"]},
     {"title":"Sekiro: Shadows Die Twice","steamId":0,"status":"Dependency","page":"SekiroTSR","inputs":"DLSS","note":""},
     {"title":"Tom Clancy's Ghost Recon Wildlands","steamId":0,"status":"Dependency","page":"Tom-Clancys-Ghost-Recon-Wildlands","inputs":"DLSS","note":""},
     {"title":"Total War: WARHAMMER III","steamId":0,"status":"Dependency","page":"Total-War-WARHAMMER-III","inputs":"DLSS","note":""},
@@ -739,7 +739,6 @@
           "destination": "dinput8.dll"
         }
       ],
-      "originalHashes": {},
       "omit": ["amd_fidelityfx_upscaler_dx12.dll", "amd_fidelityfx_framegeneration_dx12.dll", "libxell.dll", "libxess.dll", "libxess_dx11.dll", "libxess_fg.dll"],
       "disableDxgiSpoofing": true
     }

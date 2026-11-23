@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace LGLauncher;
 
-internal enum ModProviderId { OptiScaler, ReFramework, SpecialK, ReShade }
+internal enum ModProviderId { OptiScaler, ReFramework, SpecialK, ReShade, RenoDx }
 
 internal sealed record ModPackageKey(ModProviderId Provider, string Variant, string Version, string Digest)
 {
@@ -24,6 +24,8 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
     internal const string StandardReShadeModuleDigest = "B2945C29E7095491A901746B400E58DB9B1592AB092BACF2A888CE37F02D08DA";
     internal const string ReShadeVulkanManifest = "ReShade64.json";
     internal const string ReShadeVulkanManifestDigest = "AA21713718843E531DA396E2BFC80772C9CB3C369D6C30B836BE6B0AE812D503";
+    internal static readonly ModProviderId[] FixedPackageProviders = [ModProviderId.OptiScaler, ModProviderId.ReFramework,
+        ModProviderId.SpecialK, ModProviderId.ReShade];
     private sealed record Entry(ModPackageKey Key, Dictionary<string, string> Files);
 
     private static readonly HttpClient Downloads = new(new HttpClientHandler { AllowAutoRedirect = false })
@@ -43,6 +45,7 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
         ModProviderId.ReFramework => "REFramework",
         ModProviderId.SpecialK => "Special K",
         ModProviderId.ReShade => "ReShade",
+        ModProviderId.RenoDx => "RenoDX",
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 
@@ -233,6 +236,10 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
         if (provider == ModProviderId.ReShade)
             return address == Approved(provider).Address;
         if (redirect) return address.Host is "release-assets.githubusercontent.com" or "objects.githubusercontent.com";
+        if (provider == ModProviderId.RenoDx)
+            return address.Host == ModRenoDxCatalog.ReleaseFiles.Host &&
+                address.AbsolutePath.StartsWith(ModRenoDxCatalog.ReleaseFiles.AbsolutePath, StringComparison.Ordinal) &&
+                ModRenoDxCatalog.IsAddonName(address.AbsolutePath[ModRenoDxCatalog.ReleaseFiles.AbsolutePath.Length..]);
         var prefix = provider == ModProviderId.OptiScaler ? "/optiscaler/OptiScaler/" : "/praydog/REFramework-nightly/";
         return address.Host == "github.com" && address.AbsolutePath.StartsWith(prefix + "releases/download/", StringComparison.Ordinal);
     }

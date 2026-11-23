@@ -796,7 +796,7 @@
       "source": "avalonia/LGLauncher.Components/LucideIconCatalog.cs",
       "summary": "Provides the embedded Lucide 0.468.0 icon names, keywords, and lazily parsed 24-unit stroke geometries.",
       "symbols": ["LucideIconCatalog", "LucideIcon", "Geometry", "Keywords"],
-      "related": ["component.symbol-icon", "pattern.desktop.collection-icons"]
+      "related": ["component.symbol-icon", "pattern.desktop.collection-icons", "pattern.desktop.mods"]
     },
     {
       "id": "pattern.desktop.collection-icons",
@@ -1015,9 +1015,9 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Mods.cs",
-      "summary": "Groups packages and managed installations in separate panels with inline update status and symbolic download and delete actions. Each mod has one cache delete button that opens the shared version and variant menu when several downloads are cached. The game list groups warnings in a collapsed, counted panel. Managed mods share uninstall, verification, and affected-file actions. OptiScaler includes an inline DXGI picker and save tick. ReShade uses the shared graphics API picker, previews shared Vulkan layer changes, marks in-place OptiScaler configuration edits Modified, and offers a confirmed full add-on upgrade for managed standard installs.",
-      "symbols": ["BuildMods", "RenderOptiScalerUpdateCheck", "CheckModUpdates", "ModPackageInfo", "ManagedModSettingsRow", "ModSettingsRow", "DownloadModPackage", "DeleteModPackage", "ModDeleteButton", "ModCacheDeleteButton", "RefreshGameModList", "RenderGameModWarnings", "RefreshModInspection", "ShowGameMods", "ShowGameManagedMod", "ShowGameOptiScaler", "ShowGameReShade", "ShowModSetup", "ShowModSetupPreview", "ShowModDownloads", "ShowModPlan", "ModFileRow", "ShowManagedMod", "UpgradeReShade", "ShowModVerification", "ShowAffectedModFiles", "DxgiSpoofingRow", "ConfirmModUninstall"],
-      "related": ["pattern.desktop.game-details", "pattern.desktop.common-builders", "pattern.desktop.dialogs", "pattern.desktop.preference-controls", "helper.launcher-menus", "style.button.settings-row", "style.button.destructive", "style.warning-panel", "style.choice-picker", "style.game-icon", "style.section", "style.tooltip", "style.progress-bar", "icon.wrench", "icon.info", "icon.check", "icon.refresh", "icon.download", "icon.delete", "icon.replace", "icon.edit", "token.modified"]
+      "summary": "Groups packages and managed installations in separate panels with inline update status and symbolic actions. The game list and Settings share one available-mod list and per-mod Lucide symbols. The RenoDX Settings row opens an Info dialog that explains where to find game-specific add-ons. Existing Special K installs are accessible from the game’s legacy management rows. The game list groups prerequisite and compatibility warnings in a collapsed panel with a count. Setup previews saved originals, replacements, and in-place edits. The animated picker selects OptiScaler DLL names and DXGI spoofing, graphics APIs, and RenoDX add-on variants. Managed mods share uninstall, verification, and affected-file actions.",
+      "symbols": ["AvailableModProviders", "BuildMods", "RenderOptiScalerUpdateCheck", "CheckModUpdates", "RefreshRenoDxCatalog", "ModIcon", "ModPackageInfo", "ManagedModSettingsRow", "ModSettingsRow", "DownloadModPackage", "DeleteModPackage", "ModDeleteButton", "ModCacheDeleteButton", "RefreshGameModList", "RenderGameModWarnings", "RefreshModInspection", "ShowGameMods", "ShowGameManagedMod", "ShowGameOptiScaler", "ShowGameReShade", "ShowGameAddon", "ShowModSetup", "ShowModSetupPreview", "ShowModDownloads", "ShowModPlan", "ModFileRow", "ShowManagedMod", "UpgradeReShade", "ShowModVerification", "ShowAffectedModFiles", "DxgiSpoofingRow", "ConfirmModUninstall"],
+      "related": ["pattern.desktop.game-details", "pattern.desktop.common-builders", "pattern.desktop.dialogs", "pattern.desktop.preference-controls", "helper.launcher-menus", "helper.lucide-icon-catalog", "style.button.settings-row", "style.button.destructive", "style.warning-panel", "style.choice-picker", "style.game-icon", "style.section", "style.tooltip", "style.progress-bar", "icon.wrench", "icon.info", "icon.check", "icon.refresh", "icon.download", "icon.delete", "icon.replace", "icon.edit", "token.modified"]
     },
     {
       "id": "pattern.desktop.game-details-id",
@@ -1933,7 +1933,7 @@
       "kind": "style",
       "scope": "shared-avalonia",
       "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
-      "summary": "Styles picker triggers for Appearance preferences, collection sort and rules, and DXGI spoofing. List pickers use the shared context menu and the default accent trigger opens a modal.",
+      "summary": "Styles picker triggers for Appearance preferences, collection sort and rules, and mod setup and management. List pickers use the shared animated context menu, and the default accent trigger opens a modal.",
       "selectors": [
         "Button.lg.choice-picker",
         "Button.lg.choice-picker lg|SymbolIcon"
