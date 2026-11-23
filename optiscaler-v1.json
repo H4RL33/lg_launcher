@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": 1,
-  "revision": "61ce9f4ad2ee274890efc59ecdd7dd38c0fdb7a4",
+  "version": 2,
+  "revision": "d2dd7363e1a1e6c5e7a6a42521db3b4adcc1416c",
   "entries": [
     {"title":"007 First Light","steamId":0,"status":"Notes","page":"007-First-Light","inputs":"DLSS, FSR3.1/4","note":"FSR3.1 inputs are now supported with PT update, check compat entry for more info"},
     {"title":"1666: Amsterdam","steamId":0,"status":"Notes","page":"","inputs":"DLSS, FSR3.1/4, XeSS","note":"Using FSR4 through XeSS or DLSS inputs requires enabling Non-Linear Color Space to avoid black screens and flickering."},
@@ -410,6 +410,7 @@
     {"title":"Necrophosis","steamId":0,"status":"Reported","page":"","inputs":"DLSS","note":""},
     {"title":"Need For Speed Unbound","steamId":0,"status":"Notes","page":"Need-For-Speed-Unbound","inputs":"DLSS, FSR2, XeSS","note":"On Linux set dll name to d3d12.dll"},
     {"title":"Neverness to Everness (NTE)","steamId":0,"status":"Notes","page":"Neverness-to-Everness","inputs":"DLSS, FSR3.1","note":"Click on the game's name for the detailed entry."},
+    {"title":"NieR Automata","steamId":0,"status":"Notes","page":"NieR-Automata","inputs":"DLSS","note":"The wiki lists this game under third-party upscaler mods. Requires DLSS mod, check the compatibility entry for info"},
     {"title":"Nightingale","steamId":0,"status":"Reported","page":"","inputs":"DLSS, FSR3.1, XeSS","note":""},
     {"title":"NINJA GAIDEN 2 Black","steamId":0,"status":"Notes","page":"NINJA-GAIDEN-2-Black","inputs":"DLSS, XeSS","note":"Played Gamepass version with XeSS: place OptiScaler next to NINJAGAIDEN2BLACK.exe, not the wingdk.exe. Observed flickering in cutscenes with FSR4, checking Non-Linear sRGB Input fixed this."},
     {"title":"NINJA GAIDEN 4","steamId":0,"status":"Reported","page":"NINJA-GAIDEN-4","inputs":"DLSS, FSR2","note":""},
