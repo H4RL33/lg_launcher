@@ -6,9 +6,11 @@ The portable launcher can download its official executable and replace the runni
 
 ## `avalonia/LGLauncher.Desktop/UpdateFeed.cs`
 
-Checks GitHub's latest release endpoint, requires a stable `vX.Y.Z` tag, and compares normalized versions. It exposes separate packages for portable and Setup installs. Each must have the expected official URL, bounded size, uploaded state, and SHA-256 digest. The Setup asset name includes the exact release version. A hotfix uses the next version so the installed launcher can discover it. [Stable release procedure](../build-and-tests.md#stable-windows-releases)
+Stable uses GitHub’s latest-release endpoint and accepts stable `vX.Y.Z` tags. Next preview checks the 20 most recent published releases and selects the highest recognized stable or `vX.Y.Z-next.N` prerelease. Drafts, unrelated prerelease tags, and releases from before the version reset are ignored. A stable release supersedes any preview with the same three-part version. Both channels offer newer builds only. Switching a preview install to Stable waits until a stable upgrade is available.
 
-About makes a separate request using the app's exact `vX.Y.Z` tag and accepts only a matching public stable release with a bounded Markdown body. It uses the accepted newer release's version and Markdown from the existing latest-release response for the available notes. The same HTTP client limits response size and time for both requests. [GitHub release-by-tag endpoint](https://docs.github.com/en/rest/releases/releases#get-a-release-by-tag-name)
+The feed exposes separate packages for portable and Setup installs. Each must have the expected official URL, bounded size, uploaded state, and SHA-256 digest. The Setup asset name contains the Windows product version, including the fourth component for previews. [Stable release procedure](../build-and-tests.md#stable-windows-releases) · [Next preview releases](../build-and-tests.md#next-preview-windows-releases)
+
+About requests the installed build’s exact stable or preview tag and accepts only a matching public release and bounded Markdown body. Available notes use the release selected by the ongoing update check. The HTTP client limits response size and time. [GitHub release-by-tag endpoint](https://docs.github.com/en/rest/releases/releases#get-a-release-by-tag-name)
 
 - **Depends on** the official LG Launcher GitHub release metadata, `VerifiedDownload` for digest validation, .NET HTTP and JSON APIs, and the desktop assembly version.
 - **Used by** startup, the manual About check and release notes, the main window version label, the installer transaction, and smoke tests with injected feed data.
@@ -19,6 +21,8 @@ About makes a separate request using the app's exact `vX.Y.Z` tag and accepts on
 
 Connects the feed result to the status bar and About actions, and selects the package for the running installation. Per-user Setup and portable builds support manual updates and opt-in automatic installation at startup. Automatic installation is off by default and skips the launch immediately after an update attempt so a cancellation or failure can be retried manually. The updater controls progress, cancellation, application exit, and handoff state. It postpones restart during gameplay, editing, or mod file operations and requires pending profile saves to succeed. About offers the release page when the correct package is unavailable or the current copy is installed machine-wide.
 
+The release-channel picker saves the selection before clearing the old result and starting a new check. It cancels pending installation work before handoff and ignores results from superseded checks. Automatic installation runs from startup, including on the Next channel when the separate preference is enabled.
+
 - **Depends on** `UpdateFeed.Result`, `UpdateInstaller`, preferences and session state, the main shell and update controls, and the shared save and modal state.
 - **Used by** the main window startup, close, and session-completion paths, the About update controls, settings changes that cancel automatic updates, and the modal dismissal callback.
 
@@ -27,6 +31,8 @@ Connects the feed result to the status bar and About actions, and selects the pa
 ## `avalonia/LGLauncher.Desktop/UpdateInstaller.cs`
 
 Implements the Windows single-file update transaction. `LG-Launcher.install.ini` beside the executable identifies a Setup-managed copy, including custom installation directories. The `Scope=User` marker enables the Setup updater. Before staging, during handoff, and before running Setup, the updater checks the executable's directory against the registered per-user installation. It passes that directory explicitly to Setup. Portable downloads stage beside the executable and Setup downloads stage in the current user's temporary directory. Both paths verify redirect hosts, version, length, and digest.
+
+The worker uses the channel version order to reject older packages. It verifies preview binaries using the numeric four-part product version, and permits a same-base stable release to replace a preview. Setup also verifies the exact product version after installation.
 
 The helper validates the parent and staged package before the launcher exits. A successful restart requires the replacement process to acknowledge readiness within 30 seconds. An opened minimised window acknowledges before waiting for library discovery. An early exit, including activation of an existing instance, counts as a failed restart. The portable helper replaces the executable under the launcher mutex. It stops its own unacknowledged replacement on timeout so it can restore and reopen the backup. If the executable is still locked, the helper keeps the backup in staging.
 

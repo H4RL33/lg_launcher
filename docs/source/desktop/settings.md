@@ -25,7 +25,7 @@ The main window reuses `RestoreWindow` to restore and activate the launcher when
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Settings.cs`
 
-Renders Appearance, Library, and About. About places release notes for the installed version below the update controls. The settings code applies font size, interface scale, translucency, and motion to the live shell. Reusable preference rows disable overridden choices, expose the reason, and keep the underlying preference available for restoration. For example, Reduce Motion overrides Interactive Artwork Shift.
+Renders Appearance, Library, and About. About places release notes for the installed version below the release-channel picker and update controls. The settings code applies font size, interface scale, translucency, and motion to the live shell. Reusable preference rows disable overridden choices, expose the reason, and keep the underlying preference available for restoration. For example, Reduce Motion overrides Interactive Artwork Shift.
 
 Library → Game Details contains the Windows **Theme music** toggle, off by default. When enabled, game details play a local custom or matched Steam soundtrack track while the launcher is active. [Theme music](steam.md)
 

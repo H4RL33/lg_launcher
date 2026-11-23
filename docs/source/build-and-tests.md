@@ -27,9 +27,15 @@ Packaging-only `verify-packaging-vX.Y.Z` tags can verify a candidate from `next`
 
 [Project releases](https://github.com/H4RL33/lg_launcher/releases) · [Updater contract](desktop/updates.md)
 
+## Next preview Windows releases
+
+The publication workflow starts when a maintainer pushes `vX.Y.Z-next.N` for a first-parent commit on `next`. It checks the base against the Desktop project version, builds with `-PreviewRevision N`, and runs desktop, portable updater, and Setup smoke. It also tests upgrading a Setup-installed preview to a same-version stable release. Next previews are GitHub prereleases and stay out of the Stable feed.
+
+To build locally, run `pwsh -NoProfile -File ./build.ps1 -PreviewRevision 1 -Smoke`. The preview tag and About use `X.Y.Z-next.N`. Windows product metadata and the Setup asset filename use the numeric form `X.Y.Z.N`. The preview uses the base Windows file version so Setup can replace successive previews and promote to the stable build. GitHub builds the preview directly from the tagged source, generates notes with a link to the commit, and publishes the verified portable executable, SHA-256 checksum, and Setup. [Preview release procedure](../workflow.md#publish-a-next-preview)
+
 ## `.github/workflows/publish-release.yml`
 
-Runs Windows packaging and Setup smoke in a read-only job. The tag version must match the Desktop project. Stable tags must point to the first-parent history of `main`. A dependent write-enabled job verifies the artifact handoff, publishes the release, checks the public downloads, and cleans up the staging branch with a lease on its verified commit.
+Runs Windows packaging and Setup smoke in a read-only job. The tag’s base version must match the Desktop project. Stable tags must point to the first-parent history of `main` and their portable builds come from the staging branch. Next tags must point to the first-parent history of `next` and their portable builds are produced from that commit. A dependent write-enabled job verifies the artifact handoff and tag commit, publishes the release, and checks the public downloads. For stable releases it cleans up the staging branch with a lease on its verified commit.
 
 [Stable release workflow](../../.github/workflows/publish-release.yml) · [Stable Windows releases](#stable-windows-releases)
 
@@ -43,7 +49,7 @@ Attaches Setup to a previously published stable release. Stage `LG-Launcher-Setu
 
 [Source](../../build.ps1)
 
-- **Purpose** — Publishes the Windows x64 Avalonia single-file executable and stages it before replacing the normal build artifact. The executable requires the installed x64 .NET 10 Runtime. `-Smoke` runs migration and updater checks against the staged file. `-Test` runs the Windows core fixtures and keeps their outputs under `.build-work/core-tests/`.
+- **Purpose** — Publishes the Windows x64 Avalonia single-file executable and stages it before replacing the normal build artifact. The executable requires the installed x64 .NET 10 Runtime. `-PreviewRevision N` builds a Next preview of the Desktop project’s base version. `-Smoke` runs migration and updater checks against the staged file. `-Test` runs the Windows core fixtures and keeps their outputs under `.build-work/core-tests/`.
 - **Depends on** — PowerShell, the .NET 10 SDK, the Desktop and core fixture projects, bundled assets, and the appropriate smoke harnesses.
 - **Used by** — Development builds and verification. `build-installer.ps1` and official release staging use its verified executable as an input.
 
@@ -53,7 +59,7 @@ Attaches Setup to a previously published stable release. Stage `LG-Launcher-Setu
 
 - **Purpose** — Builds Windows Setup from a particular versioned launcher executable. The optional smoke run gives Setup a unique identity, default folder name, and application mutex. It checks the launcher under the account's Local Programs directory, the user Start menu shortcut, the HKCU uninstall registration, the installed executable hash, the installed update controls, and uninstall. It checks that the fixture library hash survives launch and uninstall.
 - **Depends on** — PowerShell, Inno Setup’s `ISCC.exe`, `installer/LGLauncher.iss`, and a built Windows executable. Installer smoke runs under the current user's permissions and writes its log, isolated profile, and captures to `.build-work/installer-smoke/`.
-- **Used by** — Local packaging and the stable release repository workflow. The normal setup file is written to `build/`.
+- **Used by** — Local packaging and the Stable and Next release workflow. The Setup file is written to `build/`.
 
 ## `lint.ps1`
 
@@ -161,7 +167,7 @@ The same generated tone encoded as Ogg Opus. It checks that a supplied Opus trac
 
 [Source](../../tests/Verify-AvaloniaSetupUpdate.ps1)
 
-- **Purpose** — Builds and installs two versions under a unique per-user Setup identity. It checks that a copied marker cannot apply an upgrade, then runs the real Setup update worker from the registered custom directory and checks the installed hash, registration, restart, and staging cleanup. It uninstalls the fixture and stores outputs under `.build-work/setup-update-smoke/`.
+- **Purpose** — Builds and installs two versions under a unique per-user Setup identity. It checks that a copied marker cannot apply an upgrade, then runs the real Setup update worker from the registered custom directory and checks the installed hash, registration, restart, and staging cleanup. `-PreviewPromotion` exercises promotion from `0.0.2-next.17` to stable `0.0.2`. It uninstalls the fixture and stores outputs under `.build-work/setup-update-smoke/`.
 - **Depends on** — Windows, the x64 .NET 10 SDK and runtime, Inno Setup, the Desktop project's `SetupFixtureAppId` build property, and `UpdateInstallVerification.cs`.
 - **Used by** — Direct verification when changing the installed update or setup handoff.
 

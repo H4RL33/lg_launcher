@@ -148,7 +148,7 @@ internal sealed partial class Launcher
         Require(!_store.Load().Preferences.PlayThemeMusic, "Disabling theme music did not persist.");
 
         var version = UpdateFeed.CurrentVersion;
-        var releaseTag = $"v{version.ToString(3)}";
+        var releaseTag = UpdateFeed.ReleaseTag(version);
         using var missingRelease = new HttpClient(new InstalledReleaseFixture(releaseTag, HttpStatusCode.NotFound));
         _releaseNotesRequest = LoadReleaseNotes(CancellationToken.None, missingRelease);
         Navigate(Page.About);
@@ -172,7 +172,7 @@ internal sealed partial class Launcher
         UpdateLayout();
         var about = PageBody.GetVisualDescendants().OfType<Control>().ToArray();
         Require(about.OfType<Button>().Any(button => Equals(button.Content, "Check for new updates")) &&
-            about.OfType<TextBlock>().Any(text => text.Text == $"Version {version.ToString(3)} · Build {version}") &&
+            about.OfType<TextBlock>().Any(text => text.Text == $"Version {UpdateFeed.DisplayVersion(version)} · Build {version}") &&
             about.OfType<TextBlock>().Any(text => text.Text == "Support on Ko-fi") &&
             about.OfType<TextBlock>().Any(text => text.Text == UsageDisclosure && Equals(text.Foreground, this.FindResource("LG.Neutral")) &&
                 text.HorizontalAlignment == Avalonia.Layout.HorizontalAlignment.Center && text.TextAlignment == TextAlignment.Center &&
@@ -189,6 +189,25 @@ internal sealed partial class Launcher
             "About did not render the release notes as native rich text or link to the installed release.");
         VerifyReleaseTypography();
         Capture(Path.Combine(reports, "about.png"));
+        var channel = Setting<Button>("Release channel");
+        Require(AutomationProperties.GetHelpText(channel) == "Current value Stable" && !_store.Load().Preferences.UsePreviewUpdates,
+            "About did not use the Stable channel for the existing profile.");
+        await ChoosePreference(channel, "Next preview");
+        Require(_store.Load().Preferences.UsePreviewUpdates, "Choosing Next did not save the channel.");
+        foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
+        {
+            (Width, Height) = size;
+            await Task.Delay(85);
+            Capture(Path.Combine(reports, $"about-release-channel-{size.Item1}.png"));
+            var channelMenu = PreferenceMenu(channel);
+            channel.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitFor(() => channelMenu.IsOpen && channelMenu.RevealProgress == 1, "The channel picker did not open.");
+            VerifyMenuTheme(channelMenu, Path.Combine(reports, $"about-release-channel-menu-{size.Item1}.png"));
+            channelMenu.Close();
+            await WaitFor(() => !channelMenu.IsOpen, "The channel picker did not close.");
+        }
+        await ChoosePreference(channel, "Stable");
+        Require(!_store.Load().Preferences.UsePreviewUpdates, "Returning to Stable did not clear the preview opt-in.");
         var newerVersion = new Version(version.Major, version.Minor, version.Build + 1);
         var newerTag = $"v{newerVersion}";
         var earlierResult = _updateResult;
@@ -714,7 +733,7 @@ internal sealed partial class Launcher
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            var currentTag = $"v{UpdateFeed.CurrentVersion.ToString(3)}";
+            var currentTag = UpdateFeed.ReleaseTag(UpdateFeed.CurrentVersion);
             Require(request.Method == HttpMethod.Get &&
                 request.RequestUri?.AbsoluteUri == $"https://api.github.com/repos/H4RL33/lg_launcher/releases/tags/{currentTag}",
                 "About requested notes for a different version or repository.");
@@ -730,7 +749,12 @@ internal sealed partial class Launcher
                 """;
             return Task.FromResult(new HttpResponseMessage(status)
             {
-                Content = new StringContent(JsonSerializer.Serialize(new { tag_name = tag, body = markdown }))
+                Content = new StringContent(JsonSerializer.Serialize(new
+                {
+                    tag_name = tag,
+                    prerelease = tag.Contains("-next.", StringComparison.Ordinal),
+                    body = markdown
+                }))
             });
         }
     }

@@ -20,7 +20,7 @@ internal sealed partial class Launcher
     internal async Task VerifyMigration(string preview, bool legacyFixture)
     {
         UpdateLayout();
-        Require(WindowTitle.Text == $"LG Launcher v{UpdateFeed.CurrentVersion.ToString(3)}" && WindowTitle.Text == Title,
+        Require(WindowTitle.Text == $"LG Launcher {UpdateFeed.ReleaseTag(UpdateFeed.CurrentVersion)}" && WindowTitle.Text == Title,
             "The title bar did not show the running launcher version.");
         if (OperatingSystem.IsWindows())
             Require(WindowsDesktop.HasNativeCaption(this) &&
@@ -216,11 +216,40 @@ internal sealed partial class Launcher
             UpdateFeed.Read(asset.Replace("H4RL33/lg_launcher", "other/lg_launcher"), new Version(1, 1)).Installer == null &&
             UpdateFeed.Read(asset.Replace("sha256:", "md5:"), new Version(1, 1)).Installer == null,
             "The installer accepted an unverified package or rejected the official asset.");
+        const string previewAsset = """
+            {"tag_name":"v99.2.0-next.10","prerelease":true,"assets":[
+              {"name":"LG-Launcher.exe","state":"uploaded","size":123,"digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","browser_download_url":"https://github.com/H4RL33/lg_launcher/releases/download/v99.2.0-next.10/LG-Launcher.exe"},
+              {"name":"LG-Launcher-Setup-99.2.0.10.exe","state":"uploaded","size":456,"digest":"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","browser_download_url":"https://github.com/H4RL33/lg_launcher/releases/download/v99.2.0-next.10/LG-Launcher-Setup-99.2.0.10.exe"}
+            ]}
+            """;
+        const string otherReleases = """
+            {"tag_name":"v99.2.0-next.9","prerelease":true},
+            {"tag_name":"v99.3.0-next.1","prerelease":true,"draft":true},
+            {"tag_name":"v99.4.0-beta.1","prerelease":true},
+            {"tag_name":"v99.5.0-next.1","prerelease":false},
+            {"tag_name":"v99.6.0-next.65535","prerelease":true}
+            """;
+        var previewFeed = $"[{previewAsset},{otherReleases}]";
+        var previewResult = UpdateFeed.Read(previewFeed, new Version(99, 2, 0, 9), includePreviews: true);
+        Require(!UpdateFeed.Read(previewAsset, new Version(99, 1, 0)).UpdateAvailable &&
+            previewResult.AvailableRelease?.Version == new Version(99, 2, 0, 10) &&
+            previewResult.Installer?.Length == 123 && previewResult.SetupInstaller?.Length == 456 &&
+            !UpdateFeed.Read(previewFeed, new Version(99, 2, 0), includePreviews: true).UpdateAvailable &&
+            UpdateFeed.Read($"[{previewAsset},{asset}]", new Version(99, 2, 0, 10), includePreviews: true).AvailableRelease?.Version == new Version(99, 2, 0) &&
+            UpdateFeed.Read(asset, new Version(99, 2, 0, 10)).UpdateAvailable &&
+            !UpdateFeed.Read(asset, new Version(99, 2, 1, 1)).UpdateAvailable,
+            "The release channel accepted the wrong tags or packages, or did not preserve forward-only updates.");
         using (var client = new HttpClient(new ReleaseFixture()))
         {
             var check = await UpdateFeed.Check(CancellationToken.None, client);
             Require(check.UpdateAvailable && check.ReleasePage?.AbsoluteUri == "https://github.com/H4RL33/lg_launcher/releases/tag/v99.2.0",
                 "The official update check did not link to the expected GitHub release.");
+        }
+        using (var client = new HttpClient(new ReleaseFixture(includePreviews: true)))
+        {
+            var check = await UpdateFeed.Check(CancellationToken.None, client, includePreviews: true);
+            Require(check.UpdateAvailable && check.ReleasePage?.AbsoluteUri == "https://github.com/H4RL33/lg_launcher/releases/tag/v99.2.0-next.10",
+                "The Next update check did not link to the expected prerelease.");
         }
 
         Require(FolderStatus.Tone == StatusTone.Active, "The existing watched folder did not start.");
@@ -1307,16 +1336,19 @@ internal sealed partial class Launcher
         if (!condition) throw new InvalidOperationException(message);
     }
 
-    private sealed class ReleaseFixture : HttpMessageHandler
+    private sealed class ReleaseFixture(bool includePreviews = false) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            var endpoint = includePreviews ? "?per_page=20" : "/latest";
             Require(request.Method == HttpMethod.Get &&
-                request.RequestUri?.AbsoluteUri == "https://api.github.com/repos/H4RL33/lg_launcher/releases/latest",
+                request.RequestUri?.AbsoluteUri == "https://api.github.com/repos/H4RL33/lg_launcher/releases" + endpoint,
                 "The update check requested the wrong feed.");
             return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
             {
-                Content = new StringContent("""{"tag_name":"v99.2.0","html_url":"https://example.com/release","draft":false,"prerelease":false}""")
+                Content = new StringContent(includePreviews
+                    ? """[{"tag_name":"v99.2.0-next.10","draft":false,"prerelease":true}]"""
+                    : """{"tag_name":"v99.2.0","html_url":"https://example.com/release","draft":false,"prerelease":false}""")
             });
         }
     }

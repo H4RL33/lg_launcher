@@ -81,7 +81,7 @@ The collection list wires realized rows to the shared context menu so users can 
 
 ## `avalonia/LGLauncher.Desktop/Launcher.axaml.cs`
 
-Coordinates the main window. Its constructor wires the shared shell and initializes services from the loaded profile. It owns startup and disposal hooks. When the usage notice is pending, startup runs the first-usage prompts before allowing automatic installation. The render dispatcher selects page content, updates the sidebar lists and their selections, builds game cards and collection member grids, and updates Discoveries and game details. It also starts folder watches, scans local executables, matches games to Steam, and records play sessions.
+Coordinates the main window. Its constructor wires the shared shell and initializes services from the loaded profile. The window title displays the installed stable or Next preview tag. It owns startup and disposal hooks. When the usage notice is pending, startup runs the first-usage prompts before allowing automatic installation. The render dispatcher selects page content, updates the sidebar lists and their selections, builds game cards and collection member grids, and updates Discoveries and game details. It also starts folder watches, scans local executables, matches games to Steam, and records play sessions.
 
 When the last tracked game exits, `EndSession` saves the game-return count with playtime and uses the normal tray restore path to show and activate the launcher. It then checks whether a contribution reminder is due.
 
@@ -98,7 +98,7 @@ When the window opens minimised after an update, it acknowledges the restart bef
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Startup.cs`
 
-Coordinates the initial library scan, update check, and splash progress. The splash progress indicator uses the profile's default accent. Startup honours the usage acknowledgement before scanning, allows slow startup tasks to finish after the splash closes, and builds the About page's version and update action group. About offers **Install update** for a verified package on a per-user installation and the release page for an earlier machine-wide installation.
+Coordinates the initial library scan, update check, and splash progress. The splash progress indicator uses the profile's default accent. Startup honours the usage acknowledgement before scanning and allows slow startup tasks to finish after the splash closes. About’s version and update group uses the shared animated picker for **Stable** and **Next preview**. Changing the channel refreshes the check and its release notes. About offers **Install update** for a verified package on a per-user installation and the release page for an earlier machine-wide installation.
 
 - **Depends on** the profile and background cancellation state, `StartupWindow`, `WindowsDesktop`, the main-window watcher and scan methods, `UpdateFeed`, and update action methods.
 - **Used by** `App` on splash startup, `Launcher.axaml.cs` for the path that opens without a splash and after the usage notice, and `Launcher.Settings.cs` for About.

@@ -43,6 +43,7 @@ internal sealed partial class Launcher
 
     private void RefreshUpdateActions()
     {
+        if (_updateMessage != null) _updateMessage.Text = UpdateMessage();
         var installable = AvailableInstaller != null;
         var busy = _updateInstall != null;
         UpdateAction.IsVisible = installable || busy;
@@ -82,7 +83,7 @@ internal sealed partial class Launcher
         UpdateInstaller.Staging? stage = null;
         UpdateDownloadProgress.Value = 0;
         RefreshUpdateActions();
-        Status($"Downloading LG Launcher {package.Version}…");
+        Status($"Downloading LG Launcher {UpdateFeed.DisplayVersion(package.Version)}…");
         try
         {
             stage = UpdateInstaller.CreateStage(UpdateInstaller.IsSetupInstallation);
