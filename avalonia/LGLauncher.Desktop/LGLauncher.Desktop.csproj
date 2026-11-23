@@ -21,7 +21,7 @@
     <PackageReference Include="Markdig" Version="1.6.0" />
     <PackageReference Include="NVorbis" Version="0.10.5" />
     <PackageReference Include="Concentus.Oggfile" Version="1.0.7" />
-    <PackageReference Include="SharpCompress" Version="0.50.10" />
+    <PackageReference Include="SharpCompress" Version="0.50.11" />
     <EmbeddedResource Include="../../assets/welcome.jpg" LogicalName="LGLauncher.Welcome.jpg" />
     <EmbeddedResource Include="../../assets/launcher.ico" LogicalName="LGLauncher.Icon.ico" />
     <EmbeddedResource Include="../../LICENSE" LogicalName="LGLauncher.LICENSE.txt" />
