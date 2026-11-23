@@ -39,7 +39,7 @@ jobs:
           stage=$(mktemp -d "$RUNNER_TEMP/optiscaler-catalog.XXXXXX")
           wiki="$stage/wiki"
           publication="$stage/publication"
-          catalog_ref='refs/heads/compatibility-catalog'
+          catalog_ref='refs/heads/mods-support/compatibility-catalog'
           catalog_name='optiscaler-v1.json'
 
           git clone --depth=1 --quiet https://github.com/optiscaler/OptiScaler.wiki.git "$wiki"
@@ -72,16 +72,16 @@ jobs:
               echo 'The published advisory entries are current.'
               exit 0
             fi
-            message='Keep OptiScaler compatibility publication active'
+            message='chore(mods): keep the compatibility catalog active'
             commit_options=(--allow-empty)
           else
             mv -- "$stage/$catalog_name" "$publication/$catalog_name"
             git -C "$publication" add -- "$catalog_name"
-            message='Update OptiScaler compatibility catalog'
+            message='chore(mods): refresh the OptiScaler compatibility catalog'
           fi
 
           git -C "$publication" -c user.name='github-actions[bot]' \
             -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-            commit --quiet "${commit_options[@]}" -m "$message"
+            commit --quiet "${commit_options[@]}" -m "$message" -m "Verification: importer fixtures and catalog validation passed."
           commit=$(git -C "$publication" rev-parse HEAD)
           git push origin "$commit:$catalog_ref"
