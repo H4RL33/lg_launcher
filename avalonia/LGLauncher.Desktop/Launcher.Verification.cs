@@ -167,6 +167,10 @@ internal sealed partial class Launcher
         Require(LibraryGames.ItemCount == _library.Games.Count && PageTitle.Text == "Home" &&
             SearchResults.ItemCount == 1 && SearchResults.Items[0] is LibraryEntry result && result.Game == game,
             "Genre search did not show the matching game independently of the sidebar and page.");
+        SearchBox.Text = "legacy   racing";
+        ShowSearchResults();
+        Require(SearchResults.ItemCount == 1 && SearchResults.Items[0] is LibraryEntry combined && combined.Game == game,
+            "A multi-term search did not match a title and a genre together.");
         Require(HandleSearchKey(Key.Escape) && !SearchDropdown.IsVisible, "Escape did not dismiss the dropdown.");
         await VerifySearchMotion();
         SearchBox.Text = "no such game";
@@ -178,6 +182,7 @@ internal sealed partial class Launcher
         await VerifyCollectionCards(dynamicCollection, preview);
         await VerifyCollectionIcons(dynamicCollection, preview);
         VerifyNavigationHistory(game, older, dynamicCollection);
+        VerifySteamGenreBatch();
         await VerifySidebarCollections(dynamicCollection, preview);
         var collectionGame = PageBody.Children.OfType<UniformGrid>().Single().GetVisualDescendants().OfType<GameCard>().Single();
         Require(collectionGame.Title == game.Title, "The dynamic collection page did not show its matching game.");
@@ -848,6 +853,59 @@ internal sealed partial class Launcher
             _library.Games.RemoveAll(extras.Contains);
         }
         Navigate(Page.Collections, collection);
+        var savedHistory = _history.ToArray();
+        var savedIndex = _historyIndex;
+        try
+        {
+            _history.Clear();
+            _history.AddRange(Enumerable.Range(0, 64).Select(offset => new HistoryEntry(new ViewLocation(Page.Home), offset)));
+            _historyIndex = _history.Count - 1;
+            Navigate(Page.Settings);
+            Require(_history.Count == 64 && _historyIndex == 63 && _history[0].Offset == 1,
+                "Adding a route at the history limit did not discard the oldest view.");
+            ReleaseHistoryButton(forward: false);
+            Require(_page == Page.Home, "Mouse Back failed after evicting the oldest history entry.");
+            ReleaseHistoryButton(forward: true);
+            Require(_page == Page.Settings, "Mouse Forward failed after evicting the oldest history entry.");
+        }
+        finally
+        {
+            _history.Clear();
+            _history.AddRange(savedHistory);
+            _historyIndex = savedIndex;
+            ShowHistoryEntry(_history[_historyIndex], animate: false);
+        }
+    }
+
+    private void VerifySteamGenreBatch()
+    {
+        const int firstId = Int32.MaxValue - 20;
+        const int secondId = firstId + 1;
+        var first = new Game { Title = "First genre fixture", SteamId = firstId };
+        var same = new Game { Title = "Shared App ID genre fixture", SteamId = firstId };
+        var second = new Game { Title = "Second genre fixture", SteamId = secondId };
+        var manual = new Game { Title = "Manual genre fixture", SteamId = firstId, ManualGenres = true, Genres = ["Manual"] };
+        var rematched = new Game { Title = "Rematched genre fixture", SteamId = secondId + 1 };
+        Game[] games = [first, same, second, manual, rematched];
+        _library.Games.AddRange(games);
+        try
+        {
+            _pendingSteamGenres.Add(firstId, ["Adventure"]);
+            _pendingSteamGenres.Add(secondId, ["Simulation"]);
+            Require(FlushPendingSteamGenres(), "The Steam genre batch could not be saved.");
+            var saved = _store.Load().Games.ToDictionary(game => game.Id);
+            Require(new[] { first, same }.All(game => saved[game.Id] is { SteamGenresComplete: true, GenreSteamId: firstId } savedGame &&
+                    savedGame.GenreNames.SequenceEqual(["Adventure"])) &&
+                saved[second.Id].GenreSteamId == secondId && saved[second.Id].GenreNames.SequenceEqual(["Simulation"]) &&
+                saved[manual.Id].GenreNames.SequenceEqual(["Manual"]) && saved[rematched.Id].Genres == null,
+                "The Steam genre batch omitted eligible games or overrode a manual or rematched game.");
+        }
+        finally
+        {
+            _pendingSteamGenres.Clear();
+            _library.Games.RemoveAll(games.Contains);
+            Require(Save(), "The genre batch fixture could not restore the isolated library.");
+        }
     }
 
     private async Task VerifySidebarCollections(GameCollection dynamicCollection, string preview)

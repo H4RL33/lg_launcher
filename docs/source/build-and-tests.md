@@ -125,7 +125,7 @@ Checks NuGet project manifests and GitHub Actions weekly and targets version upd
 
 [Source](../../tests/CoreTests.cs)
 
-- **Purpose** — Exercises the shared code without a UI or a live Steam feed. Fixtures cover discovery, exact Steam matching, metadata and artwork URL parsing, collection rules, preference and library round trips, backup recovery, watcher events, process completion, and the actual priority class of a launched process with the setting both on and off.
+- **Purpose** — Exercises the shared code without a UI or a live Steam feed. Fixtures cover discovery, exact Steam matching, metadata and artwork URL parsing, Steam cache replacement and cancellation, collection rules, preference and library round trips, backup recovery and subsequent saves, watcher events, process completion, and the actual priority class of a launched process with the setting both on and off.
 - **Depends on** — `Library.cs`, `SteamCatalog.cs`, `GameSessions.cs`, and Windows for the process fixtures.
 - **Used by** — `build.ps1 -Test`, which builds and runs the .NET 10 fixture project. Process tests launch the fixture's executable app host and use disposable data beneath the test output.
 

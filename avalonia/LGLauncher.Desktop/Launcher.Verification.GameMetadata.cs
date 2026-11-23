@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using LGLauncher.Components;
 using SkiaSharp;
@@ -13,6 +14,8 @@ internal sealed partial class Launcher
 {
     private async Task VerifyGameMetadata(string preview)
     {
+        VerifyArtworkDecodeLimits(Path.GetDirectoryName(preview)!);
+        await VerifySharedSteamHeaderCancellation();
         await VerifyGameMedia(preview);
         var preferences = _library.Preferences;
         var restoreLogos = preferences.UseGameLogos;
@@ -41,7 +44,7 @@ internal sealed partial class Launcher
             ShowHistoryEntry(new HistoryEntry(new ViewLocation(Page.Game, Game: game)), animate: false);
             Require(GameTitle.IsVisible && !GameLogo.IsVisible && _gameLogoRequest == null,
                 "Disabling game logos did not display the text title without a lookup.");
-            Require(GenreChips.Children.Count == 4 && MatchesLibrarySearch(game, "genre: Simulation"),
+            Require(GenreChips.Children.Count == 4 && CreateLibrarySearch("genre: Simulation")(game),
                 "The fourth genre was missing from details or search.");
             UpdateLayout();
             var appId = SteamLabel.TranslatePoint(default, Details);
@@ -125,6 +128,77 @@ internal sealed partial class Launcher
                 await Task.Delay(85);
                 Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"game-stats-{match}-{size.Width}.png"));
             }
+        }
+    }
+
+    private async Task VerifySharedSteamHeaderCancellation()
+    {
+        const int steamId = Int32.MaxValue - 1;
+        var key = (steamId, false);
+        using var artwork = new WriteableBitmap(new PixelSize(1, 1), new Vector(96, 96));
+        using var details = CancellationTokenSource.CreateLinkedTokenSource(_background.Token);
+        var shared = new TaskCompletionSource<Bitmap?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _cardImageRequests.Add(key, shared.Task);
+        try
+        {
+            var detailsWait = EnsureHeader(steamId, details.Token);
+            var cardWait = EnsureHeader(steamId, _background.Token);
+            details.Cancel();
+
+            var released = await Task.WhenAny(detailsWait, Task.Delay(TimeSpan.FromSeconds(2)));
+            Require(released == detailsWait && await detailsWait == null,
+                "Leaving Game Details did not release its wait for a shared Steam header.");
+            Require(!cardWait.IsCompleted, "Leaving Game Details interrupted the card's wait for the Steam header.");
+
+            shared.SetResult(artwork);
+            Require(ReferenceEquals(await cardWait, artwork), "The card did not receive the shared Steam header.");
+        }
+        finally
+        {
+            shared.TrySetResult(null);
+            _cardImageRequests.Remove(key);
+        }
+    }
+
+    private static void VerifyArtworkDecodeLimits(string folder)
+    {
+        var path = Path.Combine(folder, "artwork-decode-fixture.png");
+        try
+        {
+            WriteImage(48, 1200);
+            using (var thumbnail = ReadBitmap(path, 420))
+                Require(thumbnail.PixelSize.Height == 420 && thumbnail.PixelSize.Width > 0,
+                    "A narrow source exceeded the thumbnail height limit.");
+
+            WriteImage(1, 1200);
+            using (var narrow = ReadBitmap(path, 420))
+                Require(narrow.PixelSize == new PixelSize(1, 420), "A very narrow thumbnail lost its short side.");
+
+            WriteImage(600, 900);
+            using (var portrait = ReadBitmap(path, PortraitBitmapWidth, PortraitBitmapHeight))
+                Require(portrait.PixelSize == new PixelSize(420, 630), "A 2:3 portrait lost its intended thumbnail resolution.");
+            Require(CanDecodeSteamArtwork(path), "The Steam cache validator rejected a complete image.");
+            using (var truncated = File.OpenWrite(path)) truncated.SetLength(48);
+            Require(!CanDecodeSteamArtwork(path), "The Steam cache validator accepted a truncated image.");
+
+            WriteImage(16385, 1);
+            Require(!CanDecodeSteamArtwork(path), "The Steam cache validator accepted an oversized image.");
+            try
+            {
+                using var oversized = ReadBitmap(path, 420);
+                throw new InvalidOperationException("The artwork decoder accepted an oversized source dimension.");
+            }
+            catch (InvalidDataException) { }
+        }
+        finally { File.Delete(path); }
+
+        void WriteImage(int width, int height)
+        {
+            using var image = new SKBitmap(width, height);
+            image.Erase(SKColors.White);
+            using var png = image.Encode(SKEncodedImageFormat.Png, 100);
+            using var file = File.Create(path);
+            png.SaveTo(file);
         }
     }
 
