@@ -1,0 +1,54 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:a="using:Avalonia">
+    <SolidColorBrush x:Key="LG.Canvas">#0E111C</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.Sidebar">#121624</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.Surface">#191D2E</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.SurfaceRaised">#252A40</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.Selection">#3C365D</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.Line">#323950</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.ArtworkGlass">#B3101421</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.ArtworkGlassLine">#38C6D0EB</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.Text">#F1F2FC</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.Muted">#A9AEC7</SolidColorBrush>
+    <Color x:Key="LG.DefaultAccentColor">#BFB0FF</Color>
+    <SolidColorBrush x:Key="LG.Accent" Color="{StaticResource LG.DefaultAccentColor}"/>
+    <SolidColorBrush x:Key="LG.AccentFill" Color="{StaticResource LG.DefaultAccentColor}"/>
+    <SolidColorBrush x:Key="LG.OnAccent">#20163C</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.Success">#83DEC3</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.Modified">#8BBCFF</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.Warning">#F0BC79</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.WarningFill">#543B12</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.Error">#FFA0AA</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.DestructiveFill">#842D43</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.Neutral">#8991AD</SolidColorBrush>
+    <LinearGradientBrush x:Key="LG.ArtworkFallback" StartPoint="0%,0%" EndPoint="100%,100%">
+        <GradientStop Color="#332653" Offset="0"/>
+        <GradientStop Color="#181B30" Offset="1"/>
+    </LinearGradientBrush>
+    <CornerRadius x:Key="LG.ControlRadius">8</CornerRadius>
+    <CornerRadius x:Key="LG.PanelRadius">12</CornerRadius>
+    <CornerRadius x:Key="LG.ArtworkInsetRadius">11</CornerRadius>
+    <Thickness x:Key="LG.ControlPadding">12,7</Thickness>
+    <Thickness x:Key="LG.PanelPadding">18</Thickness>
+    <x:Double x:Key="LG.Font.10">10</x:Double>
+    <x:Double x:Key="LG.Font.11">11</x:Double>
+    <x:Double x:Key="LG.Font.12">12</x:Double>
+    <x:Double x:Key="LG.Font.13">13</x:Double>
+    <x:Double x:Key="LG.Font.15">15</x:Double>
+    <x:Double x:Key="LG.Font.16">16</x:Double>
+    <x:Double x:Key="LG.Font.17">17</x:Double>
+    <x:Double x:Key="LG.Font.20">20</x:Double>
+    <x:Double x:Key="LG.Font.30">30</x:Double>
+    <x:Double x:Key="LG.Font.31">31</x:Double>
+    <x:Double x:Key="LG.Font.41">41</x:Double>
+    <x:Double x:Key="LG.PopupFont.12">12</x:Double>
+    <x:Double x:Key="LG.PopupFont.13">13</x:Double>
+    <x:Double x:Key="LG.SearchResultRowHeight">32</x:Double>
+    <Transitions x:Key="LG.TooltipMotion">
+        <DoubleTransition Property="{x:Static a:Visual.OpacityProperty}" Duration="0:0:0.15"/>
+    </Transitions>
+    <Transitions x:Key="LG.SwitchMotion">
+        <DoubleTransition Property="{x:Static Canvas.LeftProperty}" Duration="0:0:0.20" Easing="CubicEaseOut"/>
+    </Transitions>
+</ResourceDictionary>

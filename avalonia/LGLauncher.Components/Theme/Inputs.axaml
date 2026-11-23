@@ -1,0 +1,286 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lg="using:LGLauncher.Components">
+    <Styles.Resources>
+        <ControlTheme x:Key="{x:Type lg:FrostedContextMenu}" TargetType="lg:FrostedContextMenu"
+                      BasedOn="{StaticResource {x:Type ContextMenu}}">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Panel Name="RevealSurface">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
+                                ClipToBounds="True">
+                            <Panel>
+                                <Border Name="FrostedBackdrop" IsHitTestVisible="False" Opacity=".47">
+                                    <Border.Effect><BlurEffect Radius="12"/></Border.Effect>
+                                </Border>
+                                <ScrollViewer Margin="{TemplateBinding Padding}" HorizontalScrollBarVisibility="Disabled"
+                                              VerticalScrollBarVisibility="Auto">
+                                    <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}"
+                                                    KeyboardNavigation.TabNavigation="Continue" Grid.IsSharedSizeScope="True"/>
+                                </ScrollViewer>
+                            </Panel>
+                        </Border>
+                    </Panel>
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
+        <ControlTheme x:Key="LG.NumberStep" TargetType="RepeatButton">
+            <Setter Property="Width" Value="26"/>
+            <Setter Property="MinHeight" Value="26"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Foreground" Value="{DynamicResource LG.Muted}"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <ContentPresenter Name="StepFace" Background="Transparent" CornerRadius="5"
+                                      Content="{TemplateBinding Content}" HorizontalContentAlignment="Center"
+                                      VerticalContentAlignment="Center"/>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:pointerover /template/ ContentPresenter#StepFace">
+                <Setter Property="Background" Value="{DynamicResource LG.SurfaceRaised}"/>
+                <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+            </Style>
+            <Style Selector="^:pressed /template/ ContentPresenter#StepFace">
+                <Setter Property="Background" Value="{DynamicResource LG.Selection}"/>
+            </Style>
+            <Style Selector="^:disabled /template/ ContentPresenter#StepFace">
+                <Setter Property="Opacity" Value=".4"/>
+            </Style>
+        </ControlTheme>
+        <ControlTheme x:Key="LG.NumberSpinner" TargetType="ButtonSpinner">
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="NumberFrame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
+                        <DockPanel>
+                            <StackPanel Name="StepButtons" Orientation="Horizontal" DockPanel.Dock="Right"
+                                        Margin="4" IsVisible="{TemplateBinding ShowButtonSpinner}">
+                                <RepeatButton Name="PART_IncreaseButton" Theme="{StaticResource LG.NumberStep}" AutomationProperties.Name="Increase value">
+                                    <lg:SymbolIcon Data="{DynamicResource LG.Icon.ChevronUp}" Width="15" Height="15"/>
+                                </RepeatButton>
+                                <RepeatButton Name="PART_DecreaseButton" Theme="{StaticResource LG.NumberStep}" AutomationProperties.Name="Decrease value">
+                                    <lg:SymbolIcon Data="{DynamicResource LG.Icon.ChevronDown}" Width="15" Height="15"/>
+                                </RepeatButton>
+                            </StackPanel>
+                            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}" VerticalContentAlignment="Stretch"/>
+                        </DockPanel>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:left /template/ StackPanel#StepButtons">
+                <Setter Property="DockPanel.Dock" Value="Left"/>
+            </Style>
+            <Style Selector="^:focus-within /template/ Border#NumberFrame">
+                <Setter Property="BorderBrush" Value="{DynamicResource LG.Accent}"/>
+            </Style>
+            <Style Selector="^:error /template/ Border#NumberFrame">
+                <Setter Property="BorderBrush" Value="{DynamicResource LG.Warning}"/>
+            </Style>
+        </ControlTheme>
+    </Styles.Resources>
+
+    <Style Selector="NumericUpDown.lg-number">
+        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="MinWidth" Value="112"/>
+        <Setter Property="Padding" Value="10,0,4,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+        <Setter Property="FontSize" Value="{DynamicResource LG.Font.13}"/>
+        <Setter Property="Background" Value="{DynamicResource LG.Canvas}"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
+    </Style>
+    <Style Selector="NumericUpDown.lg-number /template/ ButtonSpinner#PART_Spinner">
+        <Setter Property="Theme" Value="{StaticResource LG.NumberSpinner}"/>
+    </Style>
+    <Style Selector="NumericUpDown.lg-number /template/ TextBox#PART_TextBox">
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+    <Style Selector="NumericUpDown.lg-number /template/ TextBox#PART_TextBox /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
+    <Style Selector="ComboBox.lg-select">
+        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="Padding" Value="11,0,4,0"/>
+        <Setter Property="FontSize" Value="{DynamicResource LG.Font.13}"/>
+        <Setter Property="Background" Value="{DynamicResource LG.Canvas}"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
+    </Style>
+    <Style Selector="Button.lg.choice-picker">
+        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="Padding" Value="11,0,9,0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Background" Value="{DynamicResource LG.Canvas}"/>
+    </Style>
+    <Style Selector="Button.lg.choice-picker lg|SymbolIcon">
+        <Setter Property="Foreground" Value="{DynamicResource LG.Muted}"/>
+    </Style>
+    <Style Selector="Border.lg-colour-swatch">
+        <Setter Property="Width" Value="20"/>
+        <Setter Property="Height" Value="20"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="CornerRadius" Value="5"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style Selector="Button.lg.colour-preset">
+        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="Padding" Value="7,0"/>
+        <Setter Property="Background" Value="{DynamicResource LG.Canvas}"/>
+    </Style>
+    <Style Selector="Button.lg.colour-preset.selected">
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Accent}"/>
+    </Style>
+    <Style Selector="ComboBox.lg-select:pointerover /template/ Border#Background">
+        <Setter Property="Background" Value="{DynamicResource LG.Surface}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+    </Style>
+    <Style Selector="ComboBox.lg-select:pressed /template/ Border#Background">
+        <Setter Property="Background" Value="{DynamicResource LG.SurfaceRaised}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+    </Style>
+    <Style Selector="ComboBox.lg-select:focus-visible /template/ Border#HighlightBackground">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Accent}"/>
+    </Style>
+    <Style Selector="ComboBox.lg-select /template/ PathIcon#DropDownGlyph">
+        <Setter Property="Foreground" Value="{DynamicResource LG.Muted}"/>
+        <Setter Property="Data">
+            <StreamGeometry>M3 8l9 8 9-8-1-1.4-8 7.1-8-7.1Z</StreamGeometry>
+        </Setter>
+    </Style>
+    <Style Selector="ComboBox.lg-select /template/ Popup#PART_Popup">
+        <Setter Property="Placement" Value="Bottom"/>
+        <Setter Property="VerticalOffset" Value="4"/>
+    </Style>
+    <Style Selector="ComboBox.lg-select /template/ Border#PopupBorder">
+        <Setter Property="Background" Value="{DynamicResource LG.Surface}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="4"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
+    </Style>
+    <Style Selector="ComboBox.lg-select ComboBoxItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+        <Setter Property="Padding" Value="9,6"/>
+        <Setter Property="CornerRadius" Value="5"/>
+    </Style>
+    <Style Selector="ComboBox.lg-select ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource LG.SurfaceRaised}"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+    </Style>
+    <Style Selector="ComboBox.lg-select ComboBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource LG.Selection}"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+    </Style>
+    <Style Selector="ComboBox.lg-select ComboBoxItem:disabled">
+        <Setter Property="Opacity" Value=".55"/>
+    </Style>
+
+    <Style Selector="Border.lg-search-frame">
+        <Setter Property="Background" Value="{DynamicResource LG.Surface}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
+        <Setter Property="BoxShadow" Value="0 7 20 #55000000"/>
+        <Setter Property="Padding" Value="4"/>
+    </Style>
+    <Style Selector="ListBox.lg-search-results ListBoxItem">
+        <Setter Property="Height" Value="{DynamicResource LG.SearchResultRowHeight}"/>
+    </Style>
+    <Style Selector=".lg-motion Grid.lg-search-dropdown[IsVisible=True], Grid.lg-motion.lg-search-dropdown[IsVisible=True]">
+        <Setter Property="Transitions">
+            <Transitions><DoubleTransition Property="Height" Duration="0:0:0.18" Easing="CubicEaseOut"/></Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="ProgressBar.lg-progress">
+        <Setter Property="Height" Value="6"/>
+        <Setter Property="Minimum" Value="0"/>
+        <Setter Property="Maximum" Value="100"/>
+        <Setter Property="CornerRadius" Value="3"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Accent}"/>
+        <Setter Property="Background" Value="{DynamicResource LG.SurfaceRaised}"/>
+    </Style>
+    <Style Selector=".lg-motion ProgressBar.lg-progress">
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Value" Duration="0:0:0.16"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="ToolTip">
+        <Setter Property="Background" Value="{DynamicResource LG.SurfaceRaised}"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
+        <Setter Property="Padding" Value="10,6"/>
+        <Setter Property="FontFamily" Value="{DynamicResource LG.InterfaceFont}"/>
+        <Setter Property="FontSize" Value="{DynamicResource LG.PopupFont.12}"/>
+        <Setter Property="Transitions" Value="{DynamicResource LG.TooltipMotion}"/>
+    </Style>
+
+    <Style Selector="Grid.lg-preference:disabled">
+        <Setter Property="Opacity" Value=".58"/>
+    </Style>
+    <Style Selector=".lg-motion Grid.lg-preference">
+        <Setter Property="Transitions">
+            <Transitions>
+                <DoubleTransition Property="Opacity" Duration="0:0:0.16" Easing="CubicEaseOut"/>
+            </Transitions>
+        </Setter>
+    </Style>
+
+    <Style Selector="ToggleSwitch">
+        <Setter Property="KnobTransitions" Value="{x:Null}"/>
+    </Style>
+    <Style Selector=".lg-motion ToggleSwitch">
+        <Setter Property="KnobTransitions" Value="{DynamicResource LG.SwitchMotion}"/>
+    </Style>
+
+    <Style Selector="lg|FrostedContextMenu, MenuFlyoutPresenter">
+        <Setter Property="Background" Value="{DynamicResource LG.Surface}"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
+        <Setter Property="Padding" Value="4"/>
+    </Style>
+    <Style Selector="MenuItem.lg-menu-item, MenuFlyoutPresenter MenuItem">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+        <Setter Property="CornerRadius" Value="5"/>
+        <Setter Property="Padding" Value="9,5"/>
+        <Setter Property="MinHeight" Value="29"/>
+        <Setter Property="FontFamily" Value="{DynamicResource LG.InterfaceFont}"/>
+        <Setter Property="FontSize" Value="{DynamicResource LG.PopupFont.13}"/>
+    </Style>
+    <Style Selector="MenuItem.lg-menu-item:selected /template/ Border#PART_LayoutRoot, MenuFlyoutPresenter MenuItem:selected /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource LG.Selection}"/>
+    </Style>
+    <Style Selector="MenuItem.lg-menu-item:selected /template/ ContentPresenter#PART_HeaderPresenter, MenuFlyoutPresenter MenuItem:selected /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+    </Style>
+    <Style Selector="MenuItem.lg-menu-item.destructive /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource LG.Warning}"/>
+    </Style>
+    <Style Selector="MenuItem.lg-menu-item:disabled, MenuFlyoutPresenter MenuItem:disabled">
+        <Setter Property="Opacity" Value=".55"/>
+    </Style>
+    <Style Selector="Separator.lg-menu-separator">
+        <Setter Property="Background" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="Margin" Value="4,3"/>
+    </Style>
+</Styles>

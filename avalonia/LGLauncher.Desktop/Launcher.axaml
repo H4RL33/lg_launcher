@@ -1,0 +1,250 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lg="using:LGLauncher.Components"
+        xmlns:chrome="using:Avalonia.Controls.Chrome"
+        x:Class="LGLauncher.Launcher" Title="LG Launcher" Width="1230" Height="805" MinWidth="730" MinHeight="510"
+        WindowStartupLocation="CenterScreen" Background="{DynamicResource LG.Canvas}" Foreground="{DynamicResource LG.Text}">
+    <Window.Resources>
+        <x:Double x:Key="LG.SidebarRowHeight">32</x:Double>
+    </Window.Resources>
+    <Window.Styles>
+        <Style Selector="Border.artwork-chrome">
+            <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+            <Setter Property="Background" Value="{DynamicResource LG.Sidebar}"/>
+        </Style>
+        <Style Selector="Border#LibrarySurface Button.lg, ListBox.sidebar-list ListBoxItem">
+            <Setter Property="Height" Value="{StaticResource LG.SidebarRowHeight}"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBlock.sidebar-heading">
+            <Setter Property="Foreground" Value="{DynamicResource LG.Muted}"/>
+            <Setter Property="FontSize" Value="{DynamicResource LG.Font.11}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="8,0,0,8"/>
+        </Style>
+        <Style Selector="Border#LibrarySurface Button.lg">
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Padding" Value="12,4"/>
+        </Style>
+        <Style Selector="Window.artwork-glass Border.artwork-chrome, Window.artwork-glass Border.search-results">
+            <Setter Property="Background" Value="{DynamicResource LG.ArtworkGlass}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource LG.ArtworkGlassLine}"/>
+        </Style>
+        <Style Selector="Window.artwork-glass TextBox.library-search /template/ Border#PART_BorderElement">
+            <Setter Property="Background" Value="{DynamicResource LG.ArtworkGlass}"/>
+        </Style>
+        <Style Selector="Window.artwork-glass TextBox.library-search:not(:focus) /template/ Border#PART_BorderElement">
+            <Setter Property="BorderBrush" Value="{DynamicResource LG.ArtworkGlassLine}"/>
+        </Style>
+    </Window.Styles>
+    <LayoutTransformControl x:Name="InterfaceRoot">
+    <Grid ClipToBounds="True">
+    <Grid x:Name="ShellSurface" RowDefinitions="Auto,*,29" ClipToBounds="True">
+        <ContentControl x:Name="ChromeArtworkHost" Grid.RowSpan="3" IsHitTestVisible="False"
+                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+        <Border x:Name="DragBar" Classes="artwork-chrome" Height="30" IsVisible="False"
+                BorderThickness="0,0,0,1" chrome:WindowDecorationProperties.ElementRole="TitleBar">
+            <Grid ColumnDefinitions="*,Auto">
+            <TextBlock x:Name="WindowTitle" Margin="12,0,8,0" VerticalAlignment="Center" FontSize="{DynamicResource LG.Font.12}"
+                       TextTrimming="CharacterEllipsis" IsHitTestVisible="False"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" chrome:WindowDecorationProperties.ElementRole="User">
+                <Button x:Name="MinimizeWindow" Classes="lg quiet caption" ToolTip.Tip="Minimize" AutomationProperties.Name="Minimize">
+                    <lg:SymbolIcon Data="{DynamicResource LG.Icon.Minus}" Width="17" Height="17"/>
+                </Button>
+                <Button x:Name="MaximizeWindow" Classes="lg quiet caption" ToolTip.Tip="Maximize" AutomationProperties.Name="Maximize">
+                    <lg:SymbolIcon x:Name="MaximizeGlyph" Data="{DynamicResource LG.Icon.Maximize}" Width="16" Height="16"/>
+                </Button>
+                <Button x:Name="CloseWindow" Classes="lg quiet caption" ToolTip.Tip="Close" AutomationProperties.Name="Close">
+                    <lg:SymbolIcon Data="{DynamicResource LG.Icon.Close}" Width="18" Height="18"/>
+                </Button>
+            </StackPanel>
+            </Grid>
+        </Border>
+        <Grid Grid.Row="1" x:Name="MainShell" ColumnDefinitions="205,*">
+            <Border x:Name="LibrarySurface" Classes="artwork-chrome" BorderThickness="0,0,1,0">
+                <Grid RowDefinitions="Auto,*,Auto" Margin="14,12,14,10">
+                    <UniformGrid Columns="4" Margin="0,0,0,17">
+                        <Button x:Name="HomeNav" Classes="lg quiet selected" HorizontalAlignment="Stretch" ToolTip.Tip="Home" AutomationProperties.Name="Home">
+                            <lg:SymbolIcon Data="{DynamicResource LG.Icon.Home}" Width="19" Height="19"/>
+                        </Button>
+                        <Button x:Name="CollectionsNav" Classes="lg quiet" HorizontalAlignment="Stretch" ToolTip.Tip="Collections" AutomationProperties.Name="Collections">
+                            <lg:SymbolIcon Data="{DynamicResource LG.Icon.Library}" Width="19" Height="19"/>
+                        </Button>
+                        <Button x:Name="DiscoveriesNav" Classes="lg quiet" HorizontalAlignment="Stretch" ToolTip.Tip="Discoveries" AutomationProperties.Name="Discoveries">
+                            <Grid>
+                                <lg:SymbolIcon Data="{DynamicResource LG.Icon.Folder}" Width="19" Height="19"/>
+                                <Border x:Name="DiscoveryBadge" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-10,0"
+                                        Background="{DynamicResource LG.AccentFill}" Padding="4,0" CornerRadius="8" IsVisible="False">
+                                    <TextBlock x:Name="DiscoveryCount" FontSize="{DynamicResource LG.Font.10}" Foreground="{DynamicResource LG.OnAccent}"/>
+                                </Border>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="RssNav" Classes="lg quiet" HorizontalAlignment="Stretch" ToolTip.Tip="RSS" AutomationProperties.Name="RSS">
+                            <lg:SymbolIcon Data="{DynamicResource LG.Icon.Rss}" Width="19" Height="19"/>
+                        </Button>
+                    </UniformGrid>
+                    <Grid Grid.Row="1" x:Name="SidebarLists" RowDefinitions="Auto,*,Auto,*">
+                        <TextBlock Text="LIBRARY" Classes="sidebar-heading"/>
+                        <ListBox Grid.Row="1" x:Name="LibraryGames" Classes="lg sidebar-list" AutomationProperties.Name="Library games">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <lg:LibraryRow Title="{Binding Title}" Icon="{Binding SidebarIcon}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Grid.Row="1" x:Name="LibraryEmpty" Text="No games yet" Classes="lg-muted" Margin="8,6,0,0"/>
+                        <Border Grid.Row="2" Padding="0,12,0,0">
+                            <TextBlock Text="COLLECTIONS" Classes="sidebar-heading"/>
+                        </Border>
+                        <ListBox Grid.Row="3" x:Name="LibraryCollections" Classes="lg sidebar-list" AutomationProperties.Name="Library collections"
+                                 ContainerPrepared="PrepareCollectionRow">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:CompileBindings="False">
+                                    <lg:LibraryRow Title="{Binding Title}" IconSymbol="{Binding Icon}"/>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Grid.Row="3" x:Name="CollectionsEmpty" Text="No collections yet" Classes="lg-muted" Margin="8,6,0,0"/>
+                    </Grid>
+                    <StackPanel Grid.Row="2" Spacing="3" Margin="0,8,0,0">
+                        <Button x:Name="AddGame" Classes="lg quiet nav">
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"><lg:SymbolIcon Data="{DynamicResource LG.Icon.Plus}" Width="16" Height="16" VerticalAlignment="Center"/><TextBlock Text="Add game" VerticalAlignment="Center"/></StackPanel>
+                        </Button>
+                        <Button x:Name="SettingsNav" Classes="lg quiet nav">
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"><lg:SymbolIcon Data="{DynamicResource LG.Icon.Settings}" Width="16" Height="16" VerticalAlignment="Center"/><TextBlock Text="Settings" VerticalAlignment="Center"/></StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+            <Grid Grid.Column="1" x:Name="MainArea" ClipToBounds="True">
+                <Grid.Background>
+                    <RadialGradientBrush Center="85%,0%" GradientOrigin="85%,0%" RadiusX="84%" RadiusY="95%">
+                        <GradientStop Color="#21243B" Offset="0"/><GradientStop Color="#151929" Offset=".55"/><GradientStop Color="#0E111C" Offset="1"/>
+                    </RadialGradientBrush>
+                </Grid.Background>
+                <Grid x:Name="Details" IsVisible="False" Background="Transparent" ClipToBounds="True">
+                    <ContentControl x:Name="ArtworkHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
+                                    RenderTransformOrigin="50%,50%" IsHitTestVisible="False"/>
+                    <Border IsHitTestVisible="False">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0%,100%" EndPoint="23%,0%">
+                                <GradientStop Offset="0" Color="#FF0E111C"/><GradientStop Offset=".32" Color="#C00E111C"/>
+                                <GradientStop Offset=".70" Color="#4D0E111C"/><GradientStop Offset="1" Color="#030E111C"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                    <StackPanel x:Name="GameInfo" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                MaxWidth="510" Margin="32,70,32,36" Spacing="11">
+                        <Image x:Name="GameLogo" IsVisible="False" MaxHeight="96" MaxWidth="360" Stretch="Uniform"
+                               StretchDirection="DownOnly" HorizontalAlignment="Left" IsHitTestVisible="False"/>
+                        <TextBlock x:Name="GameTitle" FontSize="{DynamicResource LG.Font.41}" FontWeight="Bold" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"/>
+                        <WrapPanel x:Name="GenreChips" ItemSpacing="6" LineSpacing="5" IsVisible="False"/>
+                        <WrapPanel x:Name="StoreTags" ItemSpacing="12" LineSpacing="5" IsVisible="False"
+                                   AutomationProperties.Name="Steam store tags"/>
+                        <WrapPanel ItemSpacing="23" LineSpacing="5" Margin="0,3,0,6">
+                            <StackPanel Spacing="4"><TextBlock Text="PLAYTIME" Classes="lg-muted" FontSize="{DynamicResource LG.Font.10}" FontWeight="Bold"/><TextBlock x:Name="Playtime" FontWeight="SemiBold"/></StackPanel>
+                            <StackPanel Spacing="4"><TextBlock Text="LAST LAUNCHED" Classes="lg-muted" FontSize="{DynamicResource LG.Font.10}" FontWeight="Bold"/><TextBlock x:Name="LastPlayed" FontWeight="SemiBold"/></StackPanel>
+                            <StackPanel x:Name="SteamAppId" Spacing="4" IsVisible="False" IsHitTestVisible="False">
+                                <TextBlock Text="STEAM APP ID" Classes="lg-muted" FontSize="{DynamicResource LG.Font.10}" FontWeight="Bold"/>
+                                <TextBlock x:Name="SteamLabel" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </WrapPanel>
+                        <WrapPanel ItemSpacing="8" LineSpacing="6">
+                            <Button x:Name="PlayGame" Classes="lg primary" MinWidth="98" AutomationProperties.Name="Play">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <lg:SymbolIcon Data="{DynamicResource LG.Icon.Play}" Width="14" Height="14" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="PlayActionLabel" Text="Play" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="EditGameButton" Content="Edit game" Classes="lg"/>
+                            <Button x:Name="RefreshSteamButton" Classes="lg" ToolTip.Tip="Refresh Steam metadata and artwork"
+                                    AutomationProperties.Name="Refresh Steam metadata and artwork">
+                                <lg:SymbolIcon Data="{DynamicResource LG.Icon.Refresh}" Width="17" Height="17"/>
+                            </Button>
+                            <Button x:Name="GameModsButton" Classes="lg" ToolTip.Tip="Mods" AutomationProperties.Name="Mods" IsVisible="False">
+                                <lg:SymbolIcon Data="{DynamicResource LG.Icon.Wrench}" Width="17" Height="17"/>
+                            </Button>
+                            <Button x:Name="GameOptions" Classes="lg" ToolTip.Tip="Game options" AutomationProperties.Name="Game options">
+                                <lg:SymbolIcon Data="{DynamicResource LG.Icon.More}" Width="17" Height="17"/>
+                            </Button>
+                        </WrapPanel>
+                    </StackPanel>
+                    <Border x:Name="PanSurface" Background="Transparent" Cursor="SizeAll" IsVisible="False" Focusable="True"/>
+                    <lg:ArtworkToolbar x:Name="ArtworkTools" IsVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="27,21"/>
+                </Grid>
+                <ScrollViewer x:Name="ContentScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="27,20,27,25" Spacing="16">
+                        <StackPanel Spacing="6">
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock x:Name="PageTitle" Classes="page-title" FontSize="{DynamicResource LG.Font.31}" FontWeight="Bold" TextWrapping="Wrap"/>
+                                <Button x:Name="RequestModButton" Grid.Column="1" Classes="lg" Margin="12,0,0,0" VerticalAlignment="Center"
+                                        Content="Request a mod" IsVisible="False"/>
+                            </Grid>
+                            <TextBlock x:Name="ModRequestScope" Classes="lg-muted" TextWrapping="Wrap" IsVisible="False"
+                                       Text="LG Launcher accepts requests only for game-agnostic mods that work across multiple games. For granular, per-game mod management, use a dedicated tool like Vortex."/>
+                        </StackPanel>
+                        <StackPanel x:Name="PageBody" Spacing="12"/>
+                    </StackPanel>
+                </ScrollViewer>
+                <StackPanel x:Name="SearchSurface" Width="246" Spacing="6"
+                            HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,18,27,0">
+                    <Grid>
+                        <ContentControl x:Name="SearchArtworkHost" IsHitTestVisible="False"
+                                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+                        <TextBox x:Name="SearchBox" Classes="lg library-search" MinHeight="36" Padding="8,0,10,0" VerticalContentAlignment="Center"
+                                 PlaceholderText="Search games or genres" AutomationProperties.Name="Search games or genres">
+                            <TextBox.InnerLeftContent>
+                                <lg:SymbolIcon Data="{DynamicResource LG.Icon.Search}" Foreground="{DynamicResource LG.Muted}"
+                                               Width="15" Height="15" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </TextBox.InnerLeftContent>
+                        </TextBox>
+                    </Grid>
+                    <Grid x:Name="SearchDropdown" Classes="lg-search-dropdown" Height="0" IsVisible="False">
+                        <ContentControl x:Name="ResultsArtworkHost" IsHitTestVisible="False"
+                                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+                        <Border x:Name="SearchResultsFrame" Classes="search-results lg-search-frame">
+                            <Panel ClipToBounds="True">
+                                <ListBox x:Name="SearchResults" Classes="lg lg-search-results" MaxHeight="256" KeyboardNavigation.TabNavigation="None"
+                                         AutomationProperties.Name="Game search results">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:CompileBindings="False">
+                                            <lg:LibraryRow Title="{Binding Title}" Icon="{Binding SidebarIcon}"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <Border x:Name="SearchEmpty" Height="{DynamicResource LG.SearchResultRowHeight}" VerticalAlignment="Top">
+                                    <TextBlock Text="No games match" Classes="lg-muted" Margin="8,0" VerticalAlignment="Center"/>
+                                </Border>
+                            </Panel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </Grid>
+        </Grid>
+        <Border Grid.Row="2" x:Name="StatusSurface" Classes="artwork-chrome" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="10" Margin="10,0,10,0">
+                <Button x:Name="ManageFolder" Classes="lg quiet" MinHeight="24" Padding="7,2" AutomationProperties.Name="Manage library folder" VerticalAlignment="Center">
+                    <lg:StatusIndicator x:Name="FolderStatus" Label="No folder watched"/>
+                </Button>
+                <Button Grid.Column="1" x:Name="OpenReviews" Classes="lg quiet" MinHeight="24" Padding="7,2" AutomationProperties.Name="Items for review" VerticalAlignment="Center">
+                    <TextBlock x:Name="ReviewCount" Classes="lg-muted"/>
+                </Button>
+                <Grid Grid.Column="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                    <TextBlock x:Name="StatusText" Classes="lg-muted" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                    <ProgressBar x:Name="UpdateDownloadProgress" Grid.Column="1" Width="65" Height="5" IsVisible="False"
+                                 AutomationProperties.Name="Update download progress" VerticalAlignment="Center"/>
+                    <Button x:Name="UpdateAction" Grid.Column="2" Classes="lg" MinHeight="24" Padding="7,2" IsVisible="False"
+                            VerticalAlignment="Center"/>
+                </Grid>
+                <TextBlock Grid.Column="3" x:Name="GameCount" Classes="lg-muted" VerticalAlignment="Center"/>
+                <Button Grid.Column="4" x:Name="SupportButton" Classes="lg quiet" Width="29" MinHeight="24" Padding="0"
+                        VerticalAlignment="Center" AutomationProperties.Name="Support LG Launcher on Ko-fi" ToolTip.Tip="Support LG Launcher on Ko-fi">
+                    <lg:SymbolIcon Data="{DynamicResource LG.Icon.KoFi}" Width="17" Height="17"/>
+                </Button>
+            </Grid>
+        </Border>
+    </Grid>
+    <lg:ModalHost x:Name="DialogHost"/>
+    </Grid>
+    </LayoutTransformControl>
+</Window>

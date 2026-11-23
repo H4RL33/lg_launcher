@@ -1,0 +1,18 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:chrome="using:Avalonia.Controls.Chrome"
+             x:Class="LGLauncher.App" RequestedThemeVariant="Dark">
+    <Application.Resources>
+        <ControlTheme x:Key="LG.CustomWindowDecorations" TargetType="chrome:WindowDrawnDecorations">
+            <Setter Property="Template">
+                <WindowDrawnDecorationsTemplate>
+                    <chrome:WindowDrawnDecorationsContent/>
+                </WindowDrawnDecorationsTemplate>
+            </Setter>
+        </ControlTheme>
+    </Application.Resources>
+    <Application.Styles>
+        <FluentTheme/>
+        <StyleInclude Source="avares://LGLauncher.Components/Theme/Components.axaml"/>
+    </Application.Styles>
+</Application>

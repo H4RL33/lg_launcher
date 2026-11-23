@@ -1,0 +1,38 @@
+name: Pull request lint
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pull-request-lint-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/lg-launcher-dotnet
+        with:
+          dotnet-version: '10.0.x'
+          skip-lts-prepass: true
+
+      - name: Run lint
+        shell: pwsh
+        run: ./lint.ps1
+
+      - name: Run Windows core fixtures
+        shell: pwsh
+        run: ./build.ps1 -Test

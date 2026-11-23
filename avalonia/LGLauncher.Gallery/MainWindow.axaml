@@ -1,0 +1,154 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lg="using:LGLauncher.Components"
+        xmlns:demo="using:LGLauncher.Gallery"
+        x:Class="LGLauncher.Gallery.MainWindow"
+        Title="LG Launcher Component Gallery" Width="1230" Height="805" MinWidth="880" MinHeight="630"
+        WindowStartupLocation="CenterScreen" Background="{DynamicResource LG.Canvas}" Foreground="{DynamicResource LG.Text}">
+    <Grid RowDefinitions="*,33" ColumnDefinitions="214,*">
+        <Border Background="{DynamicResource LG.Sidebar}" BorderBrush="{DynamicResource LG.Line}" BorderThickness="0,0,1,0">
+            <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Margin="15,22,14,14">
+                <StackPanel Orientation="Horizontal" Spacing="10" Margin="5,0,0,24">
+                    <Border Width="34" Height="34" Background="{DynamicResource LG.Accent}" CornerRadius="9">
+                        <TextBlock Text="LG" Foreground="{DynamicResource LG.OnAccent}" FontSize="13" FontWeight="Bold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="LG Launcher" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Grid.Row="1" Spacing="3">
+                    <Button x:Name="LibraryNav" Classes="lg quiet nav selected" AutomationProperties.Name="Library widgets">
+                        <StackPanel Orientation="Horizontal" Spacing="10"><lg:SymbolIcon Data="{DynamicResource LG.Icon.Library}" Width="15" Height="15"/><TextBlock Text="Library"/></StackPanel>
+                    </Button>
+                    <Button x:Name="ControlsNav" Classes="lg quiet nav" AutomationProperties.Name="Standard controls">
+                        <StackPanel Orientation="Horizontal" Spacing="10"><lg:SymbolIcon Data="{DynamicResource LG.Icon.Controls}" Width="15" Height="15"/><TextBlock Text="Controls"/></StackPanel>
+                    </Button>
+                    <Button x:Name="ArtworkNav" Classes="lg quiet nav" AutomationProperties.Name="Artwork editor">
+                        <StackPanel Orientation="Horizontal" Spacing="10"><lg:SymbolIcon Data="{DynamicResource LG.Icon.Artwork}" Width="15" Height="15"/><TextBlock Text="Artwork"/></StackPanel>
+                    </Button>
+                </StackPanel>
+                <TextBlock Grid.Row="2" Text="SAMPLE LIBRARY" Classes="lg-muted" FontSize="11" Margin="8,26,0,7" FontWeight="SemiBold"/>
+                <ListBox x:Name="LibraryList" Grid.Row="3" Classes="lg" AutomationProperties.Name="Sample library">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="demo:DemoGame">
+                            <lg:LibraryRow Title="{Binding Title}" Icon="{Binding Artwork}" AutomationProperties.Name="{Binding Title}"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+                <Button Grid.Row="4" x:Name="AddSample" Classes="lg quiet nav" AutomationProperties.Name="Add sample game">
+                    <StackPanel Orientation="Horizontal" Spacing="9"><lg:SymbolIcon Data="{DynamicResource LG.Icon.Plus}" Width="15" Height="15"/><TextBlock Text="Add sample game"/></StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Column="1">
+            <Grid.Background>
+                <RadialGradientBrush Center="86%,0%" GradientOrigin="86%,0%" RadiusX="80%" RadiusY="94%">
+                    <GradientStop Color="#242441" Offset="0"/>
+                    <GradientStop Color="#151929" Offset=".52"/>
+                    <GradientStop Color="#0E111C" Offset="1"/>
+                </RadialGradientBrush>
+            </Grid.Background>
+            <ScrollViewer x:Name="ContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Spacing="22" Margin="28,23,28,27">
+                    <Grid ColumnDefinitions="*,250" ColumnSpacing="18">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Component gallery" FontSize="31" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="PageCaption" Text="Library" Classes="lg-muted" FontSize="14"/>
+                        </StackPanel>
+                        <TextBox x:Name="Search" Grid.Column="1" Classes="lg" PlaceholderText="Filter sample games"
+                                 VerticalAlignment="Center" AutomationProperties.Name="Filter sample games"/>
+                    </Grid>
+
+                    <StackPanel x:Name="LibraryPage" Spacing="17">
+                        <Border Classes="lg-panel" ClipToBounds="True">
+                            <Grid Height="205" ColumnDefinitions="*,1.25*">
+                                <Image x:Name="LibraryHero" Grid.Column="1" Stretch="UniformToFill"/>
+                                <Border Grid.Column="1" IsHitTestVisible="False">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="78%,0%">
+                                            <GradientStop Color="#FF191D2E" Offset="0"/>
+                                            <GradientStop Color="#00191D2E" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                </Border>
+                                <StackPanel Grid.ColumnSpan="2" Spacing="11" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="23">
+                                    <TextBlock Text="Your game library" FontSize="28" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Open a sample title or try its Play action." Classes="lg-muted" FontSize="13" TextWrapping="Wrap" MaxWidth="290"/>
+                                    <Button x:Name="ShowControls" Classes="lg" Content="Browse controls" HorizontalAlignment="Left" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <TextBlock Text="Recently played" Classes="lg-heading"/>
+                        <UniformGrid x:Name="RecentCards" Columns="3" Rows="1" MaxWidth="570" HorizontalAlignment="Left"/>
+                        <HeaderedContentControl x:Name="EmptyLibrary" Classes="lg-section" Header="No games match" IsVisible="False">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Clear the search to see the sample library." Classes="lg-muted"/>
+                                <Button x:Name="ClearSearch" Classes="lg" Content="Clear search"/>
+                            </StackPanel>
+                        </HeaderedContentControl>
+                    </StackPanel>
+
+                    <StackPanel x:Name="ControlsPage" Spacing="14" IsVisible="False">
+                        <HeaderedContentControl Classes="lg-section" Header="Buttons">
+                            <WrapPanel ItemSpacing="9" LineSpacing="8">
+                                <Button x:Name="PrimaryExample" Classes="lg primary" Content="Primary action"/>
+                                <Button x:Name="SecondaryExample" Classes="lg" Content="Secondary action"/>
+                                <Button x:Name="QuietExample" Classes="lg quiet" Content="Quiet action"/>
+                                <Button Classes="lg primary" Content="Disabled" IsEnabled="False"/>
+                            </WrapPanel>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Classes="lg-section" Header="Status indicators">
+                            <WrapPanel ItemSpacing="22" LineSpacing="8">
+                                <lg:StatusIndicator Label="Folder watch active" Tone="Active"/>
+                                <lg:StatusIndicator Label="Folder unavailable" Tone="Warning"/>
+                                <lg:StatusIndicator Label="No folder watched" Tone="Neutral"/>
+                            </WrapPanel>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Classes="lg-section" Header="Appearance">
+                            <Grid ColumnDefinitions="*,180" ColumnSpacing="14">
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="Interface text size" FontWeight="SemiBold"/>
+                                    <TextBlock x:Name="TextSample" Text="Game library" Classes="lg-muted"/>
+                                </StackPanel>
+                                <ComboBox x:Name="TextSize" Classes="lg-select" Grid.Column="1" SelectedIndex="0" HorizontalAlignment="Stretch"
+                                          AutomationProperties.Name="Sample interface text size">
+                                    <ComboBoxItem Content="Default"/><ComboBoxItem Content="Large"/>
+                                </ComboBox>
+                            </Grid>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Classes="lg-section" Header="Number input and menu">
+                            <WrapPanel ItemSpacing="10" LineSpacing="8">
+                                <NumericUpDown x:Name="StepExample" Classes="lg-number" Minimum="1" Maximum="120" Value="30" Width="118"
+                                               AutomationProperties.Name="Sample refresh interval"/>
+                                <Button x:Name="MenuExample" Classes="lg" Content="Open menu"/>
+                            </WrapPanel>
+                        </HeaderedContentControl>
+                        <HeaderedContentControl Classes="lg-section" Header="Empty state">
+                            <StackPanel Spacing="9">
+                                <TextBlock Text="No games yet" FontWeight="SemiBold"/>
+                                <TextBlock Text="Add a sample title to populate the library." Classes="lg-muted"/>
+                                <Button x:Name="FillEmpty" Classes="lg" Content="Add sample game" HorizontalAlignment="Left"/>
+                            </StackPanel>
+                        </HeaderedContentControl>
+                    </StackPanel>
+
+                    <StackPanel x:Name="ArtworkPage" Spacing="12" IsVisible="False">
+                        <lg:ArtworkToolbar x:Name="Editor" HorizontalAlignment="Left"/>
+                        <Border x:Name="ArtworkCanvas" Classes="lg-panel" Height="427" ClipToBounds="True" Cursor="SizeAll"
+                                AutomationProperties.Name="Preview artwork">
+                            <Image x:Name="EditorImage" Stretch="UniformToFill" RenderTransformOrigin="50%,50%" IsHitTestVisible="False"/>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+
+        <Border Grid.Row="1" Grid.ColumnSpan="2" Background="{DynamicResource LG.Sidebar}"
+                BorderBrush="{DynamicResource LG.Line}" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="*,Auto" Margin="17,0" ColumnSpacing="14">
+                <TextBlock x:Name="Status" Text="Ready" Classes="lg-muted" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                <lg:StatusIndicator x:Name="FolderStatus" Grid.Column="1" Label="Folder watch active" Tone="Active" VerticalAlignment="Center"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

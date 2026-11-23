@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>LGLauncher.Gallery</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../LGLauncher.Components/LGLauncher.Components.csproj" />
+    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <EmbeddedResource Include="../../assets/welcome.jpg" LogicalName="Gallery.Welcome.jpg" />
+  </ItemGroup>
+</Project>

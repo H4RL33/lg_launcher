@@ -1,0 +1,2663 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "component.artwork-toolbar",
+      "kind": "component",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Widgets.cs",
+      "summary": "Reusable position editor controls. Supply the zoom label plus save and cancel commands. The desktop or gallery owns cropping and persistence.",
+      "symbols": [
+        "ArtworkToolbar",
+        "ZoomLabel",
+        "CancelCommand",
+        "SaveCommand"
+      ],
+      "related": [
+        "theme.artwork-toolbar",
+        "pattern.desktop.artwork-editor"
+      ]
+    },
+    {
+      "id": "component.collection-card",
+      "kind": "component",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Widgets.cs",
+      "summary": "A button card that presents collection metadata and host-supplied mosaic content. Its selection state is conveyed by the selected class.",
+      "symbols": [
+        "CollectionCard",
+        "Title",
+        "GameCount",
+        "IsDynamic",
+        "Content",
+        "Command"
+      ],
+      "related": [
+        "theme.collection-card",
+        "pattern.desktop.collection-cards"
+      ]
+    },
+    {
+      "id": "component.colour-picker",
+      "kind": "component",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/ColourPicker.cs",
+      "summary": "Selects an opaque RGB colour from colour-only presets or a validated six-digit hex field, with an accessible default preset and a square live preview sized to the field.",
+      "symbols": ["ColourPicker", "HexField", "HexColourPreview", "Swatch", "TryGetColour", "TryParseHex", "FormatHex"],
+      "related": ["style.colour-picker", "component.modal-dialog", "pattern.desktop.appearance"]
+    },
+    {
+      "id": "component.desktop.rss-image",
+      "kind": "component",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/RssArticleImage.cs",
+      "summary": "An inline RSS reader image that loads near the viewport, validates download and decode limits, presents fallback alt text, and releases its bitmap when detached.",
+      "symbols": [
+        "RssArticleImage",
+        "Decode"
+      ],
+      "related": [
+        "pattern.desktop.rss-reader",
+        "style.panel"
+      ]
+    },
+    {
+      "id": "component.desktop.startup-splash",
+      "kind": "component",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/StartupWindow.axaml",
+      "summary": "Fixed-size startup window with frosted-glass controller artwork on the right, gradient overlays, status text, and a compact progress bar.",
+      "symbols": [
+        "StartupWindow",
+        "SplashArtwork",
+        "SplashOperation",
+        "SplashProgress",
+        "ShowProgress"
+      ],
+      "usedBy": [
+        "avalonia/LGLauncher.Desktop/StartupWindow.axaml.cs",
+        "avalonia/LGLauncher.Desktop/Launcher.Startup.cs"
+      ],
+      "related": [
+        "theme.custom-window-decorations",
+        "style.progress-bar"
+      ]
+    },
+    {
+      "id": "component.frosted-context-menu",
+      "kind": "component",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/FrostedContextMenu.cs",
+      "summary": "Displays a shared context menu with motion-dependent reveal and collapse and an optional blurred snapshot of the owning window.",
+      "symbols": [
+        "FrostedContextMenu",
+        "RevealProgress",
+        "CaptureBackdrop",
+        "UpdateClip",
+        "Dismiss"
+      ],
+      "related": [
+        "theme.frosted-context-menu",
+        "helper.launcher-menus",
+        "style.menu-surface",
+        "style.menu-item"
+      ]
+    },
+    {
+      "id": "component.game-card",
+      "kind": "component",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Widgets.cs",
+      "summary": "Displays a responsive two-to-three portrait tile, accessible open action and optional playtime. The caller supplies artwork, command, and playtime.",
+      "symbols": [
+        "GameCard",
+        "Title",
+        "Playtime",
+        "ShowPlaytime",
+        "Artwork",
+        "ArtworkStretch",
+        "ArtworkHeight",
+        "ArtworkBackground",
+        "OpenCommand"
+      ],
+      "related": [
+        "theme.game-card",
+        "pattern.desktop.game-card"
+      ]
+    },
+    {
+      "id": "component.library-row",
+      "kind": "component",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Widgets.cs",
+      "summary": "Displays a game or collection title beside a rounded icon slot for a bitmap or symbol.",
+      "symbols": [
+        "LibraryRow",
+        "Title",
+        "Icon",
+        "IconSymbol"
+      ],
+      "related": [
+        "theme.library-row",
+        "style.list-box"
+      ]
+    },
+    {
+      "id": "component.media-file-field",
+      "kind": "component",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/MediaFileField.cs",
+      "summary": "Displays optional file-size guidance centred alongside the field label, the saved filename or automatic fallback, and styled Browse and Clear actions. Exposes pending selections to the enclosing form.",
+      "symbols": ["MediaFileField", "FileLabel", "SelectedPath", "ResetRequested"],
+      "related": ["component.modal-dialog", "theme.button"]
+    },
+    {
+      "id": "component.modal-dialog",
+      "kind": "component",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/ModalHost.cs",
+      "summary": "Provides a heading with optional trailing content, a scrollable body or bounded custom content, and a footer with optional leading content, initial focus, and optional default button. Escape dismisses it and Enter activates the enabled default action.",
+      "symbols": [
+        "ModalDialog",
+        "Body",
+        "Footer",
+        "InitialFocus",
+        "DefaultButton",
+        "Close",
+        "Closed"
+      ],
+      "related": [
+        "component.modal-host",
+        "style.modal",
+        "style.modal-field"
+      ]
+    },
+    {
+      "id": "component.modal-host",
+      "kind": "component",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/ModalHost.cs",
+      "summary": "Manages stacked in-window modal dialogs, disables the underlay, restores focus, and returns an accepted or dismissed result.",
+      "symbols": [
+        "ModalHost",
+        "Underlay",
+        "HasModal",
+        "Show",
+        "DismissTop",
+        "CloseAll"
+      ],
+      "related": [
+        "component.modal-dialog",
+        "style.modal-backdrop",
+        "pattern.desktop.dialogs"
+      ]
+    },
+    {
+      "id": "component.status-indicator",
+      "kind": "component",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Widgets.cs",
+      "summary": "Presents an operation status with a text label and coloured dot. Supply a status tone and a readable label.",
+      "symbols": [
+        "StatusIndicator",
+        "Label",
+        "Tone",
+        "StatusTone",
+        "Neutral",
+        "Active",
+        "Warning"
+      ],
+      "related": [
+        "theme.status-indicator"
+      ]
+    },
+    {
+      "id": "component.symbol-icon",
+      "kind": "component",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/SymbolIcon.cs",
+      "summary": "Draws a centred, rounded-stroke geometry on a 24-unit design grid. Assign a geometry from LG.Icon and an inherited or explicit foreground.",
+      "symbols": [
+        "SymbolIcon",
+        "Data",
+        "Foreground"
+      ],
+      "related": []
+    },
+    {
+      "id": "helper.launcher-menus",
+      "kind": "helper",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/LauncherMenus.cs",
+      "summary": "Builds the launcher context menu, themed entries, action glyphs, and separators. Use the text editing extension to replace a field's default flyout with Cut, Copy, and Paste.",
+      "symbols": [
+        "LauncherMenus",
+        "Create",
+        "AddAction",
+        "AddSeparator",
+        "UseTextEditingMenu",
+        "PlacementMode.Pointer",
+        "PlacementMode.Bottom"
+      ],
+      "related": [
+        "component.frosted-context-menu",
+        "style.menu-item",
+        "style.menu-separator"
+      ]
+    },
+    {
+      "id": "helper.smooth-scroll",
+      "kind": "helper",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/SmoothScroll.cs",
+      "summary": "Routes wheel input and programmatic shelf scrolling through a clamped scroll destination. It respects the relevant Windows system wheel setting and uses animations only under the motion policy.",
+      "symbols": [
+        "SmoothScroll",
+        "EnableWheel",
+        "MoveBy",
+        "Cancel",
+        "GetSystemWheelUnits"
+      ],
+      "related": [
+        "pattern.desktop.home-shelves",
+        "pattern.desktop.appearance"
+      ]
+    },
+    {
+      "id": "helper.view-motion",
+      "kind": "helper",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/ViewMotion.cs",
+      "summary": "Provides cancellable view fades, tile movement, and a shared top-down reveal and collapse for context menus and warnings. A moving tile holds its destination through transform cleanup. The host decides whether motion is allowed.",
+      "symbols": [
+        "ViewMotion",
+        "Reveal",
+        "fadeOnly",
+        "FadeDuration",
+        "Move",
+        "RevealFromTop"
+      ],
+      "related": [
+        "pattern.desktop.view-motion"
+      ]
+    },
+    {
+      "id": "icon.artwork",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Artwork action or editor.",
+      "resourceKey": "LG.Icon.Artwork",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.back",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Navigate to the previous section.",
+      "resourceKey": "LG.Icon.Back",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.brain",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Marks dynamic collections on cards and provides the sidebar fallback when no rule suggests a symbol.",
+      "resourceKey": "LG.Icon.Brain",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.check",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Selected collection membership and completed states.",
+      "resourceKey": "LG.Icon.Check",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.chevron",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Rightward disclosure or next action.",
+      "resourceKey": "LG.Icon.Chevron",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.chevrondown",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Decrease a numeric value.",
+      "resourceKey": "LG.Icon.ChevronDown",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.chevronleft",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Leftward or previous action.",
+      "resourceKey": "LG.Icon.ChevronLeft",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.chevronup",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Increase a numeric value.",
+      "resourceKey": "LG.Icon.ChevronUp",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.close",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Close the window or dismiss an item.",
+      "resourceKey": "LG.Icon.Close",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.controls",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "App behaviour and controls.",
+      "resourceKey": "LG.Icon.Controls",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.copy",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Copy selected text.",
+      "resourceKey": "LG.Icon.Copy",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.cut",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Cut selected text.",
+      "resourceKey": "LG.Icon.Cut",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.delete",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Remove an entry.",
+      "resourceKey": "LG.Icon.Delete",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.download",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Lucide download arrow and tray for downloading a package.",
+      "resourceKey": "LG.Icon.Download",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.edit",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Edit an existing entry or identify an in-place configuration edit in a mod file preview.",
+      "resourceKey": "LG.Icon.Edit",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.filter",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Filter or rule-related actions.",
+      "resourceKey": "LG.Icon.Filter",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.folder",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Discoveries and feed file import.",
+      "resourceKey": "LG.Icon.Folder",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.folderopen",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Open the installed game's folder.",
+      "resourceKey": "LG.Icon.FolderOpen",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.game",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Gamepad symbol and game artwork placeholder.",
+      "resourceKey": "LG.Icon.Game",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.home",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Home view.",
+      "resourceKey": "LG.Icon.Home",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.external-link",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Open the linked page in an external browser.",
+      "resourceKey": "LG.Icon.ExternalLink",
+      "targetType": "SymbolIcon",
+      "related": ["pattern.desktop.release-notes"]
+    },
+    {
+      "id": "icon.info",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "About or information.",
+      "resourceKey": "LG.Icon.Info",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.kofi",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Support the project on Ko-fi.",
+      "resourceKey": "LG.Icon.KoFi",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.library",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Collections and library settings.",
+      "resourceKey": "LG.Icon.Library",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.maximize",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Maximise the window.",
+      "resourceKey": "LG.Icon.Maximize",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.minus",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Minimise the window.",
+      "resourceKey": "LG.Icon.Minus",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.more",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Overflow or options menu.",
+      "resourceKey": "LG.Icon.More",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.move",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Move or pan artwork.",
+      "resourceKey": "LG.Icon.Move",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.palette",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Appearance settings.",
+      "resourceKey": "LG.Icon.Palette",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.paste",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Paste clipboard text.",
+      "resourceKey": "LG.Icon.Paste",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.play",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Lucide Play polygon rendered as an outline on the game details Play button.",
+      "resourceKey": "LG.Icon.Play",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.plus",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Add or create actions.",
+      "resourceKey": "LG.Icon.Plus",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.refresh",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Refresh feeds, metadata, artwork, or update checks.",
+      "resourceKey": "LG.Icon.Refresh",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.replace",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Show a replacement or a restoration in a game file preview.",
+      "resourceKey": "LG.Icon.Replace",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.restore",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Restore the window.",
+      "resourceKey": "LG.Icon.Restore",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.rss",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "RSS feed navigation and article placeholders.",
+      "resourceKey": "LG.Icon.Rss",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.search",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Search or filter input.",
+      "resourceKey": "LG.Icon.Search",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.settings",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Settings navigation.",
+      "resourceKey": "LG.Icon.Settings",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "icon.wrench",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Open Mods settings or a game's Mods list.",
+      "resourceKey": "LG.Icon.Wrench",
+      "targetType": "SymbolIcon"
+    },
+    {
+      "id": "pattern.desktop.about",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Settings.cs",
+      "summary": "Displays update status, version, and build information, followed by formatted notes for the installed release. Also shows the support action and the authorised-use disclosure.",
+      "symbols": [
+        "BuildAbout",
+        "OpenSupportPage",
+        "UsageDisclosure"
+      ],
+      "related": [
+        "pattern.desktop.updates",
+        "pattern.desktop.release-notes",
+        "pattern.desktop.footer"
+      ]
+    },
+    {
+      "id": "pattern.desktop.app-behaviour",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Behaviour.cs",
+      "summary": "Builds startup and window behaviour switches, the Performance rendering and process priority preferences, and the Miscellaneous contribution reminder and first-usage reset. Per-user Setup and portable copies support the Automatic updates switch. Manages window restore and tray actions.",
+      "symbols": [
+        "BuildBehaviour",
+        "ShowRenderingRestart",
+        "ResetFirstUsagePrompts",
+        "RestoreWindow",
+        "HideToTray"
+      ],
+      "related": [
+        "style.toggle-switch",
+        "pattern.desktop.preference-controls",
+        "style.section",
+        "component.modal-dialog",
+        "pattern.desktop.contribution-reminder"
+      ]
+    },
+    {
+      "id": "pattern.desktop.appearance",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Settings.cs",
+      "summary": "Composes font, base size, interface scale, translucency, default and artwork accent colours, and motion controls, and keeps runtime resources and layout in sync.",
+      "symbols": [
+        "BuildAppearance",
+        "BuildDefaultAccentPicker",
+        "ApplyInterfaceScale",
+        "ApplyTranslucency",
+        "ApplyMotionPreference",
+        "InterfaceScales"
+      ],
+      "related": [
+        "pattern.desktop.preference-controls",
+        "pattern.desktop.font-picker",
+        "component.colour-picker",
+        "state.desktop.motion",
+        "state.desktop.opaque",
+        "state.desktop.artwork-accent"
+      ]
+    },
+    {
+      "id": "state.desktop.artwork-accent",
+      "kind": "state",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Artwork.cs",
+      "summary": "Uses the selected artwork's dominant hue on Game Details and holds the previous palette until the next artwork is ready. With motion enabled the palette follows the artwork fade, and each frame uses the matching contrast foreground. Selection, input focus, and enabled switches also follow the palette. The configured default accent applies elsewhere and when artwork is unavailable or its accent is disabled.",
+      "symbols": ["ApplyArtworkAccent", "SetArtworkPalette", "SetArtwork", "SampleArtwork"],
+      "related": ["pattern.desktop.appearance", "helper.view-motion", "token.accent", "token.accentfill", "token.defaultaccentcolor", "token.onaccent", "token.selection"]
+    },
+    {
+      "id": "pattern.desktop.artwork-editor",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Artwork.cs",
+      "summary": "Wires the separate artwork context menu, pointer pan and zoom, keyboard nudging, and saved framing to the toolbar. The render layer previews changes until they are accepted.",
+      "symbols": [
+        "InitializeArtwork",
+        "BeginArtworkMove",
+        "FinishArtworkMove",
+        "ZoomArtwork",
+        "ChooseArtwork",
+        "ResetArtwork",
+        "HandleArtworkKey",
+        "PanSurface",
+        "ArtworkTools"
+      ],
+      "related": [
+        "component.artwork-toolbar",
+        "helper.launcher-menus",
+        "pattern.desktop.artwork-renderer"
+      ]
+    },
+    {
+      "id": "pattern.desktop.artwork-renderer",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Artwork.cs",
+      "summary": "Draws the visible crop from size-bounded artwork and supplies glass samples to the shell, search field, and results panel. Pointer motion is applied by the host.",
+      "symbols": [
+        "ArtworkLayer",
+        "UpdateCrop",
+        "RefreshArtworkGlass",
+        "UpdateGlassCrop",
+        "SampleGlass",
+        "MoveArtworkParallax",
+        "LoadDetailsArtwork"
+      ],
+      "related": [
+        "style.desktop.artwork-glass"
+      ]
+    },
+    {
+      "id": "pattern.desktop.card-grid",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
+      "summary": "Lays out a responsive bounded card grid and supplies previous and next paging actions for the collections and discoveries workflows.",
+      "symbols": [
+        "ShowCardGrid",
+        "SizeCardGrid",
+        "AddPagination",
+        "RenderDiscoveries"
+      ],
+      "related": [
+        "component.game-card",
+        "component.collection-card"
+      ]
+    },
+    {
+      "id": "pattern.desktop.collection-cards",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Collections.cs",
+      "summary": "Populates collection cards with game counts, dynamic status, and artwork mosaics that prefer custom portraits, plus navigation and context menu actions.",
+      "symbols": [
+        "BuildCollectionCard",
+        "CollectionBrowseCard",
+        "CollectionMosaic",
+        "LoadCollectionArtwork",
+        "RenderCollectionCards"
+      ],
+      "related": [
+        "component.collection-card",
+        "helper.launcher-menus"
+      ]
+    },
+    {
+      "id": "pattern.desktop.contribution-reminder",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Dialogs.cs",
+      "summary": "Offers optional Ko-fi support and GitHub feedback in a dismissible modal on the first return from a game and every 50 returns. App Behaviour provides the Contribution reminders toggle.",
+      "symbols": ["RecordGameReturn", "TryShowContributionReminder", "OpenProjectPage"],
+      "related": ["component.modal-dialog", "pattern.desktop.app-behaviour", "style.toggle-switch", "icon.external-link", "icon.kofi"]
+    },
+    {
+      "id": "helper.lucide-icon-catalog",
+      "kind": "helper",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/LucideIconCatalog.cs",
+      "summary": "Provides the embedded Lucide 0.468.0 icon names, keywords, and lazily parsed 24-unit stroke geometries.",
+      "symbols": ["LucideIconCatalog", "LucideIcon", "Geometry", "Keywords"],
+      "related": ["component.symbol-icon", "pattern.desktop.collection-icons"]
+    },
+    {
+      "id": "pattern.desktop.collection-icons",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.CollectionIcons.cs",
+      "summary": "Chooses sidebar symbols from saved overrides or positive rules and offers a searchable, virtualized icon grid that fits the viewport and scrolls vertically. Reset to default restores the automatic symbol.",
+      "symbols": ["CollectionSidebarIcon", "CollectionMenu", "ShowCollectionIconPicker", "CollectionIconScroll", "CollectionIconGrid"],
+      "related": ["pattern.desktop.sidebar", "component.modal-dialog", "helper.lucide-icon-catalog", "style.modal-field", "style.button.selected"]
+    },
+    {
+      "id": "pattern.desktop.collection-picker",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Collections.cs",
+      "summary": "Shows a searchable grid of manual collections in a modal. Keeps pending membership changes separate from saved values until confirmation.",
+      "symbols": [
+        "ShowCollectionPicker",
+        "CollectionSearchScore",
+        "SetSelection"
+      ],
+      "related": [
+        "component.collection-card",
+        "component.modal-dialog",
+        "style.modal-field"
+      ]
+    },
+    {
+      "id": "pattern.desktop.common-builders",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
+      "summary": "Constructs standard text labels, headings, titled sections, wrapping action rows, and variant buttons for code-built pages.",
+      "symbols": [
+        "Label",
+        "Heading",
+        "Section",
+        "Actions",
+        "ActionButton",
+        "LauncherCommand"
+      ],
+      "related": [
+        "style.muted-text",
+        "style.heading",
+        "style.section",
+        "style.button.lg"
+      ]
+    },
+    {
+      "id": "pattern.desktop.game-media",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.GameMedia.cs",
+      "summary": "Shows the game title beside the modal heading and imports backdrop, portrait, logo, and theme music overrides. Opens through the game context menu or the Edit game footer.",
+      "symbols": ["ShowGameMetadata", "SaveGameMedia"],
+      "related": ["component.media-file-field", "component.modal-dialog", "pattern.desktop.dialogs"]
+    },
+    {
+      "id": "pattern.desktop.dialogs",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Dialogs.cs",
+      "summary": "Provides the desktop modal entrypoint, confirmation and notice helpers, footer actions, labelled input rows, and styled text fields.",
+      "symbols": [
+        "ShowModal",
+        "Confirm",
+        "Notice",
+        "DialogActions",
+        "TextField",
+        "ModalTextField",
+        "Field",
+        "Beside"
+      ],
+      "related": [
+        "component.modal-host",
+        "component.modal-dialog",
+        "style.text-box",
+        "style.modal-field",
+        "pattern.desktop.view-motion"
+      ]
+    },
+    {
+      "id": "pattern.desktop.dynamic-rule-editor",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.CollectionRules.cs",
+      "summary": "Builds dynamic-collection rule rows for a genre or Steam tag, operator, searchable library suggestions, and all/any matching.",
+      "symbols": [
+        "EditCollection",
+        "RuleFields",
+        "RuleValueSuggestions",
+        "DescribeCollectionRules"
+      ],
+      "related": [
+        "component.modal-dialog",
+        "style.choice-picker",
+        "style.modal-field",
+        "style.desktop.search-results"
+      ]
+    },
+    {
+      "id": "pattern.desktop.folder-dialog",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Dialogs.cs",
+      "summary": "Supports choosing a library folder or opening the folder management dialog from the shell.",
+      "symbols": [
+        "ChooseFolder",
+        "ManageLibraryFolder"
+      ],
+      "related": [
+        "pattern.desktop.dialogs",
+        "pattern.desktop.footer"
+      ]
+    },
+    {
+      "id": "pattern.desktop.font-picker",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Dialogs.cs",
+      "summary": "Lists installed fonts in the shared Appearance preference picker and applies the saved font or defaults throughout the desktop UI.",
+      "symbols": [
+        "BuildFontPicker",
+        "ApplyFont",
+        "FontOption"
+      ],
+      "related": [
+        "style.choice-picker",
+        "token.desktop.ui-font",
+        "token.desktop.type-scale"
+      ]
+    },
+    {
+      "id": "pattern.desktop.footer",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
+      "summary": "Surfaces folder-watch status and controls, discovery review count, app status/update progress, library count, and the Ko-fi action.",
+      "symbols": [
+        "StatusSurface",
+        "ManageFolder",
+        "FolderStatus",
+        "OpenReviews",
+        "ReviewCount",
+        "StatusText",
+        "UpdateDownloadProgress",
+        "UpdateAction",
+        "GameCount",
+        "SupportButton"
+      ],
+      "related": [
+        "component.status-indicator",
+        "style.desktop.artwork-glass",
+        "pattern.desktop.updates"
+      ]
+    },
+    {
+      "id": "pattern.desktop.game-card",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
+      "summary": "Constructs a portrait tile for a game, formats playtime, loads artwork, and attaches the shared game menu. Collection sorting moves tiles to their new positions when motion is enabled.",
+      "symbols": [
+        "BuildGameCard",
+        "RenderCards",
+        "SortCollection",
+        "OpenCommand",
+        "ShowPlaytime",
+        "LoadCardArtwork"
+      ],
+      "related": [
+        "component.game-card",
+        "pattern.desktop.game-menu",
+        "helper.view-motion"
+      ]
+    },
+    {
+      "id": "pattern.desktop.game-details",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
+      "summary": "Layers the game backdrop and dark gradient behind the title, optional logo, metadata, history, and wrapping actions that include a wrench for the game's Mods list.",
+      "symbols": [
+        "Details",
+        "ArtworkHost",
+        "GameInfo",
+        "GameTitle",
+        "GameLogo",
+        "GenreChips",
+        "StoreTags",
+        "Playtime",
+        "LastPlayed",
+        "PlayGame",
+        "EditGameButton",
+        "RefreshSteamButton",
+        "GameModsButton",
+        "GameOptions"
+      ],
+      "related": [
+        "pattern.desktop.artwork-renderer",
+        "pattern.desktop.game-details-id",
+        "pattern.desktop.genre-chips",
+        "pattern.desktop.store-tags",
+        "pattern.desktop.game-menu",
+        "pattern.desktop.mods",
+        "icon.wrench"
+      ],
+      "usedBy": [
+        "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
+        "avalonia/LGLauncher.Desktop/Launcher.GameLogos.cs",
+        "avalonia/LGLauncher.Desktop/Launcher.SteamRefresh.cs"
+      ]
+    },
+    {
+      "id": "pattern.desktop.mods",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Mods.cs",
+      "summary": "Groups packages and managed installations in separate panels with inline update status and symbolic download and delete actions. Each mod has one cache delete button that opens the shared version and variant menu when several downloads are cached. The game list groups warnings in a collapsed, counted panel. Managed mods share uninstall, verification, and affected-file actions. OptiScaler includes an inline DXGI picker and save tick. ReShade uses the shared graphics API picker, previews shared Vulkan layer changes, marks in-place OptiScaler configuration edits Modified, and offers a confirmed full add-on upgrade for managed standard installs.",
+      "symbols": ["BuildMods", "RenderOptiScalerUpdateCheck", "CheckModUpdates", "ModPackageInfo", "ManagedModSettingsRow", "ModSettingsRow", "DownloadModPackage", "DeleteModPackage", "ModDeleteButton", "ModCacheDeleteButton", "RefreshGameModList", "RenderGameModWarnings", "RefreshModInspection", "ShowGameMods", "ShowGameManagedMod", "ShowGameOptiScaler", "ShowGameReShade", "ShowModSetup", "ShowModSetupPreview", "ShowModDownloads", "ShowModPlan", "ModFileRow", "ShowManagedMod", "UpgradeReShade", "ShowModVerification", "ShowAffectedModFiles", "DxgiSpoofingRow", "ConfirmModUninstall"],
+      "related": ["pattern.desktop.game-details", "pattern.desktop.common-builders", "pattern.desktop.dialogs", "pattern.desktop.preference-controls", "helper.launcher-menus", "style.button.settings-row", "style.button.destructive", "style.warning-panel", "style.choice-picker", "style.game-icon", "style.section", "style.tooltip", "style.progress-bar", "icon.wrench", "icon.info", "icon.check", "icon.refresh", "icon.download", "icon.delete", "icon.replace", "icon.edit", "token.modified"]
+    },
+    {
+      "id": "pattern.desktop.game-details-id",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
+      "summary": "Shows a matched Steam App ID beside Playtime and Last Launched. Unmatched games omit the stat.",
+      "symbols": [
+        "SteamAppId",
+        "SteamLabel",
+        "Playtime",
+        "LastPlayed"
+      ],
+      "related": [
+        "pattern.desktop.game-details"
+      ]
+    },
+    {
+      "id": "pattern.desktop.game-editor",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Dialogs.cs",
+      "summary": "Builds the add/edit game form, file selection and Steam controls, and retains the draft for retry when saving fails.",
+      "symbols": [
+        "EditGame",
+        "ShowGameEditor",
+        "AddFromFile",
+        "PickFile",
+        "TrySteamAppId"
+      ],
+      "related": [
+        "pattern.desktop.dialogs",
+        "style.list-box",
+        "style.muted-text"
+      ]
+    },
+    {
+      "id": "pattern.desktop.game-menu",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Dialogs.cs",
+      "summary": "Creates the game action menu shared by detail actions and portrait tiles. Offers Open Folder, Edit game, Refresh from Steam, Add to collection, and Remove from library.",
+      "symbols": [
+        "GameMenu",
+        "BuildGameMenu",
+        "OpenGameFolder"
+      ],
+      "related": [
+        "helper.launcher-menus",
+        "component.frosted-context-menu",
+        "pattern.desktop.collection-picker"
+      ]
+    },
+    {
+      "id": "pattern.desktop.genre-chips",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Genres.cs",
+      "summary": "Creates compact genre buttons that run a library genre search when selected.",
+      "symbols": [
+        "RenderGenres",
+        "GenreChips"
+      ],
+      "related": [
+        "style.button.genre",
+        "pattern.desktop.library-search"
+      ]
+    },
+    {
+      "id": "pattern.desktop.home-grid",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Home.cs",
+      "summary": "Builds the full-library card grid as virtualised rows with adaptable column count. Recently played uses a separate shelf.",
+      "symbols": [
+        "HomeLibraryGrid",
+        "RenderHome",
+        "VirtualizingStackPanel",
+        "ItemsControl"
+      ],
+      "related": [
+        "component.game-card",
+        "pattern.desktop.game-card"
+      ]
+    },
+    {
+      "id": "pattern.desktop.home-shelves",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Home.cs",
+      "summary": "Renders the Home horizontal shelves with conditional previous and next buttons and delegates scrolling to SmoothScroll. Collections and RSS can scroll with their horizontal scrollbars hidden.",
+      "symbols": [
+        "RenderHome",
+        "AddHomeShelf"
+      ],
+      "related": [
+        "helper.smooth-scroll",
+        "pattern.desktop.rss-shelf"
+      ]
+    },
+    {
+      "id": "pattern.desktop.icon-button",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Behaviour.cs",
+      "summary": "Combines a shared symbol and label inside an action button. Settings destinations add a disclosure chevron and row styling.",
+      "symbols": [
+        "IconButton",
+        "Symbol",
+        "SettingsRow",
+        "SettingsBack"
+      ],
+      "related": [
+        "component.symbol-icon",
+        "style.button.settings-row"
+      ]
+    },
+    {
+      "id": "pattern.desktop.library-search",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Search.cs",
+      "summary": "The shell's search controller updates a styled results dropdown, accounts for its bounded height, and supports keyboard navigation and result activation.",
+      "symbols": [
+        "InitializeSearch",
+        "ShowSearchResults",
+        "CloseSearch",
+        "HandleSearchKey",
+        "OpenSearchResult",
+        "SearchSurface",
+        "SearchBox",
+        "SearchDropdown",
+        "SearchResults",
+        "SearchResultsFrame",
+        "SearchEmpty",
+        "SearchArtworkHost",
+        "ResultsArtworkHost",
+        "CreateLibrarySearch"
+      ],
+      "related": [
+        "component.library-row",
+        "style.desktop.search-results",
+        "style.desktop.artwork-glass",
+        "pattern.desktop.navigation"
+      ],
+      "usedBy": [
+        "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
+        "avalonia/LGLauncher.Desktop/Launcher.axaml"
+      ]
+    },
+    {
+      "id": "pattern.desktop.library-settings",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Settings.cs",
+      "summary": "Groups preferences for game logos, Steam store tags, and the recent RSS shelf.",
+      "symbols": [
+        "BuildLibrarySettings"
+      ],
+      "related": [
+        "pattern.desktop.preference-controls"
+      ]
+    },
+    {
+      "id": "pattern.desktop.navigation",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Navigation.cs",
+      "summary": "Manages page, game, collection, and article destinations and remembers scroll and paging offsets for back and forward navigation.",
+      "symbols": [
+        "Navigate",
+        "SelectGame",
+        "ViewLocation",
+        "HistoryEntry",
+        "HandleNavigationPointer",
+        "ShowHistoryEntry"
+      ],
+      "related": []
+    },
+    {
+      "id": "pattern.desktop.page-content",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
+      "summary": "Hosts scrollable feature pages and a separate game detail pane. The Mods heading includes a request action and wrapping scope note. The scalable shell keeps its modal host above the content.",
+      "symbols": [
+        "InterfaceRoot",
+        "ShellSurface",
+        "MainShell",
+        "MainArea",
+        "ContentScroll",
+        "PageTitle",
+        "RequestModButton",
+        "ModRequestScope",
+        "PageBody",
+        "DialogHost"
+      ],
+      "related": [
+        "style.page-title",
+        "style.muted-text",
+        "component.modal-host",
+        "helper.smooth-scroll"
+      ]
+    },
+    {
+      "id": "pattern.desktop.preference-controls",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Settings.cs",
+      "summary": "Builds toggles and shared pickers that align to the button's left edge when they fit and its right edge near the launcher boundary. Override reasons disable affected rows, supply help text, and preserve the saved preference.",
+      "symbols": [
+        "PreferenceRow",
+        "PreferenceToggle",
+        "BindPreferenceAvailability",
+        "PreferenceChoice",
+        "BuildChoicePicker",
+        "EditInterfaceScale",
+        "SavePreference",
+        "PreferencesChanged",
+        "overrideReason"
+      ],
+      "related": [
+        "style.preference-row",
+        "style.toggle-switch",
+        "style.choice-picker",
+        "component.frosted-context-menu",
+        "component.modal-dialog",
+        "style.modal-field"
+      ]
+    },
+    {
+      "id": "pattern.desktop.release-notes",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.ReleaseNotes.cs",
+      "summary": "Displays installed release notes beneath the update controls, with Current release and Available release tabs when a newer release is known. A header action opens the selected release on GitHub.",
+      "symbols": [
+        "BuildReleaseNotes",
+        "RefreshReleaseNotes"
+      ],
+      "related": [
+        "pattern.desktop.about",
+        "pattern.desktop.rss-reader",
+        "icon.external-link",
+        "style.tabs",
+        "style.section"
+      ]
+    },
+    {
+      "id": "pattern.desktop.rss-list",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Rss.cs",
+      "summary": "Shows feed refresh, status messages, and a paged article list. Article rows use the settings-row button layout.",
+      "symbols": [
+        "RenderRss",
+        "RssArticleCaption"
+      ],
+      "related": [
+        "style.button.settings-row",
+        "pattern.desktop.rss-reader",
+        "pattern.desktop.card-grid"
+      ]
+    },
+    {
+      "id": "pattern.desktop.rss-reader",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Rss.cs",
+      "summary": "Displays RSS articles with selectable text, paragraphs, headings, quotes, code styling, and optional inline images and external link actions. The About release notes reuse the native text blocks.",
+      "symbols": [
+        "RenderRssArticle",
+        "ArticleText",
+        "BuildRssParagraph"
+      ],
+      "related": [
+        "component.desktop.rss-image"
+      ]
+    },
+    {
+      "id": "pattern.desktop.rss-settings",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Rss.cs",
+      "summary": "Groups feed URL input and file import, refresh interval with number spinner, subscription switches, and per-feed feedback.",
+      "symbols": [
+        "BuildRssSettings",
+        "BuildRssFeedRow",
+        "RenderRssSubscriptions",
+        "RssFeedRow"
+      ],
+      "related": [
+        "helper.launcher-menus",
+        "style.number-input",
+        "style.toggle-switch",
+        "style.section"
+      ]
+    },
+    {
+      "id": "pattern.desktop.rss-shelf",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Rss.cs",
+      "summary": "Builds up to six recent article cards for Home, with shared shelf arrows and transparent Settings and Refresh icons beside the heading. Distinguishes missing feeds from missing articles.",
+      "symbols": [
+        "RenderHomeRss",
+        "RefreshHomeRss",
+        "BuildRssCard",
+        "HomeRssRow"
+      ],
+      "related": [
+        "pattern.desktop.home-shelves",
+        "pattern.desktop.rss-settings",
+        "style.button.quiet",
+        "style.tooltip",
+        "icon.settings",
+        "icon.refresh"
+      ]
+    },
+    {
+      "id": "pattern.desktop.sidebar",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
+      "summary": "Shows navigation and the discovery badge, followed by the Library and Collections lists and the Add game and Settings actions. Game rows, collection rows, and buttons share the same height.",
+      "symbols": [
+        "LibrarySurface",
+        "HomeNav",
+        "CollectionsNav",
+        "DiscoveriesNav",
+        "RssNav",
+        "DiscoveryBadge",
+        "DiscoveryCount",
+        "SidebarLists",
+        "LibraryGames",
+        "LibraryEmpty",
+        "LibraryCollections",
+        "CollectionsEmpty",
+        "AddGame",
+        "SettingsNav"
+      ],
+      "selectors": ["ListBox.sidebar-list ListBoxItem", "TextBlock.sidebar-heading"],
+      "resourceKeys": ["LG.SidebarRowHeight"],
+      "related": [
+        "component.library-row",
+        "style.button.nav",
+        "style.button.selected",
+        "style.desktop.artwork-glass",
+        "pattern.desktop.collection-icons"
+      ],
+      "usedBy": [
+        "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
+        "avalonia/LGLauncher.Desktop/Launcher.Artwork.cs"
+      ]
+    },
+    {
+      "id": "pattern.desktop.store-tags",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.SteamTags.cs",
+      "summary": "Creates plain-text store-tag labels for the details pane when the user has enabled the feature.",
+      "symbols": [
+        "RenderStoreTags",
+        "StoreTags"
+      ],
+      "related": [
+        "pattern.desktop.game-details",
+        "pattern.desktop.library-settings"
+      ]
+    },
+    {
+      "id": "pattern.desktop.updates",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Startup.cs",
+      "summary": "Keeps startup progress and the About controls in sync with the release check. The Install update action uses a verified Setup package for a per-user install or a verified executable for a portable copy. Earlier machine-wide installs open the release page.",
+      "symbols": [
+        "CreateSplash",
+        "ShowStartupProgress",
+        "BuildUpdateSettings",
+        "CheckUpdates"
+      ],
+      "related": [
+        "component.desktop.startup-splash",
+        "pattern.desktop.footer"
+      ]
+    },
+    {
+      "id": "pattern.desktop.usage-notice",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Dialogs.cs",
+      "summary": "Shows the first-run authorised-use notice and records acceptance before letting the user continue.",
+      "symbols": [
+        "UsageNotice"
+      ],
+      "related": [
+        "pattern.desktop.dialogs",
+        "component.modal-dialog"
+      ]
+    },
+    {
+      "id": "pattern.desktop.view-motion",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Behaviour.cs",
+      "summary": "Runs and cancels entrance animations for launcher views and movement for reordered collection tiles. Uses the same motion settings for both.",
+      "symbols": [
+        "AnimateView",
+        "AnimateMotion",
+        "CancelMotion",
+        "RunMotion"
+      ],
+      "related": [
+        "helper.view-motion",
+        "state.desktop.motion"
+      ]
+    },
+    {
+      "id": "pattern.desktop.window-caption",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
+      "summary": "Markup for the embedded title, minimise, maximise/restore, and close buttons. The desktop adapter configures compositor frame support.",
+      "symbols": [
+        "DragBar",
+        "WindowTitle",
+        "MinimizeWindow",
+        "MaximizeWindow",
+        "MaximizeGlyph",
+        "CloseWindow"
+      ],
+      "related": [
+        "style.button.caption",
+        "theme.custom-window-decorations",
+        "style.desktop.artwork-glass"
+      ],
+      "usedBy": [
+        "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
+        "avalonia/LGLauncher.Desktop/WindowsDesktop.cs"
+      ]
+    },
+    {
+      "id": "pattern.gallery.preview",
+      "kind": "pattern",
+      "scope": "gallery",
+      "source": "avalonia/LGLauncher.Gallery/MainWindow.axaml",
+      "summary": "Demonstrates the shared library, status, input, and artwork components with sample data and actions. The gallery has no production library or release behaviour.",
+      "symbols": [
+        "MainWindow",
+        "LibraryPage",
+        "ControlsPage",
+        "ArtworkPage",
+        "LibraryList",
+        "RecentCards",
+        "StepExample",
+        "MenuExample",
+        "Editor"
+      ],
+      "usedBy": [
+        "avalonia/LGLauncher.Gallery/MainWindow.axaml.cs"
+      ],
+      "related": [
+        "component.game-card",
+        "component.status-indicator",
+        "component.artwork-toolbar",
+        "style.combo-box",
+        "style.number-input"
+      ]
+    },
+    {
+      "id": "state.desktop.artwork-glass",
+      "kind": "state",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Artwork.cs",
+      "summary": "Window state class for artwork-backed glass on the shell and applicable search surfaces. The artwork host updates it as artwork and preferences change.",
+      "classes": [
+        "artwork-glass"
+      ],
+      "symbols": [
+        "RefreshArtworkGlass"
+      ],
+      "related": [
+        "style.desktop.artwork-glass",
+        "pattern.desktop.artwork-renderer"
+      ]
+    },
+    {
+      "id": "state.desktop.motion",
+      "kind": "state",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Settings.cs",
+      "summary": "Window state class that enables shared button, card, row, and switch transitions. The desktop sets it from platform animation settings and Reduce Motion.",
+      "classes": [
+        "lg-motion"
+      ],
+      "symbols": [
+        "ApplyMotionPreference"
+      ]
+    },
+    {
+      "id": "state.desktop.opaque",
+      "kind": "state",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Settings.cs",
+      "summary": "Window state class set when translucency is disabled. The context menu uses it to decide whether to sample its backdrop.",
+      "classes": [
+        "lg-opaque"
+      ],
+      "symbols": [
+        "ApplyTranslucency"
+      ]
+    },
+    {
+      "id": "style.artwork-clip",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Clips artwork with an inset radius and leaves a one-dip space for the corresponding outline.",
+      "selectors": [
+        "Border.lg-artwork-clip"
+      ],
+      "classes": [
+        "lg-artwork-clip"
+      ]
+    },
+    {
+      "id": "style.artwork-outline",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Draws a non-interactive one-dip outline around artwork cards.",
+      "selectors": [
+        "Border.lg-artwork-outline"
+      ],
+      "classes": [
+        "lg-artwork-outline"
+      ]
+    },
+    {
+      "id": "style.button.caption",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Fits icon-only minimise, maximise, restore, and close actions in the desktop caption.",
+      "selectors": [
+        "Button.lg.caption"
+      ],
+      "classes": [
+        "lg",
+        "caption"
+      ]
+    },
+    {
+      "id": "style.button.genre",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Makes the shared button compact for a selectable genre chip.",
+      "selectors": [
+        "Button.lg.genre"
+      ],
+      "classes": [
+        "lg",
+        "genre"
+      ]
+    },
+    {
+      "id": "style.button.lg",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Applies the LG.Button control theme to a regular secondary button.",
+      "selectors": [
+        "Button.lg"
+      ],
+      "classes": [
+        "lg"
+      ]
+    },
+    {
+      "id": "style.button.motion",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Animates the shared button surface opacity for hover and press under lg-motion.",
+      "selectors": [
+        ".lg-motion Button.lg /template/ ContentPresenter#PART_ContentPresenter"
+      ],
+      "classes": [
+        "lg-motion",
+        "lg"
+      ]
+    },
+    {
+      "id": "style.button.nav",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Stretches the button and left-aligns content for sidebar navigation.",
+      "selectors": [
+        "Button.lg.nav"
+      ],
+      "classes": [
+        "lg",
+        "nav"
+      ]
+    },
+    {
+      "id": "style.button.primary",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Applies the accent fill and paired foreground to the main action.",
+      "selectors": [
+        "Button.lg.primary"
+      ],
+      "classes": [
+        "lg",
+        "primary"
+      ]
+    },
+    {
+      "id": "style.button.quiet",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Uses a transparent background with muted text for low-emphasis actions.",
+      "selectors": [
+        "Button.lg.quiet"
+      ],
+      "classes": [
+        "lg",
+        "quiet"
+      ]
+    },
+    {
+      "id": "style.button.selected",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Marks a selected button with selection fill, line, and standard text.",
+      "selectors": [
+        "Button.lg.selected"
+      ],
+      "classes": [
+        "lg",
+        "selected"
+      ]
+    },
+    {
+      "id": "style.button.settings-row",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Provides a tall, stretched button for a settings destination or similar navigation row.",
+      "selectors": [
+        "Button.lg.settings-row"
+      ],
+      "classes": [
+        "lg",
+        "settings-row"
+      ]
+    },
+    {
+      "id": "style.card.motion",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Adds a small vertical hover lift to game and collection cards when motion is enabled.",
+      "selectors": [
+        ".lg-motion lg|GameCard, .lg-motion lg|CollectionCard",
+        ".lg-motion lg|GameCard:pointerover, .lg-motion lg|CollectionCard:pointerover"
+      ],
+      "classes": [
+        "lg-motion"
+      ]
+    },
+    {
+      "id": "style.combo-box",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Styles a launcher selector, its drop-down glyph, popup spacing, and option states while retaining the Fluent ComboBox.",
+      "selectors": [
+        "ComboBox.lg-select",
+        "ComboBox.lg-select:pointerover /template/ Border#Background",
+        "ComboBox.lg-select:pressed /template/ Border#Background",
+        "ComboBox.lg-select:focus-visible /template/ Border#HighlightBackground",
+        "ComboBox.lg-select /template/ PathIcon#DropDownGlyph",
+        "ComboBox.lg-select /template/ Popup#PART_Popup",
+        "ComboBox.lg-select /template/ Border#PopupBorder",
+        "ComboBox.lg-select ComboBoxItem",
+        "ComboBox.lg-select ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter",
+        "ComboBox.lg-select ComboBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter",
+        "ComboBox.lg-select ComboBoxItem:disabled"
+      ],
+      "classes": [
+        "lg-select"
+      ]
+    },
+    {
+      "id": "style.desktop.artwork-glass",
+      "kind": "style",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
+      "summary": "Uses the artwork tint and translucent border over chrome and search surfaces when the desktop artwork host enables glass.",
+      "selectors": [
+        "Window.artwork-glass Border.artwork-chrome, Window.artwork-glass Border.search-results",
+        "Window.artwork-glass TextBox.library-search /template/ Border#PART_BorderElement",
+        "Window.artwork-glass TextBox.library-search:not(:focus) /template/ Border#PART_BorderElement"
+      ],
+      "classes": [
+        "artwork-glass",
+        "artwork-chrome",
+        "search-results",
+        "library-search"
+      ],
+      "resourceKeys": [
+        "LG.ArtworkGlass",
+        "LG.ArtworkGlassLine"
+      ]
+    },
+    {
+      "id": "style.desktop.opaque-chrome",
+      "kind": "style",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
+      "summary": "Sets the normal sidebar fill and outlines for shell chrome.",
+      "selectors": [
+        "Border.artwork-chrome"
+      ],
+      "classes": [
+        "artwork-chrome"
+      ]
+    },
+    {
+      "id": "style.desktop.search-results",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Gives game search and rule suggestions the same frame and fixed row height, and animates the container height under lg-motion.",
+      "selectors": [
+        "Border.lg-search-frame",
+        ".lg-motion Grid.lg-search-dropdown[IsVisible=True]",
+        "Grid.lg-motion.lg-search-dropdown[IsVisible=True]",
+        "ListBox.lg-search-results ListBoxItem"
+      ],
+      "classes": [
+        "lg-search-frame",
+        "lg-search-dropdown",
+        "lg-search-results",
+        "lg-motion"
+      ],
+      "resourceKeys": [
+        "LG.SearchResultRowHeight"
+      ],
+      "symbols": [
+        "SearchDropdown",
+        "SearchResults"
+      ]
+    },
+    {
+      "id": "style.heading",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Styles the shared section or modal heading with a semibold larger face.",
+      "selectors": [
+        "TextBlock.lg-heading"
+      ],
+      "classes": [
+        "lg-heading"
+      ]
+    },
+    {
+      "id": "style.list-box",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Makes lists transparent and gives their items shared corner rounding and padding.",
+      "selectors": [
+        "ListBox.lg",
+        "ListBox.lg ListBoxItem"
+      ],
+      "classes": [
+        "lg"
+      ]
+    },
+    {
+      "id": "style.menu-item",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Styles menu actions for shared font sizing and foreground, keyboard or pointer selection, disabled feedback, and destructive actions.",
+      "selectors": [
+        "MenuItem.lg-menu-item, MenuFlyoutPresenter MenuItem",
+        "MenuItem.lg-menu-item:selected /template/ Border#PART_LayoutRoot, MenuFlyoutPresenter MenuItem:selected /template/ Border#PART_LayoutRoot",
+        "MenuItem.lg-menu-item:selected /template/ ContentPresenter#PART_HeaderPresenter, MenuFlyoutPresenter MenuItem:selected /template/ ContentPresenter#PART_HeaderPresenter",
+        "MenuItem.lg-menu-item.destructive /template/ ContentPresenter#PART_HeaderPresenter",
+        "MenuItem.lg-menu-item:disabled, MenuFlyoutPresenter MenuItem:disabled"
+      ],
+      "classes": [
+        "lg-menu-item",
+        "destructive"
+      ],
+      "resourceKeys": [
+        "LG.InterfaceFont",
+        "LG.PopupFont.13"
+      ]
+    },
+    {
+      "id": "style.menu-separator",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Draws a thin shared line between groups of menu actions.",
+      "selectors": [
+        "Separator.lg-menu-separator"
+      ],
+      "classes": [
+        "lg-menu-separator"
+      ]
+    },
+    {
+      "id": "style.menu-surface",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Applies shared text, border, rounded corners, and inset padding to context menus and menu flyouts.",
+      "selectors": [
+        "lg|FrostedContextMenu, MenuFlyoutPresenter"
+      ],
+      "classes": [
+        "lg-menu"
+      ]
+    },
+    {
+      "id": "style.modal",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Draws the modal surface, accent-independent outline, corner radius, and shadow.",
+      "selectors": [
+        "Border.lg-modal"
+      ],
+      "classes": [
+        "lg-modal"
+      ]
+    },
+    {
+      "id": "style.modal-backdrop",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Adds the dark translucent overlay behind the active modal.",
+      "selectors": [
+        "Border.lg-modal-backdrop"
+      ],
+      "classes": [
+        "lg-modal-backdrop"
+      ]
+    },
+    {
+      "id": "style.modal-field",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Vertically centres modal input text and applies the modal field padding.",
+      "selectors": [
+        "TextBox.lg-modal-field"
+      ],
+      "classes": [
+        "lg-modal-field"
+      ]
+    },
+    {
+      "id": "style.tabs",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Styles native tabs with a selected accent underline and a keyboard focus outline. The underline fades between selections when lg-motion is enabled.",
+      "selectors": [
+        "TabControl.lg-tabs",
+        "TabItem.lg-tab",
+        ".lg-motion TabItem.lg-tab /template/ Border#SelectionUnderline"
+      ],
+      "classes": [
+        "lg-tabs",
+        "lg-tab",
+        "lg-motion"
+      ],
+      "resourceKey": "LG.TabItem",
+      "related": [
+        "pattern.desktop.release-notes"
+      ]
+    },
+    {
+      "id": "style.muted-text",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Uses the muted foreground, small text size, and regular weight for supporting copy.",
+      "selectors": [
+        "TextBlock.lg-muted"
+      ],
+      "classes": [
+        "lg-muted"
+      ]
+    },
+    {
+      "id": "style.choice-picker",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Styles picker triggers for Appearance preferences, collection sort and rules, and DXGI spoofing. List pickers use the shared context menu and the default accent trigger opens a modal.",
+      "selectors": [
+        "Button.lg.choice-picker",
+        "Button.lg.choice-picker lg|SymbolIcon"
+      ],
+      "classes": ["lg", "choice-picker"],
+      "related": ["component.frosted-context-menu", "component.colour-picker", "style.menu-item", "icon.chevrondown"]
+    },
+    {
+      "id": "style.colour-picker",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Gives preset buttons the shared compact field treatment, highlights the selected preset, and draws a consistent swatch in the dialog and its trigger.",
+      "selectors": ["Border.lg-colour-swatch", "Button.lg.colour-preset", "Button.lg.colour-preset.selected"],
+      "classes": ["lg-colour-swatch", "lg", "colour-preset", "selected"],
+      "related": ["component.colour-picker", "style.choice-picker"]
+    },
+    {
+      "id": "style.number-input",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Styles a NumericUpDown and connects its spinner, step buttons, and inset textbox to the shared number themes.",
+      "selectors": [
+        "NumericUpDown.lg-number",
+        "NumericUpDown.lg-number /template/ ButtonSpinner#PART_Spinner",
+        "NumericUpDown.lg-number /template/ TextBox#PART_TextBox",
+        "NumericUpDown.lg-number /template/ TextBox#PART_TextBox /template/ Border#PART_BorderElement"
+      ],
+      "classes": [
+        "lg-number"
+      ]
+    },
+    {
+      "id": "style.page-title",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Reserves right-side space for library search. The full-width variant removes the reservation on pages where search is hidden.",
+      "selectors": [
+        "TextBlock.page-title",
+        "TextBlock.page-title.full-width"
+      ],
+      "classes": [
+        "page-title",
+        "full-width"
+      ]
+    },
+    {
+      "id": "style.panel",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Adds the shared panel surface, line, and corner radius to a Border.",
+      "selectors": [
+        "Border.lg-panel"
+      ],
+      "classes": [
+        "lg-panel"
+      ]
+    },
+    {
+      "id": "style.preference-row",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Dims disabled preference rows immediately when reduced motion is active, or fades their opacity when lg-motion is on.",
+      "selectors": [
+        "Grid.lg-preference:disabled",
+        ".lg-motion Grid.lg-preference"
+      ],
+      "classes": [
+        "lg-preference",
+        "lg-motion"
+      ]
+    },
+    {
+      "id": "style.section",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Applies the shared section theme to a HeaderedContentControl.",
+      "selectors": [
+        "HeaderedContentControl.lg-section"
+      ],
+      "classes": [
+        "lg-section"
+      ]
+    },
+    {
+      "id": "style.text-box",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Uses the launcher canvas, line, shared radius, and text size for ordinary text entry.",
+      "selectors": [
+        "TextBox.lg"
+      ],
+      "classes": [
+        "lg"
+      ]
+    },
+    {
+      "id": "style.toggle-switch",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Keeps the Fluent toggle switch face. The knob transition is enabled only under lg-motion.",
+      "selectors": [
+        "ToggleSwitch",
+        ".lg-motion ToggleSwitch"
+      ],
+      "classes": [
+        "lg-motion"
+      ],
+      "resourceKeys": [
+        "LG.SwitchMotion"
+      ]
+    },
+    {
+      "id": "style.progress-bar",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Gives the splash and package downloads a compact rounded track, an accent fill, and smooth value changes when motion is enabled.",
+      "selector": "ProgressBar.lg-progress",
+      "classes": ["lg-progress"],
+      "targetType": "ProgressBar",
+      "tokens": ["LG.Accent", "LG.SurfaceRaised"]
+    },
+    {
+      "id": "style.tooltip",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Styles tooltips with a rounded raised surface and the desktop-selected font and scale when available.",
+      "selectors": [
+        "ToolTip"
+      ],
+      "resourceKeys": [
+        "LG.InterfaceFont",
+        "LG.PopupFont.12",
+        "LG.TooltipMotion"
+      ]
+    },
+    {
+      "id": "theme.artwork-toolbar",
+      "kind": "control-theme",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Groups the artwork drag/zoom hint, zoom label, cancel action, and save action.",
+      "resourceKey": "{x:Type lg:ArtworkToolbar}",
+      "targetType": "ArtworkToolbar"
+    },
+    {
+      "id": "theme.button",
+      "kind": "control-theme",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Draws the shared raised button surface and applies hover, pressed, keyboard focus, and disabled feedback.",
+      "resourceKey": "LG.Button",
+      "targetType": "Button",
+      "classes": [
+        "lg"
+      ],
+      "selectors": [
+        "^:pointerover /template/ ContentPresenter#PART_ContentPresenter",
+        "^:pressed /template/ ContentPresenter#PART_ContentPresenter",
+        "^:focus-visible /template/ ContentPresenter#PART_ContentPresenter",
+        "^:disabled /template/ ContentPresenter#PART_ContentPresenter"
+      ]
+    },
+    {
+      "id": "theme.collection-card",
+      "kind": "control-theme",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Overlays the collection name and count on host-provided artwork and shows a brain badge for dynamic collections or a check badge for selected cards.",
+      "resourceKey": "{x:Type lg:CollectionCard}",
+      "targetType": "CollectionCard",
+      "classes": [
+        "selected"
+      ],
+      "selectors": [
+        "^:pointerover /template/ Border#CollectionOutline, ^:focus-visible /template/ Border#CollectionOutline, ^.selected /template/ Border#CollectionOutline",
+        "^.selected /template/ Border#SelectionBadge",
+        "^:pressed /template/ Grid#CollectionFrame"
+      ],
+      "symbols": [
+        "CollectionOutline",
+        "CollectionCaption",
+        "DynamicBadge",
+        "SelectionBadge"
+      ]
+    },
+    {
+      "id": "theme.custom-window-decorations",
+      "kind": "control-theme",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/App.axaml",
+      "summary": "Keeps Avalonia's window-decoration content and lets the desktop shell supply its own caption controls where the Windows adapter installs this theme.",
+      "resourceKey": "LG.CustomWindowDecorations",
+      "targetType": "WindowDrawnDecorations",
+      "usedBy": [
+        "avalonia/LGLauncher.Desktop/WindowsDesktop.cs"
+      ]
+    },
+    {
+      "id": "theme.frosted-context-menu",
+      "kind": "control-theme",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Provides the clipped reveal surface, blur layer, and scrollable item host for launcher context menus.",
+      "resourceKey": "{x:Type lg:FrostedContextMenu}",
+      "targetType": "FrostedContextMenu",
+      "symbols": [
+        "RevealSurface",
+        "FrostedBackdrop",
+        "PART_ItemsPresenter"
+      ]
+    },
+    {
+      "id": "theme.game-card",
+      "kind": "control-theme",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Renders clipped portrait art, a game-icon fallback, an accessible open button, and an optional playtime pill.",
+      "resourceKey": "{x:Type lg:GameCard}",
+      "targetType": "GameCard",
+      "symbols": [
+        "PortraitFrame",
+        "PlaytimePill"
+      ]
+    },
+    {
+      "id": "style.game-icon",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Clips game icons in the Library and Managed installations with a radius equal to 20% of the shorter side.",
+      "selectors": ["Border.lg-game-icon"],
+      "classes": ["lg-game-icon"],
+      "related": ["theme.library-row", "pattern.desktop.mods"]
+    },
+    {
+      "id": "theme.library-row",
+      "kind": "control-theme",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Places a rounded 20-dip bitmap or symbolic icon slot beside a single-line, ellipsised game or collection title.",
+      "resourceKey": "{x:Type lg:LibraryRow}",
+      "targetType": "LibraryRow",
+      "related": ["style.game-icon"]
+    },
+    {
+      "id": "theme.number-spinner",
+      "kind": "control-theme",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Builds the numeric frame and inset increment/decrement controls. The edge button has matching side, top, and bottom gaps on either side of the field. The outline reflects focus and validation errors.",
+      "resourceKey": "LG.NumberSpinner",
+      "targetType": "ButtonSpinner",
+      "selectors": [
+        "^:left /template/ StackPanel#StepButtons",
+        "^:focus-within /template/ Border#NumberFrame",
+        "^:error /template/ Border#NumberFrame"
+      ],
+      "symbols": [
+        "NumberFrame",
+        "StepButtons",
+        "PART_IncreaseButton",
+        "PART_DecreaseButton"
+      ]
+    },
+    {
+      "id": "theme.number-step",
+      "kind": "control-theme",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
+      "summary": "Styles a compact numeric repeat button, with hover, pressed, and disabled feedback.",
+      "resourceKey": "LG.NumberStep",
+      "targetType": "RepeatButton",
+      "selectors": [
+        "^:pointerover /template/ ContentPresenter#StepFace",
+        "^:pressed /template/ ContentPresenter#StepFace",
+        "^:disabled /template/ ContentPresenter#StepFace"
+      ],
+      "symbols": [
+        "StepFace"
+      ]
+    },
+    {
+      "id": "theme.section",
+      "kind": "control-theme",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Wraps a heading and content in a bordered rounded panel with spacing and padding from the shared tokens.",
+      "resourceKey": "LG.Section",
+      "targetType": "HeaderedContentControl",
+      "classes": [
+        "lg-section"
+      ]
+    },
+    {
+      "id": "theme.status-indicator",
+      "kind": "control-theme",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Places a small status dot next to its label. Active uses the success brush, Warning uses the warning brush, and Neutral uses the neutral brush.",
+      "resourceKey": "{x:Type lg:StatusIndicator}",
+      "targetType": "StatusIndicator",
+      "selectors": [
+        "^[Tone=Active] /template/ Ellipse#StatusDot",
+        "^[Tone=Warning] /template/ Ellipse#StatusDot"
+      ]
+    },
+    {
+      "id": "token.accent",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Accent text, outlines, and indicators drawn on dark surfaces.",
+      "resourceKey": "LG.Accent"
+    },
+    {
+      "id": "token.accentfill",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Background for accent-filled controls paired with the contrast foreground.",
+      "resourceKey": "LG.AccentFill",
+      "related": ["token.accent", "token.onaccent"]
+    },
+    {
+      "id": "token.artworkfallback",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Dark violet diagonal gradient beneath missing icons, portraits, and collection mosaics.",
+      "resourceKey": "LG.ArtworkFallback"
+    },
+    {
+      "id": "token.artworkglass",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Translucent dark tint over sampled artwork.",
+      "resourceKey": "LG.ArtworkGlass"
+    },
+    {
+      "id": "token.artworkglassline",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Low-opacity light outline for tinted artwork chrome.",
+      "resourceKey": "LG.ArtworkGlassLine"
+    },
+    {
+      "id": "token.artworkinsetradius",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Inner corner radius for clipped artwork inside its outline.",
+      "resourceKey": "LG.ArtworkInsetRadius"
+    },
+    {
+      "id": "token.canvas",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Main dark canvas and input background.",
+      "resourceKey": "LG.Canvas"
+    },
+    {
+      "id": "token.controlpadding",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Default interior padding for the shared button.",
+      "resourceKey": "LG.ControlPadding"
+    },
+    {
+      "id": "token.controlradius",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Standard control and popup corner radius.",
+      "resourceKey": "LG.ControlRadius"
+    },
+    {
+      "id": "token.defaultaccentcolor",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Built-in purple used by the original palette and the Default colour preset.",
+      "resourceKey": "LG.DefaultAccentColor",
+      "related": ["token.accent", "token.accentfill", "component.colour-picker"]
+    },
+    {
+      "id": "token.desktop.popup-type-scale",
+      "kind": "token",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Dialogs.cs",
+      "summary": "Updates popup font sizes using the base-size difference and effective interface scale.",
+      "resourceKeys": ["LG.PopupFont.12", "LG.PopupFont.13"],
+      "symbols": [
+        "ApplyFont"
+      ]
+    },
+    {
+      "id": "token.desktop.search-result-row-height",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Height for both a result row and the empty search-result placeholder.",
+      "resourceKey": "LG.SearchResultRowHeight"
+    },
+    {
+      "id": "token.desktop.type-scale",
+      "kind": "token",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Dialogs.cs",
+      "summary": "Updates the interface size resources to match the chosen base font size.",
+      "resourceKey": "LG.Font.{size}",
+      "symbols": [
+        "ApplyFont"
+      ]
+    },
+    {
+      "id": "token.desktop.ui-font",
+      "kind": "token",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Dialogs.cs",
+      "summary": "Publishes the selected font family for shared text, including popups that use the desktop resource.",
+      "resourceKey": "LG.InterfaceFont",
+      "symbols": [
+        "ApplyFont"
+      ]
+    },
+    {
+      "id": "token.font.10",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base interface type size of 10 DIPs. The desktop offsets it when the user changes the base size.",
+      "resourceKey": "LG.Font.10"
+    },
+    {
+      "id": "token.font.11",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base interface type size of 11 DIPs. The desktop offsets it when the user changes the base size.",
+      "resourceKey": "LG.Font.11"
+    },
+    {
+      "id": "token.font.12",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base interface type size of 12 DIPs. The desktop offsets it when the user changes the base size.",
+      "resourceKey": "LG.Font.12"
+    },
+    {
+      "id": "token.font.13",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base interface type size of 13 DIPs. The desktop offsets it when the user changes the base size.",
+      "resourceKey": "LG.Font.13"
+    },
+    {
+      "id": "token.font.15",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base interface type size of 15 DIPs. The desktop offsets it when the user changes the base size.",
+      "resourceKey": "LG.Font.15"
+    },
+    {
+      "id": "token.font.16",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base interface type size of 16 DIPs. The desktop offsets it when the user changes the base size.",
+      "resourceKey": "LG.Font.16"
+    },
+    {
+      "id": "token.font.17",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base interface type size of 17 DIPs. The desktop offsets it when the user changes the base size.",
+      "resourceKey": "LG.Font.17"
+    },
+    {
+      "id": "token.font.20",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base interface type size of 20 DIPs. The desktop offsets it when the user changes the base size.",
+      "resourceKey": "LG.Font.20"
+    },
+    {
+      "id": "token.font.30",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base interface type size of 30 DIPs. The desktop offsets it when the user changes the base size.",
+      "resourceKey": "LG.Font.30"
+    },
+    {
+      "id": "token.font.31",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base interface type size of 31 DIPs. The desktop offsets it when the user changes the base size.",
+      "resourceKey": "LG.Font.31"
+    },
+    {
+      "id": "token.font.41",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base interface type size of 41 DIPs. The desktop offsets it when the user changes the base size.",
+      "resourceKey": "LG.Font.41"
+    },
+    {
+      "id": "token.line",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Standard control, panel, and divider outline.",
+      "resourceKey": "LG.Line"
+    },
+    {
+      "id": "token.muted",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Secondary copy and low-emphasis foreground.",
+      "resourceKey": "LG.Muted"
+    },
+    {
+      "id": "token.destructivefill",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Dark red surface for destructive uninstall and cached-download deletion actions.",
+      "resourceKey": "LG.DestructiveFill"
+    },
+    {
+      "id": "token.error",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Red foreground for destructive symbols and file removals.",
+      "resourceKey": "LG.Error"
+    },
+    {
+      "id": "token.modified",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Blue foreground for the label and pencil on in-place configuration edits in mod file previews.",
+      "resourceKey": "LG.Modified"
+    },
+    {
+      "id": "token.neutral",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Neutral status marker and subdued notice text.",
+      "resourceKey": "LG.Neutral"
+    },
+    {
+      "id": "token.onaccent",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Contrast foreground for text and glyphs on the accent colour.",
+      "resourceKey": "LG.OnAccent"
+    },
+    {
+      "id": "token.panelpadding",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Default interior padding for shared sections and panels.",
+      "resourceKey": "LG.PanelPadding"
+    },
+    {
+      "id": "token.panelradius",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Standard panel, card outline, and modal corner radius.",
+      "resourceKey": "LG.PanelRadius"
+    },
+    {
+      "id": "token.popupfont.12",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base popup text size of 12 DIPs. The desktop adjusts this for the chosen base size and interface scale.",
+      "resourceKey": "LG.PopupFont.12"
+    },
+    {
+      "id": "token.popupfont.13",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base popup text size of 13 DIPs. The desktop adjusts this for the chosen base size and interface scale.",
+      "resourceKey": "LG.PopupFont.13"
+    },
+    {
+      "id": "token.selection",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Background for selected navigation, entries, and menu options.",
+      "resourceKey": "LG.Selection"
+    },
+    {
+      "id": "token.sidebar",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Opaque sidebar and shell chrome base.",
+      "resourceKey": "LG.Sidebar"
+    },
+    {
+      "id": "token.success",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Active or successful status marker.",
+      "resourceKey": "LG.Success"
+    },
+    {
+      "id": "token.surface",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Base panel, popup, and modal surface.",
+      "resourceKey": "LG.Surface"
+    },
+    {
+      "id": "token.surfaceraised",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Raised buttons, badges, tooltip surfaces, and hovered options.",
+      "resourceKey": "LG.SurfaceRaised"
+    },
+    {
+      "id": "token.switchmotion",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Fluent switch-knob movement under lg-motion.",
+      "resourceKey": "LG.SwitchMotion"
+    },
+    {
+      "id": "token.text",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Primary readable foreground on dark surfaces.",
+      "resourceKey": "LG.Text"
+    },
+    {
+      "id": "token.tooltipmotion",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Default tooltip opacity transition. The desktop settings update or clear the resource when motion changes.",
+      "resourceKey": "LG.TooltipMotion"
+    },
+    {
+      "id": "token.warning",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Warning text, symbols, and panel outlines.",
+      "resourceKey": "LG.Warning"
+    },
+    {
+      "id": "token.warningfill",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Amber background for warning surfaces.",
+      "resourceKey": "LG.WarningFill"
+    },
+    {
+      "id": "icon.warning",
+      "kind": "icon",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Icons.axaml",
+      "summary": "Warning triangle with an exclamation mark.",
+      "resourceKey": "LG.Icon.Warning"
+    },
+    {
+      "id": "style.warning-panel",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Styles an amber warning expander with a title, count, and evenly inset chevron. Hover highlights the chevron face. The warning expander clips its details during reveal and collapse.",
+      "selectors": ["Expander.lg-warning-panel"],
+      "classes": ["lg-warning-panel"],
+      "resourceKeys": ["LG.WarningPanel", "LG.WarningPanelHeader"],
+      "symbols": ["WarningExpander", "WarningChevronFace", "WarningReveal"],
+      "related": ["icon.warning", "icon.chevron", "icon.chevrondown", "token.warning", "token.warningfill", "helper.view-motion"]
+    },
+    {
+      "id": "style.button.destructive",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Filled red treatment with a lighter border for destructive action buttons.",
+      "selectors": ["Button.lg.destructive"],
+      "classes": ["lg", "destructive"],
+      "related": ["theme.button", "token.error", "token.destructivefill"]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+/build/
+/.build-work/
+**/bin/
+**/obj/

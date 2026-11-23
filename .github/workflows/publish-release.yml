@@ -6,17 +6,22 @@ on:
       - 'v*'
       - 'verify-packaging-v*'
 
-permissions:
-  contents: write
+permissions: {}
 
 concurrency:
   group: release-${{ github.ref }}
 
 jobs:
-  package:
+  verify:
     runs-on: windows-2025
+    permissions:
+      contents: read
+    outputs:
+      asset-commit: ${{ steps.stage.outputs.asset-commit }}
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       - name: Stage and verify the portable executable
+        id: stage
         shell: pwsh
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
@@ -43,8 +48,8 @@ jobs:
           if ($portable.VersionInfo.ProductVersion -ne $version) {
             throw "The staged portable version does not match $tag."
           }
-          @("RELEASE_TAG=$tag", "RELEASE_VERSION=$version", "RELEASE_STAGE=$stage",
-            "RELEASE_ASSET_REF=$assetRef", "RELEASE_ASSET_COMMIT=$assetCommit") >> $env:GITHUB_ENV
+          @("RELEASE_TAG=$tag", "RELEASE_VERSION=$version", "RELEASE_STAGE=$stage") >> $env:GITHUB_ENV
+          "asset-commit=$assetCommit" >> $env:GITHUB_OUTPUT
 
       - name: Build and smoke-test the Windows installer
         shell: pwsh
@@ -53,24 +58,82 @@ jobs:
           $portable = Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe'
           & .\build-installer.ps1 -Launcher $portable -Compiler $compiler -Smoke
           $setup = Get-Item -LiteralPath "build\LG-Launcher-Setup-$env:RELEASE_VERSION.exe"
-          "RELEASE_SETUP=$($setup.FullName)" >> $env:GITHUB_ENV
+          Copy-Item -LiteralPath $setup.FullName -Destination $env:RELEASE_STAGE
+
+      - name: Upload the verified release files
+        if: github.ref_name == env.RELEASE_TAG
+        id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verified-release-${{ github.run_attempt }}
+          path: |
+            ${{ env.RELEASE_STAGE }}/LG-Launcher.exe
+            ${{ env.RELEASE_STAGE }}/LG-Launcher.exe.sha256
+            ${{ env.RELEASE_STAGE }}/RELEASE-NOTES.md
+            ${{ env.RELEASE_STAGE }}/LG-Launcher-Setup-${{ env.RELEASE_VERSION }}.exe
+          if-no-files-found: error
+          compression-level: 0
+
+  publish:
+    if: ${{ !startsWith(github.ref_name, 'verify-packaging-') }}
+    needs: verify
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    steps:
+      - name: Validate the release handoff
+        shell: pwsh
+        env:
+          RELEASE_ARTIFACT_ID: ${{ needs.verify.outputs.artifact-id }}
+          RELEASE_ASSET_COMMIT: ${{ needs.verify.outputs.asset-commit }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Expected a stable vX.Y.Z tag.' }
+          if ($env:RELEASE_ARTIFACT_ID -cnotmatch '^[1-9][0-9]*$' -or
+              $env:RELEASE_ASSET_COMMIT -cnotmatch '^[a-f0-9]{40}$') {
+            throw 'Verification did not supply a release artifact and staging commit.'
+          }
+          @("RELEASE_TAG=$tag", "RELEASE_VERSION=$($tag.Substring(1))", "RELEASE_ASSET_REF=refs/heads/release-assets/$tag",
+            "RELEASE_STAGE=$(Join-Path $env:RUNNER_TEMP 'release-assets')") >> $env:GITHUB_ENV
+
+      - name: Download the immutable release artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.verify.outputs.artifact-id }}
+          path: ${{ env.RELEASE_STAGE }}
+          digest-mismatch: error
 
       - name: Publish the verified assets
-        if: github.ref_name == env.RELEASE_TAG
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_ASSET_COMMIT: ${{ needs.verify.outputs.asset-commit }}
         run: |
+          $setupName = "LG-Launcher-Setup-$env:RELEASE_VERSION.exe"
+          $expectedNames = @('LG-Launcher.exe', 'LG-Launcher.exe.sha256', 'RELEASE-NOTES.md', $setupName)
+          $files = @(Get-ChildItem -LiteralPath $env:RELEASE_STAGE -Force)
+          if ($files.Count -ne $expectedNames.Count -or ($files | Where-Object {
+              $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $_.Name -cnotin $expectedNames
+          })) {
+            throw 'The release artifact does not contain the expected files.'
+          }
+          $portable = Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe'
+          $checksum = Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe.sha256'
+          $notes = Join-Path $env:RELEASE_STAGE 'RELEASE-NOTES.md'
+          $setup = Join-Path $env:RELEASE_STAGE $setupName
+          $downloads = @($portable, $checksum, $setup)
+          $portableChecksum = (Get-Content -Raw -LiteralPath $checksum).Trim()
+          if ($portableChecksum -notmatch '^([a-f0-9]{64}) [ *]LG-Launcher\.exe$' -or
+              $Matches[1] -ne (Get-FileHash -LiteralPath $portable).Hash) {
+            throw 'The artifact portable checksum is invalid.'
+          }
+
           $PSNativeCommandUseErrorActionPreference = $false
           $draft = gh release view $env:RELEASE_TAG --json isDraft --jq .isDraft 2>$null
           $found = $LASTEXITCODE -eq 0
           $PSNativeCommandUseErrorActionPreference = $true
           $alreadyPublished = $found -and $draft -cne 'true'
-          $portable = Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe'
-          $checksum = Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe.sha256'
-          $notes = Join-Path $env:RELEASE_STAGE 'RELEASE-NOTES.md'
-          $downloads = @($portable, $checksum, $env:RELEASE_SETUP)
           if (!$alreadyPublished) {
             if (!$found) {
               gh release create $env:RELEASE_TAG --verify-tag --draft --title "LG Launcher $env:RELEASE_VERSION" `
@@ -97,7 +160,7 @@ jobs:
               throw "Missing or incomplete release download: $name"
             }
             # A retry builds a new installer, which can differ from the one already published.
-            if (!$alreadyPublished -or $file -cne $env:RELEASE_SETUP) {
+            if (!$alreadyPublished -or $file -cne $setup) {
               $sha256 = (Get-FileHash -LiteralPath $file).Hash.ToLowerInvariant()
               if ($asset.digest -cne "sha256:$sha256") { throw "Published checksum mismatch: $name" }
             }
@@ -107,6 +170,7 @@ jobs:
             if ($response.StatusCode -ne 200) { throw "Release download is unavailable: $name" }
           }
 
+          git init --quiet
           gh auth setup-git --hostname github.com
           $lease = "--force-with-lease=$($env:RELEASE_ASSET_REF):$env:RELEASE_ASSET_COMMIT"
           git push $lease "$env:GITHUB_SERVER_URL/$env:GH_REPO.git" ":$env:RELEASE_ASSET_REF"

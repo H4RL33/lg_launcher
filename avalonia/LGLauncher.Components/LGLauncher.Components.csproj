@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <EmbeddedResource Include="Lucide.LICENSE.txt" />
+    <EmbeddedResource Include="Lucide.0.468.0.tsv" LogicalName="LGLauncher.Components.Lucide.0.468.0.tsv" />
+  </ItemGroup>
+</Project>

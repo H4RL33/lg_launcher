@@ -1,0 +1,22 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directories:
+      - /avalonia/LGLauncher.Components
+      - /avalonia/LGLauncher.Desktop
+      - /avalonia/LGLauncher.Gallery
+      - /tests
+    schedule:
+      interval: weekly
+    groups:
+      graphics:
+        patterns:
+          - Avalonia
+          - 'Avalonia.*'
+          - SkiaSharp
+          - 'SkiaSharp.NativeAssets.*'
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

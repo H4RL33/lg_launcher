@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>LG Launcher</AssemblyName>
+    <RootNamespace>LGLauncher</RootNamespace>
+    <Nullable>annotations</Nullable>
+    <Version>0.1.16</Version>
+    <SkiaSharpVersion>3.119.4</SkiaSharpVersion>
+    <ApplicationIcon>../../assets/launcher.ico</ApplicationIcon>
+    <ApplicationManifest>../../src/app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="SupportsInAppUpdates" Value="true" Condition="'$(PublishSingleFile)' == 'true'" />
+    <AssemblyMetadata Include="SetupFixtureAppId" Value="$(SetupFixtureAppId)" Condition="'$(SetupFixtureAppId)' != ''" />
+    <ProjectReference Include="../LGLauncher.Components/LGLauncher.Components.csproj" />
+    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="SkiaSharp" Version="$(SkiaSharpVersion)" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="$(SkiaSharpVersion)" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="$(SkiaSharpVersion)" />
+    <PackageReference Include="Markdig" Version="1.6.0" />
+    <PackageReference Include="NVorbis" Version="0.10.5" />
+    <PackageReference Include="Concentus.Oggfile" Version="1.0.7" />
+    <PackageReference Include="SharpCompress" Version="0.50.10" />
+    <EmbeddedResource Include="../../assets/welcome.jpg" LogicalName="LGLauncher.Welcome.jpg" />
+    <EmbeddedResource Include="../../assets/launcher.ico" LogicalName="LGLauncher.Icon.ico" />
+    <EmbeddedResource Include="../../LICENSE" LogicalName="LGLauncher.LICENSE.txt" />
+    <EmbeddedResource Include="Mods/mod-catalog.json" LogicalName="LGLauncher.ModCatalog.json" />
+    <EmbeddedResource Include="Mods/SharpCompress.LICENSE.txt" />
+    <EmbeddedResource Include="Markdig.LICENSE.txt" />
+    <EmbeddedResource Include="ThemeAudio.LICENSE.txt" />
+    <Compile Include="../../src/Library.cs;../../src/GameSessions.cs;../../src/SteamCatalog.cs;../../src/ArtworkFraming.cs" LinkBase="Core" />
+  </ItemGroup>
+</Project>

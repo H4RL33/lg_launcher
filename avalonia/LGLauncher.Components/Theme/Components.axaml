@@ -1,0 +1,441 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lg="using:LGLauncher.Components">
+    <Styles.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://LGLauncher.Components/Theme/Tokens.axaml"/>
+                <ResourceInclude Source="avares://LGLauncher.Components/Theme/Icons.axaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <ControlTheme x:Key="LG.Button" TargetType="Button">
+                <Setter Property="Background" Value="{DynamicResource LG.SurfaceRaised}"/>
+                <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
+                <Setter Property="Padding" Value="{DynamicResource LG.ControlPadding}"/>
+                <Setter Property="MinHeight" Value="34"/>
+                <Setter Property="FontSize" Value="{DynamicResource LG.Font.13}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}" Padding="{TemplateBinding Padding}"
+                                          HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                          BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"/>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                    <Setter Property="Opacity" Value=".86"/>
+                </Style>
+                <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+                    <Setter Property="Opacity" Value=".68"/>
+                </Style>
+                <Style Selector="^:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+                    <Setter Property="BorderBrush" Value="{DynamicResource LG.Accent}"/>
+                </Style>
+                <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
+                    <Setter Property="Opacity" Value=".45"/>
+                </Style>
+            </ControlTheme>
+
+            <ControlTheme x:Key="LG.WarningPanelHeader" TargetType="ToggleButton">
+                <Setter Property="MinHeight" Value="36"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="FocusAdorner" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                          HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center"
+                                          Background="Transparent"/>
+                    </ControlTemplate>
+                </Setter>
+            </ControlTheme>
+
+            <ControlTheme x:Key="LG.WarningPanel" TargetType="Expander">
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border Name="WarningSurface" Background="{DynamicResource LG.WarningFill}" BorderBrush="{DynamicResource LG.Warning}"
+                                BorderThickness="1" CornerRadius="{DynamicResource LG.ControlRadius}" ClipToBounds="True">
+                            <StackPanel>
+                                <ToggleButton Name="WarningHeader" Theme="{StaticResource LG.WarningPanelHeader}"
+                                              AutomationProperties.Name="Warnings"
+                                              IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="9" Margin="12,4,4,4">
+                                        <lg:SymbolIcon Data="{StaticResource LG.Icon.Warning}" Foreground="{DynamicResource LG.Warning}"
+                                                       Width="18" Height="18" VerticalAlignment="Center"/>
+                                        <ContentPresenter Grid.Column="1" Content="{TemplateBinding Header}"
+                                                          HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center"/>
+                                        <Border Grid.Column="2" Name="WarningChevronFace" Width="28" Height="28" Background="Transparent"
+                                                CornerRadius="{DynamicResource LG.ControlRadius}">
+                                            <lg:SymbolIcon Name="WarningChevron" Data="{StaticResource LG.Icon.Chevron}"
+                                                           Foreground="{DynamicResource LG.Warning}" Width="15" Height="15"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </Grid>
+                                </ToggleButton>
+                                <Canvas Name="WarningReveal" Height="0" ClipToBounds="True">
+                                    <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                                      Width="{Binding Bounds.Width, ElementName=WarningReveal}" Padding="12,2,12,12"/>
+                                </Canvas>
+                            </StackPanel>
+                        </Border>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:expanded /template/ lg|SymbolIcon#WarningChevron">
+                    <Setter Property="Data" Value="{StaticResource LG.Icon.ChevronDown}"/>
+                </Style>
+                <Style Selector="^ /template/ Border#WarningChevronFace:pointerover">
+                    <Setter Property="Background" Value="#15FFFFFF"/>
+                </Style>
+                <Style Selector="^ /template/ ToggleButton#WarningHeader:pressed Border#WarningChevronFace">
+                    <Setter Property="Background" Value="#25FFFFFF"/>
+                </Style>
+                <Style Selector="^ /template/ ToggleButton#WarningHeader:focus-visible Border#WarningChevronFace">
+                    <Setter Property="Background" Value="#35FFFFFF"/>
+                </Style>
+            </ControlTheme>
+
+            <ControlTheme x:Key="LG.TabItem" TargetType="TabItem">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="Foreground" Value="{DynamicResource LG.Muted}"/>
+                <Setter Property="BorderBrush" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
+                <Setter Property="Padding" Value="{DynamicResource LG.ControlPadding}"/>
+                <Setter Property="Margin" Value="0,0,4,0"/>
+                <Setter Property="MinHeight" Value="34"/>
+                <Setter Property="FontSize" Value="{DynamicResource LG.Font.13}"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FocusAdorner" Value="{x:Null}"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Panel>
+                            <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}"
+                                              ContentTemplate="{TemplateBinding HeaderTemplate}" Padding="{TemplateBinding Padding}"
+                                              HorizontalContentAlignment="Center" VerticalContentAlignment="Center"
+                                              Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                              BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"/>
+                            <Border Name="SelectionUnderline" VerticalAlignment="Bottom" Height="2" Margin="6,0,6,1"
+                                    Background="{DynamicResource LG.Accent}" CornerRadius="1" Opacity="0" IsHitTestVisible="False"/>
+                        </Panel>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:pointerover">
+                    <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+                </Style>
+                <Style Selector="^:selected">
+                    <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+                </Style>
+                <Style Selector="^:selected /template/ Border#SelectionUnderline">
+                    <Setter Property="Opacity" Value="1"/>
+                </Style>
+                <Style Selector="^:focus-visible">
+                    <Setter Property="BorderBrush" Value="{DynamicResource LG.Accent}"/>
+                </Style>
+                <Style Selector="^:disabled">
+                    <Setter Property="Opacity" Value=".45"/>
+                </Style>
+            </ControlTheme>
+
+            <ControlTheme x:Key="{x:Type lg:StatusIndicator}" TargetType="lg:StatusIndicator">
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+                            <Ellipse Name="StatusDot" Height="7" Width="7" Fill="{DynamicResource LG.Neutral}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{TemplateBinding Label}" Foreground="{DynamicResource LG.Muted}" FontSize="{DynamicResource LG.Font.12}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^[Tone=Active] /template/ Ellipse#StatusDot">
+                    <Setter Property="Fill" Value="{DynamicResource LG.Success}"/>
+                </Style>
+                <Style Selector="^[Tone=Warning] /template/ Ellipse#StatusDot">
+                    <Setter Property="Fill" Value="{DynamicResource LG.Warning}"/>
+                </Style>
+            </ControlTheme>
+
+            <ControlTheme x:Key="{x:Type lg:LibraryRow}" TargetType="lg:LibraryRow">
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Grid ColumnDefinitions="20,*" ColumnSpacing="8" MinHeight="20">
+                            <Border Classes="lg-game-icon" Background="{DynamicResource LG.ArtworkFallback}">
+                                <Image Source="{TemplateBinding Icon}" Stretch="UniformToFill"/>
+                            </Border>
+                            <lg:SymbolIcon Data="{TemplateBinding IconSymbol}" Foreground="{DynamicResource LG.Muted}"
+                                           Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{TemplateBinding Title}" FontSize="{DynamicResource LG.Font.13}" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource LG.Text}" TextTrimming="CharacterEllipsis"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter>
+            </ControlTheme>
+
+            <ControlTheme x:Key="{x:Type lg:GameCard}" TargetType="lg:GameCard">
+                <Setter Property="ArtworkBackground" Value="{DynamicResource LG.ArtworkFallback}"/>
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Grid RowDefinitions="Auto,Auto">
+                            <Grid Name="PortraitFrame">
+                                <Border Classes="lg-artwork-clip" Background="{DynamicResource LG.Surface}">
+                                    <Button Classes="lg quiet" CornerRadius="0" Padding="0" BorderThickness="0"
+                                            Height="{TemplateBinding ArtworkHeight}"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
+                                            Command="{TemplateBinding OpenCommand}" AutomationProperties.Name="{TemplateBinding Title}">
+                                        <Grid Background="{TemplateBinding ArtworkBackground}" ClipToBounds="True">
+                                            <lg:SymbolIcon Data="{DynamicResource LG.Icon.Game}" Foreground="{DynamicResource LG.Accent}"
+                                                      Width="25" Height="25" Opacity=".72" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <Image Source="{TemplateBinding Artwork}" Stretch="{TemplateBinding ArtworkStretch}"/>
+                                        </Grid>
+                                    </Button>
+                                </Border>
+                                <Border Classes="lg-artwork-outline"/>
+                            </Grid>
+                            <Border Grid.Row="1" Height="13" IsVisible="{TemplateBinding ShowPlaytime}"/>
+                            <Border Name="PlaytimePill" Grid.RowSpan="2" Height="26" MinWidth="56" Padding="10,0"
+                                    IsVisible="{TemplateBinding ShowPlaytime}"
+                                    HorizontalAlignment="Center" VerticalAlignment="Bottom" CornerRadius="{DynamicResource LG.ControlRadius}"
+                                    Background="{DynamicResource LG.SurfaceRaised}" BorderBrush="{DynamicResource LG.Line}"
+                                    BorderThickness="1" BoxShadow="0 2 8 #55000000" IsHitTestVisible="False">
+                                <TextBlock Text="{TemplateBinding Playtime}" Foreground="{DynamicResource LG.Text}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{DynamicResource LG.Font.12}" FontWeight="Light"/>
+                            </Border>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter>
+            </ControlTheme>
+
+            <ControlTheme x:Key="{x:Type lg:CollectionCard}" TargetType="lg:CollectionCard">
+                <Setter Property="Height" Value="160"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                <Setter Property="FocusAdorner" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Grid Name="CollectionFrame" Background="Transparent">
+                            <Border Classes="lg-artwork-clip" Background="{DynamicResource LG.ArtworkFallback}">
+                                <Panel>
+                                    <ContentPresenter Content="{TemplateBinding Content}" IsHitTestVisible="False"/>
+                                    <Border IsHitTestVisible="False">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                                                <GradientStop Color="#300E111C" Offset="0"/>
+                                                <GradientStop Color="#B90E111C" Offset=".48"/>
+                                                <GradientStop Color="#B90E111C" Offset=".7"/>
+                                                <GradientStop Color="#650E111C" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                    </Border>
+                                    <StackPanel Name="CollectionCaption" Margin="12,0" Spacing="4" VerticalAlignment="Center" IsHitTestVisible="False">
+                                        <TextBlock Text="{TemplateBinding Title}" Foreground="{DynamicResource LG.Text}" FontSize="{DynamicResource LG.Font.16}"
+                                                   FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" MaxLines="2"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="{TemplateBinding GameCount}" Foreground="{DynamicResource LG.Muted}"
+                                                   FontSize="{DynamicResource LG.Font.12}" TextAlignment="Center"/>
+                                    </StackPanel>
+                                    <Border Name="DynamicBadge" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="8"
+                                            IsVisible="{TemplateBinding IsDynamic}" ToolTip.Tip="Dynamic collection"
+                                            Padding="5" CornerRadius="{DynamicResource LG.ControlRadius}"
+                                            Background="{DynamicResource LG.SurfaceRaised}" BorderBrush="{DynamicResource LG.Line}" BorderThickness="1">
+                                        <lg:SymbolIcon Data="{DynamicResource LG.Icon.Brain}" Foreground="{DynamicResource LG.Accent}" Width="16" Height="16"/>
+                                    </Border>
+                                    <Border Name="SelectionBadge" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="8"
+                                            IsVisible="False" IsHitTestVisible="False" Padding="5"
+                                            CornerRadius="{DynamicResource LG.ControlRadius}" Background="{DynamicResource LG.AccentFill}">
+                                        <lg:SymbolIcon Data="{DynamicResource LG.Icon.Check}" Foreground="{DynamicResource LG.OnAccent}" Width="16" Height="16"/>
+                                    </Border>
+                                </Panel>
+                            </Border>
+                            <Border Name="CollectionOutline" Classes="lg-artwork-outline"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter>
+                <Style Selector="^:pointerover /template/ Border#CollectionOutline, ^:focus-visible /template/ Border#CollectionOutline, ^.selected /template/ Border#CollectionOutline">
+                    <Setter Property="BorderBrush" Value="{DynamicResource LG.Accent}"/>
+                </Style>
+                <Style Selector="^.selected /template/ Border#SelectionBadge">
+                    <Setter Property="IsVisible" Value="True"/>
+                </Style>
+                <Style Selector="^:pressed /template/ Grid#CollectionFrame">
+                    <Setter Property="Opacity" Value=".8"/>
+                </Style>
+            </ControlTheme>
+
+            <ControlTheme x:Key="{x:Type lg:ArtworkToolbar}" TargetType="lg:ArtworkToolbar">
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border Background="{DynamicResource LG.Surface}" BorderBrush="{DynamicResource LG.Line}" BorderThickness="1"
+                                CornerRadius="{DynamicResource LG.PanelRadius}" Padding="10">
+                            <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="7">
+                                <TextBlock Text="Drag to move · Scroll to zoom" Foreground="{DynamicResource LG.Text}" VerticalAlignment="Center" FontSize="{DynamicResource LG.Font.13}"/>
+                                <TextBlock Text="{TemplateBinding ZoomLabel}" Foreground="{DynamicResource LG.Accent}" VerticalAlignment="Center" FontSize="{DynamicResource LG.Font.13}" MinWidth="42"/>
+                                <Button Classes="lg quiet" Content="Cancel" Command="{TemplateBinding CancelCommand}"/>
+                                <Button Classes="lg primary" Content="Save position" Command="{TemplateBinding SaveCommand}"/>
+                            </WrapPanel>
+                        </Border>
+                    </ControlTemplate>
+                </Setter>
+            </ControlTheme>
+
+            <ControlTheme x:Key="LG.Section" TargetType="HeaderedContentControl">
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <Border Background="{DynamicResource LG.Surface}" BorderBrush="{DynamicResource LG.Line}" BorderThickness="1"
+                                CornerRadius="{DynamicResource LG.PanelRadius}" Padding="{DynamicResource LG.PanelPadding}">
+                            <StackPanel Spacing="12">
+                                <ContentPresenter Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}" FontSize="{DynamicResource LG.Font.17}"
+                                                  FontWeight="SemiBold" Foreground="{DynamicResource LG.Text}"/>
+                                <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                            </StackPanel>
+                        </Border>
+                    </ControlTemplate>
+                </Setter>
+            </ControlTheme>
+        </ResourceDictionary>
+    </Styles.Resources>
+    <Style Selector="Border.lg-game-icon">
+        <Setter Property="CornerRadius" Value="{ReflectionBinding Bounds, RelativeSource={RelativeSource Self}, Converter={x:Static lg:LibraryRow.IconCornerRadius}}"/>
+        <Setter Property="ClipToBounds" Value="True"/>
+    </Style>
+    <Style Selector="Border.lg-artwork-clip">
+        <Setter Property="Margin" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.ArtworkInsetRadius}"/>
+        <Setter Property="ClipToBounds" Value="True"/>
+    </Style>
+    <Style Selector="Border.lg-artwork-outline">
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.PanelRadius}"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+    </Style>
+    <Style Selector="Button.lg"><Setter Property="Theme" Value="{StaticResource LG.Button}"/></Style>
+    <Style Selector="Button.lg.primary">
+        <Setter Property="Background" Value="{DynamicResource LG.AccentFill}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.AccentFill}"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.OnAccent}"/>
+    </Style>
+    <Style Selector="Button.lg.quiet">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Muted}"/>
+    </Style>
+    <Style Selector="Button.lg.destructive">
+        <Setter Property="Background" Value="{DynamicResource LG.DestructiveFill}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Error}"/>
+    </Style>
+    <Style Selector="Button.lg.nav">
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="MinHeight" Value="39"/>
+    </Style>
+    <Style Selector="Button.lg.caption">
+        <Setter Property="MinHeight" Value="27"/>
+        <Setter Property="Width" Value="39"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="CornerRadius" Value="0"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Cursor" Value="Arrow"/>
+        <Setter Property="VerticalAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Button.lg.settings-row">
+        <Setter Property="MinHeight" Value="49"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    </Style>
+    <Style Selector="Button.lg.genre">
+        <Setter Property="MinHeight" Value="25"/>
+        <Setter Property="Padding" Value="9,3"/>
+        <Setter Property="FontSize" Value="{DynamicResource LG.Font.11}"/>
+    </Style>
+    <StyleInclude Source="avares://LGLauncher.Components/Theme/Inputs.axaml"/>
+    <Style Selector="Expander.lg-warning-panel"><Setter Property="Theme" Value="{StaticResource LG.WarningPanel}"/></Style>
+    <Style Selector=".lg-motion Button.lg /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Transitions">
+            <Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.13" Easing="CubicEaseOut"/></Transitions>
+        </Setter>
+    </Style>
+    <Style Selector=".lg-motion lg|GameCard, .lg-motion lg|CollectionCard">
+        <Setter Property="RenderTransform" Value="translateY(0px)"/>
+        <Setter Property="Transitions">
+            <Transitions><TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.16" Easing="CubicEaseOut"/></Transitions>
+        </Setter>
+    </Style>
+    <Style Selector=".lg-motion lg|GameCard:pointerover, .lg-motion lg|CollectionCard:pointerover">
+        <Setter Property="RenderTransform" Value="translateY(-3px)"/>
+    </Style>
+    <Style Selector="TextBlock.page-title">
+        <Setter Property="Margin" Value="0,5,220,4"/>
+    </Style>
+    <Style Selector="TextBlock.page-title.full-width">
+        <Setter Property="Margin" Value="0,5,0,4"/>
+    </Style>
+    <Style Selector="Button.lg.selected">
+        <Setter Property="Background" Value="{DynamicResource LG.Selection}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+    </Style>
+    <Style Selector="TextBox.lg">
+        <Setter Property="Background" Value="{DynamicResource LG.Canvas}"/>
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
+        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="FontSize" Value="{DynamicResource LG.Font.13}"/>
+    </Style>
+    <Style Selector="ListBox.lg">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="ListBox.lg ListBoxItem">
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
+        <Setter Property="Padding" Value="8,6"/>
+    </Style>
+    <Style Selector="HeaderedContentControl.lg-section"><Setter Property="Theme" Value="{StaticResource LG.Section}"/></Style>
+    <Style Selector="TabControl.lg-tabs">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Padding" Value="0,12,0,0"/>
+    </Style>
+    <Style Selector="TabItem.lg-tab"><Setter Property="Theme" Value="{StaticResource LG.TabItem}"/></Style>
+    <Style Selector=".lg-motion TabItem.lg-tab /template/ Border#SelectionUnderline">
+        <Setter Property="Transitions">
+            <Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.2" Easing="CubicEaseOut"/></Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="TextBlock.lg-muted">
+        <Setter Property="Foreground" Value="{DynamicResource LG.Muted}"/>
+        <Setter Property="FontSize" Value="{DynamicResource LG.Font.12}"/>
+        <Setter Property="FontWeight" Value="Normal"/>
+    </Style>
+    <Style Selector="TextBlock.lg-heading">
+        <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
+        <Setter Property="FontSize" Value="{DynamicResource LG.Font.20}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style Selector="Border.lg-modal-backdrop">
+        <Setter Property="Background" Value="#92060912"/>
+    </Style>
+    <Style Selector="Border.lg-modal">
+        <Setter Property="Background" Value="{DynamicResource LG.Surface}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.PanelRadius}"/>
+        <Setter Property="BoxShadow" Value="0 14 48 #90000000"/>
+    </Style>
+    <Style Selector="TextBox.lg-modal-field">
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Border.lg-panel">
+        <Setter Property="Background" Value="{DynamicResource LG.Surface}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{DynamicResource LG.PanelRadius}"/>
+    </Style>
+</Styles>

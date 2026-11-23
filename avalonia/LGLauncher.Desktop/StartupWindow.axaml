@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="LGLauncher.StartupWindow"
+        Title="LG Launcher" Width="488" Height="216" CanResize="False" ShowInTaskbar="False"
+        WindowDecorations="None" WindowStartupLocation="CenterScreen"
+        Background="#0D101E" Foreground="{DynamicResource LG.Text}">
+    <Border BorderThickness="1" BorderBrush="{DynamicResource LG.Line}">
+        <Grid ClipToBounds="True">
+            <Image x:Name="SplashArtwork" Width="342" HorizontalAlignment="Right" Stretch="UniformToFill"/>
+            <Border>
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#FF0D101E" Offset=".28"/>
+                        <GradientStop Color="#890D101E" Offset=".47"/>
+                        <GradientStop Color="#000D101E" Offset=".75"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+            </Border>
+            <Border>
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,100%" EndPoint="0%,66%">
+                        <GradientStop Color="#F50A0C17" Offset="0"/>
+                        <GradientStop Color="#000A0C17" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+            </Border>
+            <TextBlock Text="LG Launcher" FontSize="{DynamicResource LG.Font.30}" FontWeight="SemiBold" VerticalAlignment="Center"
+                       HorizontalAlignment="Left" Margin="23,0,0,0"/>
+            <StackPanel VerticalAlignment="Bottom" Spacing="7" Margin="20,0,20,17">
+                <TextBlock x:Name="SplashOperation" Text="Starting LG Launcher…" FontSize="{DynamicResource LG.Font.12}" TextTrimming="CharacterEllipsis"/>
+                <ProgressBar x:Name="SplashProgress" Classes="lg-progress" Value="8"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

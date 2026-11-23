@@ -1,0 +1,22 @@
+root = true
+
+[*]
+indent_style = space
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{cs,ps1,psm1,psd1,axaml}]
+indent_size = 4
+
+[*.{csproj,props,targets,manifest,iss,json}]
+indent_size = 2
+
+[*.cs]
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_members_in_object_initializers = false
+csharp_new_line_before_members_in_anonymous_types = false
+csharp_preserve_single_line_blocks = true
+csharp_preserve_single_line_statements = true
