@@ -58,7 +58,7 @@ internal sealed partial class Launcher : Window
         WindowTitle.Text = Title = $"LG Launcher v{UpdateFeed.CurrentVersion.ToString(3)}";
         _store = store;
         _library = library;
-        _steam = new SteamCatalog(store.ArtworkDirectory);
+        _steam = new SteamCatalog(store.ArtworkDirectory, CanDecodeSteamArtwork);
         _rssReader = new RssReader(Program.DataDirectory);
         _rssTimer.Tick += (_, _) =>
         {
@@ -148,13 +148,15 @@ internal sealed partial class Launcher : Window
             if (_closed) return;
             _ready = true;
             if (_library.Preferences.StartMinimised) WindowState = WindowState.Minimized;
+            // A minimised launch skips the splash and can wait for a slow library scan.
+            var updateMessage = StartsMinimised && Program.IsUpdateRestart ? Program.CompleteUpdateRestart() : null;
             if (!_startupComplete) await InitializeStartup(null);
             else if (!acceptedBeforeStartup) { StartWatcher(); Scan(); }
             if (_closed) return;
             Render();
             RecoverPendingModsOnStartup();
             StartModCatalogRefresh();
-            if (Program.CompleteUpdateRestart() is { } updateMessage) Status(updateMessage);
+            if ((updateMessage ?? Program.CompleteUpdateRestart()) is { } message) Status(message);
             TryAutomaticUpdate();
             AnimateView(MainShell, fadeOnly: true);
             QueueSteamMetadata();
@@ -174,6 +176,7 @@ internal sealed partial class Launcher : Window
         Closed += (_, _) =>
         {
             _closed = true;
+            if (!_saveFailed) FlushPendingSteamGenres();
             DialogHost.CloseAll();
             _searchDelay.Stop();
             _rssTimer.Stop();

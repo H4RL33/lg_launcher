@@ -4,13 +4,14 @@
     <AssemblyName>LG Launcher</AssemblyName>
     <RootNamespace>LGLauncher</RootNamespace>
     <Nullable>annotations</Nullable>
-    <Version>0.1.16</Version>
+    <Version>0.1.17</Version>
     <SkiaSharpVersion>3.119.4</SkiaSharpVersion>
     <ApplicationIcon>../../assets/launcher.ico</ApplicationIcon>
     <ApplicationManifest>../../src/app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="SupportsInAppUpdates" Value="true" Condition="'$(PublishSingleFile)' == 'true'" />
+    <AssemblyMetadata Include="SetupFixtureAppId" Value="$(SetupFixtureAppId)" Condition="'$(SetupFixtureAppId)' != ''" />
     <ProjectReference Include="../LGLauncher.Components/LGLauncher.Components.csproj" />
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />

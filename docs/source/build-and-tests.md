@@ -14,6 +14,7 @@ Run commands from the repository root. The default Windows product is `build/LG 
 | OptiScaler catalog importer | `python -B -m unittest discover -s tests -p 'test_import_optiscaler_catalog.py'` |
 | Shared UI preview and control smoke | `dotnet run --project avalonia/LGLauncher.Gallery/LGLauncher.Gallery.csproj -- --smoke .build-work/gallery.png` |
 | Windows Setup changes | `pwsh -NoProfile -File ./build-installer.ps1 -Launcher './build/LG Launcher.exe' -Smoke` |
+| In-app Windows Setup upgrade | `pwsh -NoProfile -File ./tests/Verify-AvaloniaSetupUpdate.ps1` |
 
 ## Stable Windows releases
 
@@ -124,7 +125,7 @@ Checks NuGet project manifests and GitHub Actions weekly and targets version upd
 
 [Source](../../tests/CoreTests.cs)
 
-- **Purpose** — Exercises the shared code without a UI or a live Steam feed. Fixtures cover discovery, exact Steam matching, metadata and artwork URL parsing, collection rules, preference and library round trips, backup recovery, watcher events, process completion, and the actual priority class of a launched process with the setting both on and off.
+- **Purpose** — Exercises the shared code without a UI or a live Steam feed. Fixtures cover discovery, exact Steam matching, metadata and artwork URL parsing, Steam cache replacement and cancellation, collection rules, preference and library round trips, backup recovery and subsequent saves, watcher events, process completion, and the actual priority class of a launched process with the setting both on and off.
 - **Depends on** — `Library.cs`, `SteamCatalog.cs`, `GameSessions.cs`, and Windows for the process fixtures.
 - **Used by** — `build.ps1 -Test`, which builds and runs the .NET 10 fixture project. Process tests launch the fixture's executable app host and use disposable data beneath the test output.
 
@@ -132,7 +133,7 @@ Checks NuGet project manifests and GitHub Actions weekly and targets version upd
 
 [Source](../../tests/Verify-AvaloniaMigration.ps1)
 
-- **Purpose** — Drives the Windows launcher with an isolated legacy-format library. Verifies a read-only open, runs the integrated UI/migration suite, captures screenshots, checks what the library saves, and reopens the fixture with software rendering selected. The full migration run allows 60 seconds so timed music and UI checks can finish. `-ModsOnly` runs the Mods UI fixture alone. The optional existing library input is copied into a test folder first. Reports and screenshots go under `.build-work/smoke/`.
+- **Purpose** — Drives the Windows launcher with an isolated legacy-format library. Verifies a read-only open, runs the integrated UI/migration suite, captures screenshots, checks what the library saves, and reopens the fixture with software rendering selected. The full migration run allows 120 seconds for timed music and UI checks on Windows CI. A timeout reports the verification mode and the most recent captures. `-ModsOnly` runs the Mods UI fixture alone. The optional existing library input is copied into a test folder first. Reports and screenshots go under `.build-work/smoke/`.
 - **Depends on** — A built Avalonia executable, the Desktop verification entrypoints, and sample artwork.
 - **Used by** — `build.ps1 -Smoke` and direct smoke runs against a specific portable executable.
 
@@ -152,9 +153,17 @@ The same generated tone encoded as Ogg Opus. It checks that a supplied Opus trac
 
 [Source](../../tests/Verify-AvaloniaUpdate.ps1)
 
-- **Purpose** — Tests the in-app update worker's executable replacement, restart, and rollback with disposable executable copies.
+- **Purpose** — Tests the in-app update worker’s executable replacement, rollback, and restart acknowledgement with disposable executable copies. Rollback cases cover early exit, another-instance activation, and a running process that never confirms readiness. A restart without an outcome message also checks cleanup.
 - **Depends on** — A single-file Avalonia executable exposing the verification-only CLI, `UpdateInstallVerification.cs`, and `UpdateInstaller.cs`. Uses a fixture package and temporary paths.
 - **Used by** — `build.ps1 -Smoke` and direct smoke runs against release candidates.
+
+## `tests/Verify-AvaloniaSetupUpdate.ps1`
+
+[Source](../../tests/Verify-AvaloniaSetupUpdate.ps1)
+
+- **Purpose** — Builds and installs two versions under a unique per-user Setup identity. It checks that a copied marker cannot apply an upgrade, then runs the real Setup update worker from the registered custom directory and checks the installed hash, registration, restart, and staging cleanup. It uninstalls the fixture and stores outputs under `.build-work/setup-update-smoke/`.
+- **Depends on** — Windows, the x64 .NET 10 SDK and runtime, Inno Setup, the Desktop project's `SetupFixtureAppId` build property, and `UpdateInstallVerification.cs`.
+- **Used by** — Direct verification when changing the installed update or setup handoff.
 
 ## `tests/Verify-AvaloniaMods.ps1`
 

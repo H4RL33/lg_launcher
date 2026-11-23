@@ -6,6 +6,10 @@
 
 Owns the artwork lifecycle in the main window. It selects custom or Steam backdrops, decodes and samples images off the UI thread, calculates framing, and maps a sampled bitmap onto the title, sidebar, status, and search glass. It also owns artwork drag/zoom editing and pointer parallax, card/header caching, and sidebar icon loading, including the Windows executable icon fallback. Game cards prefer their saved custom portrait and fall back to the Steam portrait and header.
 
+The desktop decoder checks source dimensions before rasterising artwork. It accepts up to 16,384 pixels per side and 40 megapixels in total. Each view also limits both decoded dimensions. Card portraits keep their 2:3 resolution within 420 × 630 pixels. The same source limits apply during import, backdrop sampling, and validation of downloaded Steam artwork. Steam downloads require a successful Skia decode before they replace a cache entry. The renderer can retry unreadable cached artwork when fetching is available.
+
+Steam card artwork requests are shared by App ID and image type. The launcher's background token controls the download and decode, so gameplay and shutdown can still pause artwork work. Leaving Game Details cancels that view's wait and lets cards awaiting the same header receive the result.
+
 The artwork sample supplies an optional accent alongside framing and glass. On Game Details the main window applies it to the accent and selection resources when the preference is enabled. A game-to-game switch holds the previous palette until the next artwork supplies an accent or its load finishes without one. The configured default accent applies everywhere else and returns immediately when leaving Game Details. Both custom and artwork accents tint the selected Library row, input focus and text selection, and enabled switches. The switch knob and track use paired contrast colours in each interactive state.
 
 When motion is enabled, an artwork-to-artwork palette change uses the artwork fade's duration and easing. On every animation frame, the launcher updates the text and icon contrast against that frame's fill. An interrupted transition starts from the displayed colour, and reduced motion applies the target palette immediately.
@@ -23,7 +27,7 @@ Scores neighbouring hues in the existing downsampled artwork, weighting visible 
 
 ## `avalonia/LGLauncher.Desktop/Launcher.GameLogos.cs`
 
-Shows the custom or Steam logo in place of the game title when enabled and available. It tries the custom file first, then the launcher cache and local Windows Steam cache before fetching. It uses a bounded cache for recently used Steam logos and retains an accessible title fallback. It discards decoded images for games that are no longer selected.
+Shows the custom or Steam logo in place of the game title when enabled and available. It tries the custom file first, then the launcher cache and local Windows Steam cache before fetching. An unreadable launcher-cached logo can be replaced if the fetch succeeds. It uses a bounded cache for recently used Steam logos and retains an accessible title fallback. It discards decoded images for games that are no longer selected.
 
 - **Depends on** the game's Steam ID and logo preference, `SteamCatalog`, the artwork bitmap decoder, the Windows Steam install location lookup, and `GameLogo` and `GameTitle` in the main window.
 - **Used by** game detail rendering and window cleanup, `Launcher.SteamRefresh.cs` for refreshed logos, and `Launcher.Verification.GameMetadata.cs`.
@@ -33,6 +37,8 @@ Shows the custom or Steam logo in place of the game title when enabled and avail
 ## `avalonia/LGLauncher.Desktop/Launcher.GameMedia.cs`
 
 Builds the Manage metadata dialog. It accepts local images for the backdrop, portrait, and logo and MP3, Ogg Vorbis, Opus, or WAV audio for theme music. It recommends 1920 × 1080 px for backdrops, 600 × 900 px for portraits, and a wide transparent PNG for logos, with 720 × 192 px as an example. Each field displays the saved original basename and can clear its override and restore its automatic fallback. Imports stage and validate media off the UI thread, save asset IDs and names together, and remove new copies if the operation is cancelled or fails. Backdrop changes reset artwork framing. Earlier overrides without a saved basename show “Custom file”. Previously saved assets remain available to older profile backups.
+
+Artwork imports use the same dimension limits as the desktop artwork decoder and report validation errors in the dialog.
 
 The game title sits at the right of the dialog heading and shows the full name on hover. Image recommendations are centred vertically beside their field labels when there is room on the same line.
 
@@ -72,7 +78,7 @@ Uses Windows Media Foundation to open local MP3 and WAV audio. Playback starts a
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Genres.cs`
 
-Coordinates automatic Steam genre backfill while preserving manual genres, parses commas in genre entry fields, handles title and genre searches, and builds the clickable genre chips on game details. An unsuccessful save restores the profile fields in memory.
+Coordinates automatic Steam genre backfill, parses commas in genre entry fields, and builds the clickable genre chips on game details. Each pass plans one request per eligible Steam App ID. It saves completed results in batches of up to eight IDs and checks the current library before each write so manual edits, rematches, and removed games take precedence. Already-collected results are flushed when a pass pauses or the window closes with a clean profile. A successful batch refreshes the relevant view once, and an unsuccessful save restores the profile fields in memory.
 
 - **Depends on** the `Game` genre fields and completeness marker, `SteamCatalog.GetGenres`, the background fetch gates and save methods, and named genre and search controls.
 - **Used by** the Steam metadata queue, the game editor and manual Steam refresh, library search, game detail rendering, and metadata verification.
