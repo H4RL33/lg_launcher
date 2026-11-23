@@ -161,6 +161,7 @@ namespace LGLauncher
         [DataMember(EmitDefaultValue = false)] public bool DisableHardwareRendering { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool SetProcessPriority { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool AutomaticUpdates { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool UsePreviewUpdates { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool DisableContributionReminders { get; set; }
         [DataMember(EmitDefaultValue = false)] public int RssRefreshMinutes { get; set; }
         [DataMember(EmitDefaultValue = false)] public List<RssSubscription> RssFeeds { get; set; }

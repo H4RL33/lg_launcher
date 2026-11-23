@@ -19,37 +19,68 @@ jobs:
     outputs:
       asset-commit: ${{ steps.stage.outputs.asset-commit }}
       artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      source-commit: ${{ steps.stage.outputs.source-commit }}
     steps:
+      - name: Set up .NET 10 for Next preview builds
+        if: contains(github.ref_name, '-next.')
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/lg-launcher-dotnet
+        with:
+          dotnet-version: '10.0.x'
+          skip-lts-prepass: true
+
       - name: Stage and verify the portable executable
         id: stage
         shell: pwsh
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           $tag = $env:GITHUB_REF_NAME -creplace '^verify-packaging-(v[0-9]+\.[0-9]+\.[0-9]+)(?:-[0-9]+)?$', '$1'
-          if ($tag -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Expected a stable vX.Y.Z tag.' }
-          $version = $tag.Substring(1)
+          $preview = $tag -cmatch '^v(?<base>[0-9]+\.[0-9]+\.[0-9]+)-next\.(?<revision>[1-9][0-9]{0,4})$'
+          if ($preview) {
+            $base = $Matches.base
+            $revision = [int]$Matches.revision
+            if ($revision -gt 65534) { throw 'The Next preview revision must be between 1 and 65534.' }
+            $version = "$base.$revision"
+          } else {
+            if ($tag -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Expected a vX.Y.Z or vX.Y.Z-next.N release tag.' }
+            $base = $version = $tag.Substring(1)
+          }
           $repository = "https://github.com/$env:GITHUB_REPOSITORY.git"
           $assetRef = "refs/heads/release-assets/$tag"
           git init --quiet
           git fetch --quiet --no-tags $repository $env:GITHUB_REF
           git checkout --quiet --detach FETCH_HEAD
+          $sourceCommit = git rev-parse HEAD
           if ($env:GITHUB_REF_NAME -ceq $tag) {
-            git fetch --quiet --no-tags $repository 'refs/heads/main:refs/remotes/origin/main'
-            $sourceCommit = git rev-parse HEAD
-            if ($sourceCommit -cnotin @(git rev-list --first-parent refs/remotes/origin/main)) {
-              throw 'A stable release tag must point to a commit on the first-parent history of main.'
+            $branch = if ($preview) { 'next' } else { 'main' }
+            git fetch --quiet --no-tags $repository "refs/heads/${branch}:refs/remotes/origin/$branch"
+            if ($sourceCommit -cnotin @(git rev-list --first-parent "refs/remotes/origin/$branch")) {
+              throw "The release tag must point to a commit on the first-parent history of $branch."
             }
           }
           $project = [xml](Get-Content -Raw -LiteralPath 'avalonia/LGLauncher.Desktop/LGLauncher.Desktop.csproj')
-          if ($project.Project.PropertyGroup.Version -cne $version) {
+          if ($project.Project.PropertyGroup.Version -cne $base) {
             throw 'The tagged Desktop project version does not match the release version.'
           }
-          git fetch --quiet --no-tags --depth=1 $repository $assetRef
-          $assetCommit = git rev-parse --verify FETCH_HEAD
           $stage = (New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP 'release-assets')).FullName
-          $archive = Join-Path $env:RUNNER_TEMP 'release-assets.tar'
-          git archive "--output=$archive" $assetCommit -- LG-Launcher.exe LG-Launcher.exe.sha256 RELEASE-NOTES.md
-          tar.exe -xf $archive -C $stage
+          if ($preview) {
+            pwsh -NoProfile -File ./build.ps1 -PreviewRevision $revision -Smoke
+            $path = Join-Path $stage 'LG-Launcher.exe'
+            Copy-Item -LiteralPath 'build/LG Launcher.exe' -Destination $path
+            $hash = (Get-FileHash -LiteralPath $path).Hash.ToLowerInvariant()
+            "$hash  LG-Launcher.exe" | Set-Content -LiteralPath (Join-Path $stage 'LG-Launcher.exe.sha256')
+            $commitUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/commit/$sourceCommit"
+            @("# LG Launcher $tag", '', "Next preview built from this [source commit]($commitUrl).") |
+              Set-Content -LiteralPath (Join-Path $stage 'RELEASE-NOTES.md')
+          } else {
+            git fetch --quiet --no-tags --depth=1 $repository $assetRef
+            $assetCommit = git rev-parse --verify FETCH_HEAD
+            $archive = Join-Path $env:RUNNER_TEMP 'release-assets.tar'
+            git archive "--output=$archive" $assetCommit -- LG-Launcher.exe LG-Launcher.exe.sha256 RELEASE-NOTES.md
+            tar.exe -xf $archive -C $stage
+            "asset-commit=$assetCommit" >> $env:GITHUB_OUTPUT
+          }
           $portable = Get-Item -LiteralPath (Join-Path $stage 'LG-Launcher.exe')
           $checksum = (Get-Content -Raw -LiteralPath (Join-Path $stage 'LG-Launcher.exe.sha256')).Trim()
           if ($checksum -notmatch '^([a-f0-9]{64}) [ *]LG-Launcher\.exe$' -or
@@ -60,7 +91,7 @@ jobs:
             throw "The staged portable version does not match $tag."
           }
           @("RELEASE_TAG=$tag", "RELEASE_VERSION=$version", "RELEASE_STAGE=$stage") >> $env:GITHUB_ENV
-          "asset-commit=$assetCommit" >> $env:GITHUB_OUTPUT
+          "source-commit=$sourceCommit" >> $env:GITHUB_OUTPUT
 
       - name: Build and smoke-test the Windows installer
         shell: pwsh
@@ -68,6 +99,9 @@ jobs:
           $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
           $portable = Join-Path $env:RELEASE_STAGE 'LG-Launcher.exe'
           & .\build-installer.ps1 -Launcher $portable -Compiler $compiler -Smoke
+          if ($env:RELEASE_TAG.Contains('-next.')) {
+            & .\tests\Verify-AvaloniaSetupUpdate.ps1 -Compiler $compiler -PreviewPromotion
+          }
           $setup = Get-Item -LiteralPath "build\LG-Launcher-Setup-$env:RELEASE_VERSION.exe"
           Copy-Item -LiteralPath $setup.FullName -Destination $env:RELEASE_STAGE
 
@@ -97,14 +131,21 @@ jobs:
         env:
           RELEASE_ARTIFACT_ID: ${{ needs.verify.outputs.artifact-id }}
           RELEASE_ASSET_COMMIT: ${{ needs.verify.outputs.asset-commit }}
+          RELEASE_SOURCE_COMMIT: ${{ needs.verify.outputs.source-commit }}
         run: |
           $tag = $env:GITHUB_REF_NAME
-          if ($tag -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Expected a stable vX.Y.Z tag.' }
+          $preview = $tag -cmatch '^v(?<base>[0-9]+\.[0-9]+\.[0-9]+)-next\.(?<revision>[1-9][0-9]{0,4})$'
+          if ($preview) {
+            $version = "$($Matches.base).$($Matches.revision)"
+          } elseif ($tag -cmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
+            $version = $tag.Substring(1)
+          } else { throw 'Expected a vX.Y.Z or vX.Y.Z-next.N release tag.' }
           if ($env:RELEASE_ARTIFACT_ID -cnotmatch '^[1-9][0-9]*$' -or
-              $env:RELEASE_ASSET_COMMIT -cnotmatch '^[a-f0-9]{40}$') {
+              $env:RELEASE_SOURCE_COMMIT -cnotmatch '^[a-f0-9]{40}$' -or
+              (!$preview -and $env:RELEASE_ASSET_COMMIT -cnotmatch '^[a-f0-9]{40}$')) {
             throw 'Verification did not supply a release artifact and staging commit.'
           }
-          @("RELEASE_TAG=$tag", "RELEASE_VERSION=$($tag.Substring(1))", "RELEASE_ASSET_REF=refs/heads/release-assets/$tag",
+          @("RELEASE_TAG=$tag", "RELEASE_VERSION=$version", "RELEASE_PREVIEW=$preview", "RELEASE_ASSET_REF=refs/heads/release-assets/$tag",
             "RELEASE_STAGE=$(Join-Path $env:RUNNER_TEMP 'release-assets')") >> $env:GITHUB_ENV
 
       - name: Download the immutable release artifact
@@ -120,7 +161,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_ASSET_COMMIT: ${{ needs.verify.outputs.asset-commit }}
+          RELEASE_SOURCE_COMMIT: ${{ needs.verify.outputs.source-commit }}
         run: |
+          $preview = $env:RELEASE_PREVIEW -ceq 'True'
           $setupName = "LG-Launcher-Setup-$env:RELEASE_VERSION.exe"
           $expectedNames = @('LG-Launcher.exe', 'LG-Launcher.exe.sha256', 'RELEASE-NOTES.md', $setupName)
           $files = @(Get-ChildItem -LiteralPath $env:RELEASE_STAGE -Force)
@@ -144,19 +187,28 @@ jobs:
           $draft = gh release view $env:RELEASE_TAG --json isDraft --jq .isDraft 2>$null
           $found = $LASTEXITCODE -eq 0
           $PSNativeCommandUseErrorActionPreference = $true
+          $repository = "$env:GITHUB_SERVER_URL/$env:GH_REPO.git"
+          git init --quiet
+          git fetch --quiet --no-tags --depth=1 $repository "refs/tags/$env:RELEASE_TAG"
+          $tagCommit = git rev-parse 'FETCH_HEAD^{commit}'
+          if ($tagCommit -cne $env:RELEASE_SOURCE_COMMIT) { throw 'The release tag changed during verification.' }
           $alreadyPublished = $found -and $draft -cne 'true'
           if (!$alreadyPublished) {
             if (!$found) {
-              gh release create $env:RELEASE_TAG --verify-tag --draft --title "LG Launcher $env:RELEASE_VERSION" `
-                --notes-file $notes
+              $title = if ($preview) { "LG Launcher $env:RELEASE_TAG" } else { "LG Launcher $env:RELEASE_VERSION" }
+              gh release create $env:RELEASE_TAG --verify-tag --draft --title $title --notes-file $notes
             }
             gh release upload $env:RELEASE_TAG --clobber @downloads
-            gh release edit $env:RELEASE_TAG --notes-file $notes --draft=false --latest
+            if ($preview) {
+              gh release edit $env:RELEASE_TAG --notes-file $notes --draft=false --prerelease --latest=false
+            } else {
+              gh release edit $env:RELEASE_TAG --notes-file $notes --draft=false --latest
+            }
           }
 
           $release = gh api "repos/$env:GH_REPO/releases/tags/$env:RELEASE_TAG" | ConvertFrom-Json
-          if ($release.tag_name -cne $env:RELEASE_TAG -or $release.draft -ne $false -or $release.prerelease -ne $false) {
-            throw "Expected a published stable release for $env:RELEASE_TAG."
+          if ($release.tag_name -cne $env:RELEASE_TAG -or $release.draft -ne $false -or $release.prerelease -ne $preview) {
+            throw "The published release does not match the selected channel for $env:RELEASE_TAG."
           }
           $stagedNotes = [string](Get-Content -LiteralPath $notes -Raw)
           $publishedNotes = [string]$release.body
@@ -181,7 +233,8 @@ jobs:
             if ($response.StatusCode -ne 200) { throw "Release download is unavailable: $name" }
           }
 
-          git init --quiet
-          gh auth setup-git --hostname github.com
-          $lease = "--force-with-lease=$($env:RELEASE_ASSET_REF):$env:RELEASE_ASSET_COMMIT"
-          git push $lease "$env:GITHUB_SERVER_URL/$env:GH_REPO.git" ":$env:RELEASE_ASSET_REF"
+          if (!$preview) {
+            gh auth setup-git --hostname github.com
+            $lease = "--force-with-lease=$($env:RELEASE_ASSET_REF):$env:RELEASE_ASSET_COMMIT"
+            git push $lease $repository ":$env:RELEASE_ASSET_REF"
+          }

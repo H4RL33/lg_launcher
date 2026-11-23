@@ -1393,16 +1393,18 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Startup.cs",
-      "summary": "Keeps startup progress and the About controls in sync with the release check. The Install update action uses a verified Setup package for a per-user install or a verified executable for a portable copy. Earlier machine-wide installs open the release page.",
+      "summary": "Keeps startup progress and the About controls in sync with the release check. The animated Release channel picker saves Stable or Next preview. Install update uses a verified Setup package for a per-user install or a verified executable for a portable copy. Earlier machine-wide installs open the release page.",
       "symbols": [
         "CreateSplash",
         "ShowStartupProgress",
         "BuildUpdateSettings",
-        "CheckUpdates"
+        "CheckUpdates",
+        "SelectReleaseChannel"
       ],
       "related": [
         "component.desktop.startup-splash",
-        "pattern.desktop.footer"
+        "pattern.desktop.footer",
+        "style.choice-picker"
       ]
     },
     {

@@ -71,7 +71,7 @@ internal sealed partial class Launcher
         void SelectRelease(Version version)
         {
             selectedVersion = version;
-            var tag = $"v{version.ToString(3)}";
+            var tag = UpdateFeed.ReleaseTag(version);
             var action = $"View {tag} on GitHub";
             title.Text = $"Release notes · {tag}";
             AutomationProperties.SetName(open, action);

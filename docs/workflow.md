@@ -5,7 +5,7 @@
 | Branch | Purpose | How changes arrive |
 | --- | --- | --- |
 | `dev` | Ordinary development and unslated work | Squash a focused topic pull request into `dev`. |
-| `next` | Integration testing for the next release | Open a pull request from a topic based on `next` with only selected `dev` commits. |
+| `next` | Integration testing and opt-in previews for the next release | Open a pull request from a topic based on `next` with only selected `dev` commits. |
 | `main` | Stable source and release tags | Merge a versioned release pull request from this repository's `next` using a merge commit. |
 
 ## Develop on dev
@@ -19,6 +19,12 @@
 1. Once a maintainer selects a change, cut a topic branch from `origin/next`. Cherry-pick the approved commits from `dev` with `git cherry-pick -x <commit>` in dependency order. Keep the rest of `dev` out of the promotion.
 2. Open a pull request against `next`. List the original `dev` commits, dependencies, and checks in the pull request. Windows integration runs desktop, portable updater, and Setup smoke tests.
 3. When integration finds a bug in a selected change, fix it on `dev` and promote the fix through the same path. Prepare version and release notes once the release scope is agreed.
+
+## Publish a Next preview
+
+1. Set the Desktop project version on `next` to the intended three-part base version for the upcoming release. Wait for the Windows checks on the selected first-parent `next` commit.
+2. With release authorization, push an annotated `vX.Y.Z-next.N` tag pointing to that commit. Start `N` at 1 for a new base version and choose a higher revision for subsequent previews of that version. The range is 1–65534. For example, the first preview for `0.1.18` uses `v0.1.18-next.1`.
+3. Check the publication workflow. It builds the portable executable and Setup for that commit, runs the smoke tests, and publishes a GitHub prerelease for users who selected **Next preview**. Ordinary pushes to `next` run integration only. [Next preview packaging](source/build-and-tests.md#next-preview-windows-releases)
 
 ## Publish from main
 
