@@ -22,9 +22,11 @@
 
 ## Publish from main
 
-1. Set the approved three-part version on `next`, run the release checks, and open `next` → `main` with the title `chore(release): vX.Y.Z`. Include the tested `next` commit and the user-facing release notes.
-2. Merge with a merge commit after reviewing the integration results. Follow the [stable release procedure](source/build-and-tests.md#stable-windows-releases) to stage the assets and tag the resulting `main` commit as `vX.Y.Z`. Obtain authorization before publishing a release.
+1. Bring `next` up to date with `main`, set the approved three-part version, and open `next` → `main` with the title `chore(release): vX.Y.Z`. Include the tested `next` commit and the user-facing release notes.
+2. Wait for the required **Release integration** check and review the results before creating the merge commit. Follow the [stable release procedure](source/build-and-tests.md#stable-windows-releases) to stage the assets and tag the resulting `main` commit as `vX.Y.Z`. Obtain authorization before publishing a release.
 3. Merge `main` back into `next` and `dev` after publication so both branches receive the released version and history. Preserve unslated changes on `dev` when resolving overlaps.
+
+The [main branch ruleset](https://github.com/H4RL33/lg_launcher/rules) requires a pull request, a merge commit, and a successful **Release integration** check from GitHub Actions with the current `main`. It blocks force pushes and deletion and applies to administrators. Required approvals are set to zero so the maintainer can merge their own release pull request after CI passes.
 
 ## Commit, pull request, and release templates
 
