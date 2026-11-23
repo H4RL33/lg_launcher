@@ -148,13 +148,15 @@ internal sealed partial class Launcher : Window
             if (_closed) return;
             _ready = true;
             if (_library.Preferences.StartMinimised) WindowState = WindowState.Minimized;
+            // A minimised launch skips the splash and can wait for a slow library scan.
+            var updateMessage = StartsMinimised && Program.IsUpdateRestart ? Program.CompleteUpdateRestart() : null;
             if (!_startupComplete) await InitializeStartup(null);
             else if (!acceptedBeforeStartup) { StartWatcher(); Scan(); }
             if (_closed) return;
             Render();
             RecoverPendingModsOnStartup();
             StartModCatalogRefresh();
-            if (Program.CompleteUpdateRestart() is { } updateMessage) Status(updateMessage);
+            if ((updateMessage ?? Program.CompleteUpdateRestart()) is { } message) Status(message);
             TryAutomaticUpdate();
             AnimateView(MainShell, fadeOnly: true);
             QueueSteamMetadata();
