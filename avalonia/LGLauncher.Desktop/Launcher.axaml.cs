@@ -58,7 +58,7 @@ internal sealed partial class Launcher : Window
         WindowTitle.Text = Title = $"LG Launcher v{UpdateFeed.CurrentVersion.ToString(3)}";
         _store = store;
         _library = library;
-        _steam = new SteamCatalog(store.ArtworkDirectory);
+        _steam = new SteamCatalog(store.ArtworkDirectory, CanDecodeSteamArtwork);
         _rssReader = new RssReader(Program.DataDirectory);
         _rssTimer.Tick += (_, _) =>
         {
@@ -174,6 +174,7 @@ internal sealed partial class Launcher : Window
         Closed += (_, _) =>
         {
             _closed = true;
+            if (!_saveFailed) FlushPendingSteamGenres();
             DialogHost.CloseAll();
             _searchDelay.Stop();
             _rssTimer.Stop();

@@ -5,6 +5,8 @@ namespace LGLauncher;
 
 internal sealed partial class Launcher
 {
+    private const int MaximumHistoryEntries = 64;
+
     private sealed record ArticleView(Guid FeedId, string FeedTitle, RssArticle Article);
     private sealed record ViewLocation(Page Page, GameCollection? Collection = null, Game? Game = null, ArticleView? Article = null);
     private sealed record HistoryEntry(ViewLocation View, int Offset = 0, Vector Scroll = default);
@@ -28,7 +30,8 @@ internal sealed partial class Launcher
             RememberHistoryPosition();
             _history.RemoveRange(_historyIndex + 1, _history.Count - _historyIndex - 1);
             _history.Add(next);
-            _historyIndex++;
+            if (_history.Count > MaximumHistoryEntries) _history.RemoveAt(0);
+            _historyIndex = _history.Count - 1;
         }
         ShowHistoryEntry(next, changed);
     }
@@ -81,7 +84,11 @@ internal sealed partial class Launcher
             CancelMotion(_artwork);
             if (_detailsRequest != null) { _detailsRequest.Cancel(); _artworkGame = null; }
         }
-        else CancelMotion(ContentScroll);
+        else
+        {
+            CancelMotion(ContentScroll);
+            if (_page == Page.RssArticle) PageBody.Children.Clear();
+        }
 
         _page = view.Page;
         _collection = view.Collection;

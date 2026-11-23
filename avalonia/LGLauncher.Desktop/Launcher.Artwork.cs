@@ -18,6 +18,10 @@ namespace LGLauncher;
 
 internal sealed partial class Launcher
 {
+    private const int MaximumArtworkDimension = 16384;
+    private const long MaximumArtworkPixels = 40_000_000;
+    private const int PortraitBitmapWidth = 420;
+    private const int PortraitBitmapHeight = 630;
     private readonly ArtworkLayer _artwork = new();
     private readonly ArtworkLayer _chromeArtwork = new();
     private readonly ArtworkLayer _searchArtwork = new() { Radius = 8 };
@@ -505,16 +509,15 @@ internal sealed partial class Launcher
             var backdrop = Path.Combine(_store.ArtworkDirectory, "backdrops", id.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".jpg");
             if (await PresentArtwork(game, backdrop, token)) return;
             var header = _steam.CachedArtwork(id);
-            if (header != null) await PresentArtwork(game, header, token);
+            var headerShown = header != null && await PresentArtwork(game, header, token);
             if (!online || token.IsCancellationRequested) return;
             if (_attemptedBackdrops.Add(id))
             {
-                var found = await _steam.GetBackdrop(id, token);
+                var found = await _steam.GetBackdrop(id, token, refresh: File.Exists(backdrop));
                 if (found != null && await PresentArtwork(game, found, token)) return;
             }
-            if (header == null)
+            if (!headerShown && await EnsureHeader(id, token) != null)
             {
-                await EnsureHeader(id, token);
                 header = _steam.CachedArtwork(id);
                 if (header != null) await PresentArtwork(game, header, token);
             }
@@ -601,7 +604,7 @@ internal sealed partial class Launcher
         {
             try
             {
-                var picture = await Task.Run(() => ReadBitmap(path, 420), token);
+                var picture = await Task.Run(() => ReadBitmap(path, PortraitBitmapWidth, PortraitBitmapHeight), token);
                 if (_closed || token.IsCancellationRequested)
                 {
                     picture.Dispose();
@@ -618,13 +621,19 @@ internal sealed partial class Launcher
 
     private Task<Bitmap?> EnsureHeader(int id, CancellationToken token) => EnsureCardImage((id, false), token);
 
-    private Task<Bitmap?> EnsureCardImage((int Id, bool Portrait) key, CancellationToken token)
+    private async Task<Bitmap?> EnsureCardImage((int Id, bool Portrait) key, CancellationToken token)
     {
-        if (_cardImages.TryGetValue(key, out var cached) && cached.TryGetTarget(out var image)) return Task.FromResult<Bitmap?>(image);
-        if (_cardImageRequests.TryGetValue(key, out var request)) return request;
-        var current = LoadCardImage(key, token);
-        if (!current.IsCompleted) _cardImageRequests[key] = current;
-        return current;
+        if (_closed || token.IsCancellationRequested) return null;
+        if (_cardImages.TryGetValue(key, out var cached) && cached.TryGetTarget(out var image)) return image;
+        if (!_cardImageRequests.TryGetValue(key, out var request))
+        {
+            // Details and cards share the fetch, so only the launcher can cancel it.
+            request = LoadCardImage(key, _background.Token);
+            if (!request.IsCompleted) _cardImageRequests[key] = request;
+        }
+
+        try { return await request.WaitAsync(token); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { return null; }
     }
 
     private async Task<Bitmap?> LoadCardImage((int Id, bool Portrait) key, CancellationToken token)
@@ -633,20 +642,22 @@ internal sealed partial class Launcher
         {
             var (id, portrait) = key;
             var path = portrait ? _steam.CachedPortrait(id) : _steam.CachedArtwork(id);
-            if (path == null && CanFetch && _attemptedCardImages.Add(key))
+            var image = await Decode(path);
+            if (image == null && CanFetch && _attemptedCardImages.Add(key))
             {
-                if (portrait) path = await _steam.GetPortrait(id, token);
-                else
-                {
-                    await _steam.DownloadArtwork(id, token);
-                    path = _steam.CachedArtwork(id);
-                }
+                var replacement = portrait ? await _steam.GetPortrait(id, token, refresh: path != null)
+                    : await _steam.DownloadArtwork(id, token, refresh: path != null);
+                image = await Decode(replacement);
             }
-            if (path == null) return null;
-            var image = await Task.Run(() => ReadBitmap(path, portrait ? 420 : 470), token);
-            if (_closed) { image.Dispose(); return null; }
+            if (_closed || token.IsCancellationRequested) image?.Dispose();
+            token.ThrowIfCancellationRequested();
+            if (_closed || image == null) return null;
             _cardImages[key] = new WeakReference<Bitmap>(image);
             return image;
+
+            Task<Bitmap?> Decode(string? candidate) => candidate == null ? Task.FromResult<Bitmap?>(null) : Task.Run(() => portrait
+                ? TryReadBitmap(candidate, PortraitBitmapWidth, PortraitBitmapHeight)
+                : TryReadBitmap(candidate, 470), token);
         }
         catch (OperationCanceledException) { if (token.IsCancellationRequested) _attemptedCardImages.Remove(key); return null; }
         catch (Exception error) when (IsArtworkError(error)) { return null; }
@@ -656,14 +667,61 @@ internal sealed partial class Launcher
     private static bool IsArtworkError(Exception error) =>
         error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or NotSupportedException or HttpRequestException;
 
-    private static Bitmap ReadBitmap(string path, int maximumWidth)
+    private static Bitmap? TryReadBitmap(string path, int maximumWidth, int? maximumHeight = null)
     {
-        using var codec = SKCodec.Create(path);
+        try { return ReadBitmap(path, maximumWidth, maximumHeight); }
+        catch (Exception error) when (IsArtworkError(error)) { return null; }
+    }
+
+    private static bool CanDecodeSteamArtwork(string path)
+    {
+        try
+        {
+            using var codec = SKCodec.Create(path);
+            if (codec == null) return false;
+            var source = ReadArtworkDimensions(codec);
+            var dimensions = codec.GetScaledDimensions(Math.Min(1f, 420f / Math.Max(source.Width, source.Height)));
+            var sample = new SKImageInfo(dimensions.Width, dimensions.Height, SKColorType.Bgra8888, SKAlphaType.Premul);
+            using var image = new SKBitmap(sample);
+            var pixels = image.GetPixels();
+            return pixels != IntPtr.Zero && codec.GetPixels(sample, pixels) == SKCodecResult.Success;
+        }
+        catch (Exception error) when (IsArtworkError(error)) { return false; }
+    }
+
+    private static Bitmap ReadBitmap(string path, int maximumWidth, int? maximumHeight = null)
+    {
+        using var stream = File.OpenRead(path);
+        SKImageInfo pixels;
+        using (var source = new SKManagedStream(stream, disposeManagedStream: false))
+        using (var codec = SKCodec.Create(source))
+            pixels = ReadArtworkDimensions(codec);
+
+        stream.Position = 0;
+        var heightLimit = maximumHeight ?? maximumWidth;
+        var widthScale = (double)maximumWidth / pixels.Width;
+        var heightScale = (double)heightLimit / pixels.Height;
+        var scale = Math.Min(widthScale, heightScale);
+        if (scale >= 1) return new Bitmap(stream);
+        var limitByWidth = widthScale <= heightScale;
+        if (pixels.Width * scale < 1 || pixels.Height * scale < 1)
+        {
+            using var artwork = new Bitmap(stream);
+            var size = limitByWidth ? new PixelSize(maximumWidth, 1) : new PixelSize(1, heightLimit);
+            return artwork.CreateScaledBitmap(size, BitmapInterpolationMode.HighQuality);
+        }
+        return limitByWidth ? Bitmap.DecodeToWidth(stream, maximumWidth) : Bitmap.DecodeToHeight(stream, heightLimit);
+    }
+
+    private static SKImageInfo ReadArtworkDimensions(SKCodec? codec)
+    {
         if (codec == null || codec.Info.Width <= 0 || codec.Info.Height <= 0)
             throw new InvalidDataException("The artwork could not be decoded.");
         var pixels = codec.Info;
-        using var stream = File.OpenRead(path);
-        return pixels.Width > maximumWidth ? Bitmap.DecodeToWidth(stream, maximumWidth) : new Bitmap(stream);
+        if (pixels.Width > MaximumArtworkDimension || pixels.Height > MaximumArtworkDimension ||
+            (long)pixels.Width * pixels.Height > MaximumArtworkPixels)
+            throw new InvalidDataException("Artwork must be at most 16,384 pixels on each side and 40 megapixels in total.");
+        return pixels;
     }
 
     private static (ArtworkFraming? Framing, Bitmap? Glass, Color? Accent) SampleArtwork(string path, double aspect)
@@ -672,13 +730,14 @@ internal sealed partial class Launcher
         {
             using var codec = SKCodec.Create(path);
             if (codec == null) return default;
-            var scale = Math.Min(1f, (float)ArtworkFraming.SampleSize / Math.Max(codec.Info.Width, codec.Info.Height));
+            var pixels = ReadArtworkDimensions(codec);
+            var scale = Math.Min(1f, (float)ArtworkFraming.SampleSize / Math.Max(pixels.Width, pixels.Height));
             var dimensions = codec.GetScaledDimensions(scale);
             using var source = SKBitmap.Decode(codec, new SKImageInfo(dimensions.Width, dimensions.Height, SKColorType.Bgra8888, SKAlphaType.Premul));
             if (source == null) return default;
             if (scale == 1) return BuildArtworkSample(source, aspect);
-            var width = Math.Clamp((int)Math.Round(codec.Info.Width * scale), 1, ArtworkFraming.SampleSize);
-            var height = Math.Clamp((int)Math.Round(codec.Info.Height * scale), 1, ArtworkFraming.SampleSize);
+            var width = Math.Clamp((int)Math.Round(pixels.Width * scale), 1, ArtworkFraming.SampleSize);
+            var height = Math.Clamp((int)Math.Round(pixels.Height * scale), 1, ArtworkFraming.SampleSize);
             using var resized = source.Resize(new SKImageInfo(width, height, SKColorType.Bgra8888, SKAlphaType.Premul), new SKSamplingOptions(SKFilterMode.Linear));
             return resized == null ? default : BuildArtworkSample(resized, aspect);
         }
@@ -722,25 +781,28 @@ internal sealed partial class Launcher
         try
         {
             var cached = id > 0 ? Path.Combine(_store.ArtworkDirectory, "icons", id.ToString(System.Globalization.CultureInfo.InvariantCulture) + ".jpg") : null;
+            var cachedExists = File.Exists(cached);
+            if (cachedExists)
+            {
+                var picture = await Task.Run(() => TryReadBitmap(cached!, 40), token);
+                if (!StillCurrent()) { picture?.Dispose(); return; }
+                if (picture != null)
+                {
+                    entry.SetIcon(picture);
+                    return;
+                }
+            }
             if (entry.Image == null)
             {
-                var local = await Task.Run(() =>
-                {
-                    if (File.Exists(cached))
-                    {
-                        try { return ReadBitmap(cached!, 40); }
-                        catch (Exception error) when (IsArtworkError(error)) { }
-                    }
-                    return WindowsDesktop.ExecutableIcon(path);
-                }, token);
+                var local = await Task.Run(() => WindowsDesktop.ExecutableIcon(path), token);
                 if (!StillCurrent()) { local?.Dispose(); return; }
                 entry.SetIcon(local);
             }
-            if (id <= 0 || !online || File.Exists(cached)) return;
-            var steamIcon = await _steam.GetIcon(id, token);
+            if (id <= 0 || !online) return;
+            var steamIcon = await _steam.GetIcon(id, token, refresh: cachedExists);
             if (steamIcon == null) return;
-            var picture = await Task.Run(() => ReadBitmap(steamIcon, 40), token);
-            if (StillCurrent()) entry.SetIcon(picture); else picture.Dispose();
+            var downloaded = await Task.Run(() => ReadBitmap(steamIcon, 40), token);
+            if (StillCurrent()) entry.SetIcon(downloaded); else downloaded.Dispose();
         }
         catch (OperationCanceledException) { if (token.IsCancellationRequested) entry.LoadedOnline = false; }
         catch (Exception error) when (IsArtworkError(error)) { }

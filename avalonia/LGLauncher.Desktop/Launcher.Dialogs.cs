@@ -378,6 +378,7 @@ internal sealed partial class Launcher
         Field(body, "Genres", Beside(genreField, steamGenres));
         body.Children.Add(genreStatus);
         var error = Label("", muted: true);
+        AutomationProperties.SetLiveSetting(error, AutomationLiveSetting.Polite);
         body.Children.Add(error);
         var previousSteamId = game.SteamId;
         DialogActions(dialog, adding ? "Add to library" : "Save changes", () =>
@@ -407,6 +408,13 @@ internal sealed partial class Launcher
                 error.Text = "Enter genres of up to 45 characters each.";
                 return;
             }
+            var previousDetails = (game.Title, game.Path, game.Arguments, game.SteamId);
+            var previousGenres = (game.Genres, game.ManualGenres, game.GenreSteamId, game.SteamGenresComplete);
+            var previousTags = (game.SteamTags, game.TagSteamId);
+            var previousIgnoredPaths = _library.IgnoredPaths;
+            var previouslyUnsaved = _saveFailed;
+            var steamIdChanged = game.SteamId != id;
+            var retryGenres = false;
             if (usingFetchedGenres && fetchedGenreId == id)
             {
                 game.Genres = [.. fetchedGenres!];
@@ -421,28 +429,44 @@ internal sealed partial class Launcher
                 game.GenreSteamId = 0;
                 game.SteamGenresComplete = false;
             }
-            else if (usingFetchedGenres || editedGenres || (!game.ManualGenres && game.SteamId != id))
+            else if (usingFetchedGenres || editedGenres || (!game.ManualGenres && steamIdChanged))
             {
                 game.Genres = null;
                 game.ManualGenres = false;
                 game.GenreSteamId = 0;
                 game.SteamGenresComplete = false;
-                _attemptedGenres.Remove(id);
+                retryGenres = true;
             }
             game.Title = name;
             game.Path = path;
             game.Arguments = arguments.Text ?? "";
-            if (game.SteamId != id)
+            if (steamIdChanged)
             {
                 game.SteamTags = null;
                 game.TagSteamId = 0;
-                _attemptedTags.Remove(id);
             }
             game.SteamId = id;
             if (adding) _library.Games.Add(game);
+            if (previousIgnoredPaths.Contains(path, StringComparer.OrdinalIgnoreCase))
+                _library.IgnoredPaths = previousIgnoredPaths.Where(item => !path.Equals(item, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (!Save())
+            {
+                (game.Title, game.Path, game.Arguments, game.SteamId) = previousDetails;
+                (game.Genres, game.ManualGenres, game.GenreSteamId, game.SteamGenresComplete) = previousGenres;
+                (game.SteamTags, game.TagSteamId) = previousTags;
+                if (adding) _library.Games.Remove(game);
+                _library.IgnoredPaths = previousIgnoredPaths;
+                _saveFailed = previouslyUnsaved;
+                error.Text = "The library could not be saved. Check that the profile folder is writable and try again.";
+                Dispatcher.UIThread.Post(() => error.BringIntoView(), DispatcherPriority.Loaded);
+                return;
+            }
+
             _discoveries.RemoveAll(item => path.Equals(item.Path, StringComparison.OrdinalIgnoreCase));
-            _library.IgnoredPaths.RemoveAll(item => path.Equals(item, StringComparison.OrdinalIgnoreCase));
-            if (Save()) Status(adding ? "Added " + name + " to your library." : "Game updated.");
+            if (retryGenres) _attemptedGenres.Remove(id);
+            if (steamIdChanged) _attemptedTags.Remove(id);
+            Status(adding ? "Added " + name + " to your library." : "Game updated.");
             InvalidateEntry(game);
             dialog.Close(true);
         });

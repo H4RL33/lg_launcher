@@ -33,7 +33,7 @@ Converts feed body markup into bounded native paragraphs, styled runs, headings,
 
 ## `avalonia/LGLauncher.Desktop/RssArticleImage.cs`
 
-Displays an inline article image only when its placeholder is inside or near the viewport. It limits concurrent requests, response size and decoded dimensions, and cancels work or disposes the bitmap when the control detaches.
+Displays an inline article image only when its placeholder is inside or near the viewport. It limits concurrent requests, response size and decoded dimensions, and cancels work or disposes the bitmap when the control detaches. Leaving the article for game details detaches the reader even though the content scroll host is retained.
 
 - **Depends on** Avalonia viewport events and bitmap controls, SkiaSharp decoding, .NET HTTP and cancellation, and web address checking from `RssReader`.
 - **Used by** the article renderer in `Launcher.Rss.cs` and the image-viewport smoke check. The check uses an injected HTTP fixture to exercise redirect handling without a live feed.
