@@ -132,7 +132,7 @@ Checks NuGet project manifests and GitHub Actions weekly and targets version upd
 
 [Source](../../tests/Verify-AvaloniaMigration.ps1)
 
-- **Purpose** — Drives the Windows launcher with an isolated legacy-format library. Verifies a read-only open, runs the integrated UI/migration suite, captures screenshots, checks what the library saves, and reopens the fixture with software rendering selected. The full migration run allows 60 seconds so timed music and UI checks can finish. `-ModsOnly` runs the Mods UI fixture alone. The optional existing library input is copied into a test folder first. Reports and screenshots go under `.build-work/smoke/`.
+- **Purpose** — Drives the Windows launcher with an isolated legacy-format library. Verifies a read-only open, runs the integrated UI/migration suite, captures screenshots, checks what the library saves, and reopens the fixture with software rendering selected. The full migration run allows 120 seconds for timed music and UI checks on Windows CI. A timeout reports the verification mode and the most recent captures. `-ModsOnly` runs the Mods UI fixture alone. The optional existing library input is copied into a test folder first. Reports and screenshots go under `.build-work/smoke/`.
 - **Depends on** — A built Avalonia executable, the Desktop verification entrypoints, and sample artwork.
 - **Used by** — `build.ps1 -Smoke` and direct smoke runs against a specific portable executable.
 
@@ -182,7 +182,7 @@ Provides representative wiki tables for the importer tests, including entries an
 
 ## `.github/workflows/optiscaler-catalog.yml`
 
-Runs in the public LG Launcher publication repository on `main`. The job runs at 04:37 UTC daily, on changes to the publisher or its fixtures, and when dispatched manually. It runs the tests and fetches the wiki on each run. It publishes changed entries as `optiscaler-v1.json` on the `compatibility-catalog` branch. When the entries are unchanged, it normally exits without a commit and makes an empty keepalive commit if the branch's last commit is at least 30 days old. A failed import or validation leaves the previous catalog available.
+Runs in the public LG Launcher repository on `main`. The job runs at 04:37 UTC daily, on changes to the publisher or its fixtures, and when dispatched manually. It runs the tests and fetches the wiki on each run. It publishes changed entries as `optiscaler-v1.json` on `mods-support/compatibility-catalog`. When the entries are unchanged, it normally exits without a commit and makes an empty keepalive commit if the branch's last commit is at least 30 days old. A failed import or validation leaves the previous catalog available.
 
 [Workflow](../../.github/workflows/optiscaler-catalog.yml) · [Launcher catalog cache](desktop/mods.md#avalonialglauncherdesktopmodsmodcatalogstorecs)
 
