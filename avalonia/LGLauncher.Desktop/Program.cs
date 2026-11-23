@@ -34,7 +34,7 @@ internal static class Program
             _restartId = restart;
             _setupUpdateRestart = args[0] == "--setup-update-restart";
             IsUpdateRestart = true;
-            if (UpdateInstallVerification.IsRunning) return UpdateInstallVerification.Complete(restart, _updateWorkerPid);
+            if (UpdateInstallVerification.IsRunning) return UpdateInstallVerification.Complete(restart, _updateWorkerPid, _setupUpdateRestart);
         }
         if (args is ["--verify-migration" or "--verify-existing" or "--verify-mods-ui" or "--verify-setup", var data, var preview])
         {

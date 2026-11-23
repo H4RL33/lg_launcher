@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Net;
 using System.Reflection;
 using System.Security.Cryptography;
+using Microsoft.Win32;
 
 namespace LGLauncher;
 
@@ -16,6 +17,8 @@ internal static class UpdateInstaller
     private const string SetupPackageName = "LG-Launcher-Setup.exe";
     private const string BackupName = "previous.exe";
     private const string MessageName = "result.txt";
+    private const string SetupAppId = "LGLauncher.Windows.Stable";
+    private static readonly TimeSpan RestartTimeout = TimeSpan.FromSeconds(30);
     private static readonly HttpClient Downloads = new(new HttpClientHandler { AllowAutoRedirect = false })
     {
         Timeout = Timeout.InfiniteTimeSpan
@@ -49,6 +52,7 @@ internal static class UpdateInstaller
         if (!(setup ? SupportsSetupUpdates : IsSupported))
             throw new InvalidOperationException("In-app updates require the matching Windows release executable.");
         var target = Environment.ProcessPath!;
+        if (setup) RequireRegisteredSetupDirectory(target);
         var id = Guid.NewGuid().ToString("N");
         var stage = GetStage(target, id, setup);
         Directory.CreateDirectory(stage.Folder);
@@ -64,28 +68,9 @@ internal static class UpdateInstaller
         var address = package.Url;
         using var response = await Request(address, client ?? Downloads, downloadToken).ConfigureAwait(false);
         if (response.StatusCode != HttpStatusCode.OK) throw new HttpRequestException("The release download was unavailable.", null, response.StatusCode);
-        if (response.Content.Headers.ContentLength is long contentLength && contentLength != package.Length)
-            throw new InvalidDataException("The update download has an unexpected size.");
-
         await using (var output = new FileStream(stage.DownloadPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, useAsync: true))
-        await using (var input = await response.Content.ReadAsStreamAsync(downloadToken).ConfigureAwait(false))
-        using (var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256))
         {
-            var buffer = new byte[65536];
-            var total = 0L;
-            var lastProgress = -1;
-            int read;
-            while ((read = await input.ReadAsync(buffer, downloadToken).ConfigureAwait(false)) != 0)
-            {
-                total += read;
-                if (total > package.Length) throw new InvalidDataException("The update download is larger than expected.");
-                hash.AppendData(buffer, 0, read);
-                await output.WriteAsync(buffer.AsMemory(0, read), downloadToken).ConfigureAwait(false);
-                var percent = (int)(total * 100 / package.Length);
-                if (percent != lastProgress) { progress?.Report(percent); lastProgress = percent; }
-            }
-            if (total != package.Length || !DigestMatches(hash.GetHashAndReset(), package.Sha256))
-                throw new InvalidDataException("The update download did not match the official checksum.");
+            await VerifiedDownload.CopyAsync(response.Content, output, package.Length, package.Sha256, progress, downloadToken).ConfigureAwait(false);
             await output.FlushAsync(downloadToken).ConfigureAwait(false);
         }
         RequireVersion(stage.DownloadPath, package.Version);
@@ -142,7 +127,7 @@ internal static class UpdateInstaller
     {
         if (!IsSupported || !Guid.TryParseExact(id, "N", out _) ||
             Path.GetFileName(fileName) != fileName || !fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
-            !UpdateFeed.IsDigest(digest) || length <= 0 || length > UpdateFeed.MaximumPackageSize) return 1;
+            !VerifiedDownload.IsSha256(digest) || length <= 0 || length > UpdateFeed.MaximumPackageSize) return 1;
         var comparison = UpdateFeed.Normalize(version).CompareTo(UpdateFeed.Normalize(UpdateFeed.CurrentVersion));
         if (comparison < 0 || (setup && comparison == 0)) return 1;
 
@@ -153,6 +138,7 @@ internal static class UpdateInstaller
             if (parent.StartTime.ToUniversalTime().Ticks != startTime || parent.MainModule?.FileName is not { } target ||
                 !SamePath(Path.GetFileName(target), fileName)) return 1;
             if (setup ? !HasUserSetupMarker(target) : HasSetupMarker(target)) return 1;
+            if (setup) RequireRegisteredSetupDirectory(target);
             stage = GetStage(target, id, setup);
             if (!SamePath(Environment.ProcessPath, stage.WorkerPath) || !RegularDirectory(stage.Folder)) return 1;
             VerifyStagedPackage(stage.DownloadPath, digest, length, version);
@@ -168,7 +154,7 @@ internal static class UpdateInstaller
         {
             VerifyStagedPackage(stage.DownloadPath, digest, length, version);
             Replace(stage.Target, stage.DownloadPath, stage.BackupPath);
-            File.WriteAllText(stage.MessagePath, $"LG Launcher updated to {version}.");
+            WriteResult(stage, $"LG Launcher updated to {version}.");
             if (RestartAndWait(stage)) return 0;
         }
         catch (Exception error) when (ExpectedFailure(error)) { }
@@ -180,7 +166,7 @@ internal static class UpdateInstaller
                 if (File.Exists(stage.Target)) Replace(stage.Target, stage.BackupPath, null);
                 else File.Move(stage.BackupPath, stage.Target);
             }
-            File.WriteAllText(stage.MessagePath, "The update could not be installed. The previous launcher was reopened.");
+            WriteResult(stage, "The update could not be installed. The previous launcher was reopened.");
             using var restored = StartLauncher(stage);
         }
         catch (Exception error) when (ExpectedFailure(error))
@@ -197,7 +183,7 @@ internal static class UpdateInstaller
         try
         {
             var exitCode = RunSetup(stage, digest, length, version);
-            if (exitCode is 2 or 5) message = "Windows Setup was cancelled.";
+            if (exitCode == 2) message = "Windows Setup was cancelled.";
             else if (exitCode != 0) message = $"Windows Setup could not install the update (exit code {exitCode}).";
             else
             {
@@ -213,7 +199,7 @@ internal static class UpdateInstaller
 
         try
         {
-            File.WriteAllText(stage.MessagePath, message);
+            WriteResult(stage, message);
             return RestartAndWait(stage) && installed ? 0 : 1;
         }
         catch (Exception error) when (ExpectedFailure(error))
@@ -229,6 +215,7 @@ internal static class UpdateInstaller
         // Keep the verified file open for reading only until Setup has finished.
         using var payload = File.OpenRead(stage.DownloadPath);
         VerifyStagedPackage(stage.DownloadPath, digest, length, version);
+        var directory = RequireRegisteredSetupDirectory(stage.Target);
         var start = new ProcessStartInfo(stage.DownloadPath)
         {
             UseShellExecute = false,
@@ -239,6 +226,7 @@ internal static class UpdateInstaller
         start.ArgumentList.Add("/SILENT");
         start.ArgumentList.Add("/NORESTART");
         start.ArgumentList.Add("/SP-");
+        start.ArgumentList.Add("/DIR=" + directory);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Windows Setup could not be started.");
         process.WaitForExit();
         return process.ExitCode;
@@ -259,13 +247,22 @@ internal static class UpdateInstaller
     {
         using var ready = new EventWaitHandle(false, EventResetMode.ManualReset, ReadyEvent(stage.Id));
         using var child = StartLauncher(stage);
-        for (var attempt = 0; attempt < 40; attempt++)
+        var elapsed = Stopwatch.StartNew();
+        while (elapsed.Elapsed < RestartTimeout)
         {
-            if (ready.WaitOne(500)) return true;
-            if (child.HasExited) return child.ExitCode == 2;
+            if (ready.WaitOne(250)) return true;
+            if (child.HasExited) return ready.WaitOne(0);
         }
-        // A slow but running launch retains its backup until it reports readiness.
-        return true;
+        if (ready.WaitOne(0)) return true;
+
+        // Release the portable executable before rollback. Windows Setup owns its installed files.
+        if (!stage.Setup && !child.HasExited)
+        {
+            try { child.Kill(); }
+            catch (InvalidOperationException) when (child.HasExited) { }
+            if (!child.WaitForExit(5000)) throw new IOException("The replacement launcher did not stop for rollback.");
+        }
+        return false;
     }
 
     private static Process StartLauncher(Staging stage)
@@ -281,10 +278,10 @@ internal static class UpdateInstaller
     {
         if (!OperatingSystem.IsWindows() || !Guid.TryParseExact(id, "N", out _) || Environment.ProcessPath is not { } target) return null;
         var stage = GetStage(target, id, setup);
-        if (!RegularDirectory(stage.Folder) || !File.Exists(stage.MessagePath)) return null;
+        if (!RegularDirectory(stage.Folder)) return null;
         try
         {
-            var message = File.ReadAllText(stage.MessagePath);
+            var message = ReadResult(stage);
             if (EventWaitHandle.TryOpenExisting(ReadyEvent(id), out var ready))
             {
                 using (ready) ready.Set();
@@ -310,13 +307,27 @@ internal static class UpdateInstaller
         catch (Exception error) when (ExpectedFailure(error)) { return null; }
     }
 
+    private static void WriteResult(Staging stage, string message)
+    {
+        try { File.WriteAllText(stage.MessagePath, message); }
+        catch (Exception error) when (ExpectedFailure(error)) { }
+    }
+
+    private static string? ReadResult(Staging stage)
+    {
+        try { return File.Exists(stage.MessagePath) ? File.ReadAllText(stage.MessagePath) : null; }
+        catch (Exception error) when (ExpectedFailure(error)) { return null; }
+    }
+
     internal static void Discard(Staging stage)
     {
         try
         {
             if (!RegularDirectory(stage.Folder)) return;
-            foreach (var path in new[] { stage.DownloadPath, stage.BackupPath, stage.MessagePath, stage.WorkerPath })
+            foreach (var path in new[] { stage.DownloadPath, stage.BackupPath, stage.WorkerPath })
                 File.Delete(path);
+            if (RegularDirectory(stage.MessagePath)) Directory.Delete(stage.MessagePath);
+            else File.Delete(stage.MessagePath);
             Directory.Delete(stage.Folder);
         }
         catch (Exception error) when (ExpectedFailure(error)) { }
@@ -325,7 +336,7 @@ internal static class UpdateInstaller
     private static bool RegularDirectory(string path) =>
         Directory.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) == 0;
 
-    private static Staging GetStage(string target, string id, bool setup)
+    internal static Staging GetStage(string target, string id, bool setup)
     {
         var root = setup ? Path.GetTempPath() : Path.GetDirectoryName(target)!;
         var prefix = setup ? SetupFolderPrefix : FolderPrefix;
@@ -334,6 +345,19 @@ internal static class UpdateInstaller
 
     private static bool HasSetupMarker(string? executable) =>
         Path.GetDirectoryName(executable) is { } folder && File.Exists(Path.Combine(folder, "LG-Launcher.install.ini"));
+
+    private static string RequireRegisteredSetupDirectory(string target)
+    {
+        if (!OperatingSystem.IsWindows()) throw new InvalidOperationException("Windows Setup updates require Windows.");
+        var directory = Path.GetDirectoryName(target)!;
+        var appId = UpdateInstallVerification.SetupFixtureAppId ?? SetupAppId;
+        using var currentUser = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64);
+        using var registration = currentUser.OpenSubKey($@"Software\Microsoft\Windows\CurrentVersion\Uninstall\{appId}_is1");
+        if (registration?.GetValue("InstallLocation") is not string registered || !Path.IsPathFullyQualified(registered) ||
+            !SamePath(Path.TrimEndingDirectorySeparator(Path.GetFullPath(registered)), directory))
+            throw new IOException("Open LG Launcher from its registered Windows Setup folder to install this update.");
+        return directory;
+    }
 
     private static bool HasUserSetupMarker(string? executable)
     {
@@ -352,9 +376,6 @@ internal static class UpdateInstaller
     private static bool SamePath(string? first, string second) =>
         String.Equals(first, second, StringComparison.OrdinalIgnoreCase);
 
-    private static bool DigestMatches(byte[] actual, string expected) =>
-        String.Equals(Convert.ToHexString(actual), expected, StringComparison.OrdinalIgnoreCase);
-
     private static void RequireVersion(string path, Version expected)
     {
         var info = FileVersionInfo.GetVersionInfo(path);
@@ -368,11 +389,12 @@ internal static class UpdateInstaller
         if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
             throw new InvalidDataException("The staged update is not a regular file.");
         using var binary = File.OpenRead(path);
-        if (binary.Length != length || !DigestMatches(SHA256.HashData(binary), digest))
+        if (binary.Length != length || !VerifiedDownload.MatchesSha256(SHA256.HashData(binary), digest))
             throw new InvalidDataException("The staged update did not match the official checksum.");
         RequireVersion(path, version);
     }
 
     internal static bool ExpectedFailure(Exception error) =>
-        error is IOException or InvalidDataException or UnauthorizedAccessException or Win32Exception or InvalidOperationException or ArgumentException;
+        error is IOException or InvalidDataException or UnauthorizedAccessException or Win32Exception or InvalidOperationException or
+            ArgumentException or System.Security.SecurityException;
 }

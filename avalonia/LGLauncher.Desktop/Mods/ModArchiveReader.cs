@@ -16,6 +16,7 @@ internal static class ModArchiveReader
         var wanted = package.Files.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var written = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var entries = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        byte[]? buffer = null;
         long expanded = 0;
         int count = 0;
 
@@ -73,7 +74,7 @@ internal static class ModArchiveReader
             using var input = open();
             using var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None);
             using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
-            var buffer = new byte[65536];
+            buffer ??= new byte[65536];
             long copied = 0;
             int read;
             while ((read = input.Read(buffer)) != 0)
