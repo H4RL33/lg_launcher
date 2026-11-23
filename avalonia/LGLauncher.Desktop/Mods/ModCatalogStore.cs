@@ -14,7 +14,7 @@ internal sealed record ModCatalog(int SchemaVersion, long Version, string Revisi
 
 internal sealed class ModCatalogStore
 {
-    internal static readonly Uri Source = new("https://raw.githubusercontent.com/H4RL33/lg_launcher/refs/heads/compatibility-catalog/optiscaler-v1.json");
+    internal static readonly Uri Source = new("https://raw.githubusercontent.com/H4RL33/lg_launcher/refs/heads/mods-support/compatibility-catalog/optiscaler-v1.json");
     private const int MaximumBytes = 2 * 1024 * 1024;
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(8);
     private static readonly HttpClient Client = new(new HttpClientHandler { AllowAutoRedirect = false });
