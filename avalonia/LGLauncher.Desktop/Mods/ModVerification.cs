@@ -624,7 +624,6 @@ internal static class ModVerification
         await Reject(() => SetSetting(service, hash, ModDxgiSpoofing.Enabled));
 
         var (_, updatedHash) = await ReadSetting();
-        await VerifySpoofingWhileRunning(executable, () => SetSetting(service, updatedHash, ModDxgiSpoofing.Enabled));
         var antiCheatMarker = Path.Combine(gameRoot, "EasyAntiCheat");
         Directory.CreateDirectory(antiCheatMarker);
         await Reject(() => SetSetting(service, updatedHash, ModDxgiSpoofing.Enabled));
@@ -663,6 +662,12 @@ internal static class ModVerification
         Require(!File.Exists(path) && File.ReadAllText(saved) == editedEnabled && service.FindInstallations().Count == 0,
             "Uninstall did not archive the complete edited configuration.");
 
+        // The running check must follow operations that require an idle, writable executable.
+        await service.InstallAsync(freshPlan, token);
+        record = service.FindInstallations().Single();
+        var (_, runningHash) = await ReadSetting();
+        await VerifySpoofingWhileRunning(executable, () => SetSetting(service, runningHash, ModDxgiSpoofing.Disabled));
+
         Task<ModSpoofingSetting> ReadSetting() => service.ReadDxgiSpoofingAsync(record.Id, token);
 
         Task SetSetting(ModTransactions transactions, string expectedHash, ModDxgiSpoofing requested) =>
@@ -684,7 +689,8 @@ internal static class ModVerification
         catch (IOException error) when (error.Message.Contains("Close the game", StringComparison.Ordinal)) { return; }
         finally
         {
-            if (!process.HasExited)
+            process.StandardInput.Close();
+            if (!process.WaitForExit(5000))
             {
                 process.Kill();
                 await process.WaitForExitAsync();

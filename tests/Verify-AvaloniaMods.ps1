@@ -11,5 +11,6 @@ $process = Start-Process -FilePath $source -ArgumentList $arguments -PassThru
 if (!$process.WaitForExit(40000)) { $process.Kill(); throw 'The mod fixture runner timed out.' }
 $report = Join-Path $root.FullName 'mod-results.txt'
 if (!(Test-Path -LiteralPath $report)) { throw 'The mod fixture runner did not write a report.' }
-Get-Content -LiteralPath $report
-if ($process.ExitCode -ne 0) { throw 'The mod fixtures failed.' }
+$result = Get-Content -LiteralPath $report -Raw
+if ($process.ExitCode -ne 0) { throw "The mod fixtures failed.`n$result" }
+$result
