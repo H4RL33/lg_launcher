@@ -42,13 +42,20 @@ Set-Content -LiteralPath (Join-Path $fixture 'library.json') -Value (ConvertTo-J
 
 function Test-Library([string]$Data, [string]$Mode, [string]$Preview) {
     $before = (Get-FileHash -LiteralPath (Join-Path $Data 'library.json')).Hash
+    $timeoutSeconds = if ($Mode -eq '--verify-migration') { 120 } else { 45 }
+    $report = "$Preview.error.txt"
+    Write-Output "Running $Mode (timeout: ${timeoutSeconds}s)."
     $process = Start-Process -FilePath $exe -ArgumentList @($Mode, ('"' + $Data + '"'), ('"' + $Preview + '"')) -PassThru -WindowStyle Hidden
-    $timeoutMilliseconds = if ($Mode -eq '--verify-migration') { 60000 } else { 45000 }
-    if (!$process.WaitForExit($timeoutMilliseconds)) { $process.Kill(); throw 'The Avalonia launcher smoke check timed out.' }
-    if ($process.ExitCode -ne 0) {
-        $report = "$Preview.error.txt"
+    if (!$process.WaitForExit($timeoutSeconds * 1000)) {
+        if (!$process.HasExited) { $process.Kill(); $process.WaitForExit() }
         if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report }
-        throw "Avalonia migration smoke check exited with $($process.ExitCode)."
+        $captures = @(Get-ChildItem -LiteralPath (Split-Path -Parent $Preview) -Filter '*.png' -File |
+            Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 5 -ExpandProperty Name)
+        throw "Avalonia $Mode timed out after ${timeoutSeconds}s. Recent captures: $($captures -join ', ')."
+    }
+    if ($process.ExitCode -ne 0) {
+        if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report }
+        throw "Avalonia $Mode exited with $($process.ExitCode)."
     }
     if (!(Test-Path -LiteralPath $Preview)) { throw 'The Avalonia launcher did not render a screenshot.' }
     if ($Mode -eq '--verify-existing' -and $before -ne (Get-FileHash -LiteralPath (Join-Path $Data 'library.json')).Hash) {

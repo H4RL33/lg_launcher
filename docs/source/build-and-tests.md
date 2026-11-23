@@ -132,7 +132,7 @@ Checks NuGet project manifests and GitHub Actions weekly and targets version upd
 
 [Source](../../tests/Verify-AvaloniaMigration.ps1)
 
-- **Purpose** — Drives the Windows launcher with an isolated legacy-format library. Verifies a read-only open, runs the integrated UI/migration suite, captures screenshots, checks what the library saves, and reopens the fixture with software rendering selected. The full migration run allows 60 seconds so timed music and UI checks can finish. `-ModsOnly` runs the Mods UI fixture alone. The optional existing library input is copied into a test folder first. Reports and screenshots go under `.build-work/smoke/`.
+- **Purpose** — Drives the Windows launcher with an isolated legacy-format library. Verifies a read-only open, runs the integrated UI/migration suite, captures screenshots, checks what the library saves, and reopens the fixture with software rendering selected. The full migration run allows 120 seconds for timed music and UI checks on Windows CI. A timeout reports the verification mode and the most recent captures. `-ModsOnly` runs the Mods UI fixture alone. The optional existing library input is copied into a test folder first. Reports and screenshots go under `.build-work/smoke/`.
 - **Depends on** — A built Avalonia executable, the Desktop verification entrypoints, and sample artwork.
 - **Used by** — `build.ps1 -Smoke` and direct smoke runs against a specific portable executable.
 
