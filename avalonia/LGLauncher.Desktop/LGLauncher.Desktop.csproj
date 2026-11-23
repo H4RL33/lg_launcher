@@ -5,7 +5,7 @@
     <RootNamespace>LGLauncher</RootNamespace>
     <Nullable>annotations</Nullable>
     <Version>0.1.16</Version>
-    <SkiaSharpVersion>3.119.4</SkiaSharpVersion>
+    <SkiaSharpVersion>4.157.0</SkiaSharpVersion>
     <ApplicationIcon>../../assets/launcher.ico</ApplicationIcon>
     <ApplicationManifest>../../src/app.manifest</ApplicationManifest>
   </PropertyGroup>
