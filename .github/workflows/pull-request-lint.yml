@@ -1,21 +1,49 @@
-name: Pull request lint
+name: Branch verification
 
 on:
   pull_request:
+    branches: [dev, next, main]
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  push:
+    branches: [next]
 
 permissions:
   contents: read
 
 concurrency:
-  group: pull-request-lint-${{ github.event.pull_request.number }}
+  group: branch-verification-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   lint:
     name: Lint
     runs-on: windows-2025
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
+      - name: Validate pull request title and branch
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BASE: ${{ github.base_ref }}
+          PR_HEAD: ${{ github.head_ref }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          if ($env:PR_AUTHOR -ne 'dependabot[bot]' -and
+              $env:PR_TITLE -cnotmatch '^[a-z]+\([a-z0-9][a-z0-9./-]*\): \S.*$') {
+            throw 'Use type(scope): imperative summary for the pull request title.'
+          }
+          if ($env:PR_BASE -ceq 'next' -and $env:PR_HEAD -ceq 'dev' -and
+              $env:PR_HEAD_REPOSITORY -ieq $env:GITHUB_REPOSITORY) {
+            throw 'Promote selected dev commits from a topic branch based on next.'
+          }
+          if ($env:PR_BASE -ceq 'main' -and ($env:PR_HEAD -cne 'next' -or
+              $env:PR_HEAD_REPOSITORY -ine $env:GITHUB_REPOSITORY -or
+              $env:PR_TITLE -cnotmatch '^chore\(release\): v[0-9]+\.[0-9]+\.[0-9]+$')) {
+            throw 'Open a same-repository next to main release titled chore(release): vX.Y.Z.'
+          }
+
       - name: Check out the pull request
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -36,3 +64,26 @@ jobs:
       - name: Run Windows core fixtures
         shell: pwsh
         run: ./build.ps1 -Test
+
+      - name: Check release version
+        if: github.base_ref == 'main'
+        shell: pwsh
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          $project = [xml](Get-Content -Raw -LiteralPath 'avalonia/LGLauncher.Desktop/LGLauncher.Desktop.csproj')
+          $version = $project.Project.PropertyGroup.Version
+          if ($env:PR_TITLE -cne "chore(release): v$version") {
+            throw 'The release title must match the Desktop project version.'
+          }
+
+      - name: Run Windows integration smoke
+        if: github.base_ref == 'next' || github.base_ref == 'main' || github.ref == 'refs/heads/next'
+        shell: pwsh
+        env:
+          IncludeSourceRevisionInInformationalVersion: 'false'
+        run: |
+          & ./build.ps1 -Smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $compiler = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          & ./build-installer.ps1 -Launcher './build/LG Launcher.exe' -Compiler $compiler -Smoke

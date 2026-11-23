@@ -31,8 +31,19 @@ jobs:
           $repository = "https://github.com/$env:GITHUB_REPOSITORY.git"
           $assetRef = "refs/heads/release-assets/$tag"
           git init --quiet
-          git fetch --quiet --no-tags --depth=1 $repository $env:GITHUB_REF
+          git fetch --quiet --no-tags $repository $env:GITHUB_REF
           git checkout --quiet --detach FETCH_HEAD
+          if ($env:GITHUB_REF_NAME -ceq $tag) {
+            git fetch --quiet --no-tags $repository 'refs/heads/main:refs/remotes/origin/main'
+            $sourceCommit = git rev-parse HEAD
+            if ($sourceCommit -cnotin @(git rev-list --first-parent refs/remotes/origin/main)) {
+              throw 'A stable release tag must point to a commit on the first-parent history of main.'
+            }
+          }
+          $project = [xml](Get-Content -Raw -LiteralPath 'avalonia/LGLauncher.Desktop/LGLauncher.Desktop.csproj')
+          if ($project.Project.PropertyGroup.Version -cne $version) {
+            throw 'The tagged Desktop project version does not match the release version.'
+          }
           git fetch --quiet --no-tags --depth=1 $repository $assetRef
           $assetCommit = git rev-parse --verify FETCH_HEAD
           $stage = (New-Item -ItemType Directory -Path (Join-Path $env:RUNNER_TEMP 'release-assets')).FullName

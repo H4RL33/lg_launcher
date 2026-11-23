@@ -1,6 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: nuget
+    target-branch: dev
     directories:
       - /avalonia/LGLauncher.Components
       - /avalonia/LGLauncher.Desktop
@@ -8,6 +9,8 @@ updates:
       - /tests
     schedule:
       interval: weekly
+    commit-message:
+      prefix: 'build(deps)'
     groups:
       graphics:
         patterns:
@@ -17,6 +20,9 @@ updates:
           - 'SkiaSharp.NativeAssets.*'
 
   - package-ecosystem: github-actions
+    target-branch: dev
     directory: /
     schedule:
       interval: weekly
+    commit-message:
+      prefix: 'ci(deps)'

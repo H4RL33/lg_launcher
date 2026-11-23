@@ -8,6 +8,12 @@ LG Launcher is a desktop library for locally installed games. The Windows produc
 2. Read and follow the [project coding style](docs/coding-style.md) throughout the task.
 3. Keep the working library and saved artwork safe. Use the test harnesses or copied fixture data for verification. Keep intermediate files under `.build-work/`. Use the normal build command when an updated Windows executable is requested, and publish or modify remote release state only with the user’s authorization.
 
+## Branches and change descriptions
+
+1. Follow the [development and release workflow](docs/workflow.md). Base ordinary work on `dev`, target `dev` for its pull request, and mark the change unslated unless the maintainer selects it.
+2. Promote selected commits to `next` for integration. Release through a versioned `next` → `main` pull request and tag the resulting `main` commit only with release authorization.
+3. Use the commit and pull request templates in the workflow guide and record the verification actually run.
+
 ## Before doing UI work
 
 1. Read the [UI catalog guide](docs/ui/README.md) and search the [machine-readable catalog](docs/ui/catalog.json). Inspect the source entries for the controls and styles you plan to use.

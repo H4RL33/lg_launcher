@@ -7,6 +7,7 @@ Start here before working on LG Launcher. This documentation is organised by the
 | [Source map](source/README.md) | Find a subsystem and read the article for each source file you will change. Follow links to its callers, tests, and shared dependencies. |
 | [UI catalog](ui/README.md) | Find an existing component, theme resource, style, or UI pattern before designing or changing an interface. |
 | [Coding style](coding-style.md) | Understand the readability rules and run the required automated checks. |
+| [Development and release workflow](workflow.md) | Choose a branch, describe the change, and promote selected commits to a release. |
 | [Build and test articles](source/build-and-tests.md) | Pick the verification command and see where it writes its fixtures and outputs. |
 
 ## Find an article

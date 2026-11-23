@@ -48,7 +48,7 @@ Build Windows Setup with `.\build-installer.ps1 -Launcher <verified-stable-execu
 
 ## Contributing
 
-Use GitHub issues for bug reports and feature requests, and open pull requests against `main`. Follow the developer guide and run the relevant build and test checks before submitting a change. [Developer documentation](docs/README.md)
+Use GitHub issues for bug reports and feature requests, and open ordinary pull requests against `dev`. Run the relevant checks before submitting a change. [Development and release workflow](docs/workflow.md) · [Developer documentation](docs/README.md)
 
 ## License
 

@@ -18,18 +18,18 @@ Run commands from the repository root. The default Windows product is `build/LG 
 
 ## Stable Windows releases
 
-1. Set `Version` in the [Desktop project](../../avalonia/LGLauncher.Desktop/LGLauncher.Desktop.csproj) to the intended three-part version. Use a higher version for a hotfix so existing installations can discover it.
-2. Build and verify the Windows x64 portable executable. In a fresh PowerShell session, set `$env:IncludeSourceRevisionInInformationalVersion = 'false'` before running `pwsh -NoProfile -File ./build.ps1 -Smoke`. The publication workflow and Setup builder require the executable's `ProductVersion` to equal the three-part release version. Run the additional fixtures relevant to the release.
-3. Stage `LG-Launcher.exe`, its GNU-format `LG-Launcher.exe.sha256`, and `RELEASE-NOTES.md` on `release-assets/vX.Y.Z`. The workflow compiles Setup using the installer files from the tagged source commit. Push the staging branch before pushing the matching `vX.Y.Z` tag from `main`.
+1. Select changes for `next` and set `Version` in the [Desktop project](../../avalonia/LGLauncher.Desktop/LGLauncher.Desktop.csproj) to the approved three-part version. Review the `next` → `main` pull request after Windows integration passes. [Development and release workflow](../workflow.md#publish-from-main)
+2. Build and verify the Windows x64 portable executable from the resulting `main` commit. In a fresh PowerShell session, set `$env:IncludeSourceRevisionInInformationalVersion = 'false'` before running `pwsh -NoProfile -File ./build.ps1 -Smoke`. The publication workflow and Setup builder require the executable's `ProductVersion` to equal the three-part release version. Run the additional fixtures relevant to the release.
+3. Stage `LG-Launcher.exe`, its GNU-format `LG-Launcher.exe.sha256`, and `RELEASE-NOTES.md` on `release-assets/vX.Y.Z`. The workflow compiles Setup using the installer files from the tagged source commit. With release authorization, push the staging branch before pushing the matching `vX.Y.Z` tag from `main`.
 4. Wait for the read-only verification job to check the portable executable and smoke-test Windows Setup. On stable tags, it uploads the verified portable executable, checksum, Setup, and release notes as a GitHub Actions artifact. A separate write-enabled job downloads the artifact by ID, validates it, and publishes its files. It then checks public access to the three downloads and deletes the staging branch if it still points to the verified commit. The updater uses the GitHub digest for the package that matches the installation.
 
-Packaging-only `verify-packaging-vX.Y.Z` tags run verification and leave the staging branch available for publication. Add a numeric suffix such as `-2` to repeat the check. Restore the staging branch first if the release workflow has deleted it.
+Packaging-only `verify-packaging-vX.Y.Z` tags can verify a candidate from `next`. They leave the staging branch available for publication. Add a numeric suffix such as `-2` to repeat the check. Restore the staging branch first if the release workflow has deleted it.
 
 [Project releases](https://github.com/H4RL33/lg_launcher/releases) · [Updater contract](desktop/updates.md)
 
 ## `.github/workflows/publish-release.yml`
 
-Runs Windows packaging and Setup smoke in a read-only job. For stable tags, a dependent write-enabled job verifies the artifact handoff, publishes the release, checks the public downloads, and cleans up the staging branch with a lease on its verified commit.
+Runs Windows packaging and Setup smoke in a read-only job. The tag version must match the Desktop project. Stable tags must point to the first-parent history of `main`. A dependent write-enabled job verifies the artifact handoff, publishes the release, checks the public downloads, and cleans up the staging branch with a lease on its verified commit.
 
 [Stable release workflow](../../.github/workflows/publish-release.yml) · [Stable Windows releases](#stable-windows-releases)
 
@@ -71,13 +71,13 @@ Checks the repository files discovered by `lint.ps1`. It uses PowerShell's Markd
 
 ## `.github/workflows/pull-request-lint.yml`
 
-Runs `lint.ps1` and `build.ps1 -Test` on pull requests in the source repository. Every changed path is eligible, including documentation-only changes. The Windows runner uses the workflow's .NET 10 SDK for both checks. New commits cancel earlier runs for the same pull request. To require both checks before merging, require the **Lint** job in the target branch's ruleset.
+Checks pull request titles and routing for `dev`, `next`, and `main`, then runs lint and core fixtures on Windows. Pull requests to `next` and `main` and pushes to `next` also run desktop, portable updater, and Setup smoke. Pull requests into `main` must come from this repository's `next` branch and name the version in the Desktop project. New commits cancel earlier runs for the same pull request or push branch. The **Lint** job is the corresponding status check for a branch ruleset.
 
 [Pull-request workflow](../../.github/workflows/pull-request-lint.yml) · [GitHub required status checks](https://docs.github.com/en/pull-requests/reference/status-checks)
 
 ## `.github/dependabot.yml`
 
-Checks NuGet project manifests and GitHub Actions weekly from `main`. The graphics group proposes Avalonia and SkiaSharp updates together. Review the resolved native versions and run Windows smoke checks before merging a graphics update. For the Expat follow-up, check the SkiaSharp component manifest for the proposed Windows native asset.
+Checks NuGet project manifests and GitHub Actions weekly and targets version update pull requests at `dev`. The default branch still holds the configuration. GitHub handles security updates against the default branch. Review any resulting security pull request on `main` and carry the selected fix through `dev` and `next`. The graphics group proposes Avalonia and SkiaSharp updates together. For the Expat follow-up, check the SkiaSharp component manifest for the proposed Windows native asset.
 
 [Dependabot configuration](../../.github/dependabot.yml) · [SkiaSharp assessment](desktop/app.md#windows-x64-expat-assessment) · [GitHub version update setup](https://docs.github.com/en/code-security/how-tos/secure-your-supply-chain/secure-your-dependencies/configure-version-updates)
 
