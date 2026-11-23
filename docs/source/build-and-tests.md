@@ -14,6 +14,7 @@ Run commands from the repository root. The default Windows product is `build/LG 
 | OptiScaler catalog importer | `python -B -m unittest discover -s tests -p 'test_import_optiscaler_catalog.py'` |
 | Shared UI preview and control smoke | `dotnet run --project avalonia/LGLauncher.Gallery/LGLauncher.Gallery.csproj -- --smoke .build-work/gallery.png` |
 | Windows Setup changes | `pwsh -NoProfile -File ./build-installer.ps1 -Launcher './build/LG Launcher.exe' -Smoke` |
+| In-app Windows Setup upgrade | `pwsh -NoProfile -File ./tests/Verify-AvaloniaSetupUpdate.ps1` |
 
 ## Stable Windows releases
 
@@ -152,9 +153,17 @@ The same generated tone encoded as Ogg Opus. It checks that a supplied Opus trac
 
 [Source](../../tests/Verify-AvaloniaUpdate.ps1)
 
-- **Purpose** — Tests the in-app update worker's executable replacement, restart, and rollback with disposable executable copies.
+- **Purpose** — Tests the in-app update worker’s executable replacement, rollback, and restart acknowledgement with disposable executable copies. Rollback cases cover early exit, another-instance activation, and a running process that never confirms readiness. A restart without an outcome message also checks cleanup.
 - **Depends on** — A single-file Avalonia executable exposing the verification-only CLI, `UpdateInstallVerification.cs`, and `UpdateInstaller.cs`. Uses a fixture package and temporary paths.
 - **Used by** — `build.ps1 -Smoke` and direct smoke runs against release candidates.
+
+## `tests/Verify-AvaloniaSetupUpdate.ps1`
+
+[Source](../../tests/Verify-AvaloniaSetupUpdate.ps1)
+
+- **Purpose** — Builds and installs two versions under a unique per-user Setup identity. It checks that a copied marker cannot apply an upgrade, then runs the real Setup update worker from the registered custom directory and checks the installed hash, registration, restart, and staging cleanup. It uninstalls the fixture and stores outputs under `.build-work/setup-update-smoke/`.
+- **Depends on** — Windows, the x64 .NET 10 SDK and runtime, Inno Setup, the Desktop project's `SetupFixtureAppId` build property, and `UpdateInstallVerification.cs`.
+- **Used by** — Direct verification when changing the installed update or setup handoff.
 
 ## `tests/Verify-AvaloniaMods.ps1`
 

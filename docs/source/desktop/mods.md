@@ -35,7 +35,7 @@ The manager opens from its installation record and reuses the most recent inspec
 
 ## `avalonia/LGLauncher.Desktop/Mods/ModPackages.cs`
 
-Selects official downloads by provider, variant, version, digest, and reviewed package members. The update check reports when the cached package matches upstream. It stages downloads before publishing a cache entry and can report whole percentages from the bytes written and the known package size. A newer layout or rolling archive requires its own review. The game flow can acquire required packages before previewing the install.
+Selects official downloads by provider, variant, version, digest, and reviewed package members. The update check reports when the cached package matches upstream. It stages downloads through [VerifiedDownload](updates.md#avalonialglauncherdesktopverifieddownloadcs) before publishing a cache entry and can report whole percentages from the bytes written and the known package size. A newer layout or rolling archive requires its own review. The game flow can acquire required packages before previewing the install.
 
 | Provider | Reviewed asset | Install payload |
 | --- | --- | --- |
@@ -50,7 +50,7 @@ Finds enabled x64 implicit Vulkan layers in the machine and current-user registr
 
 ## `avalonia/LGLauncher.Desktop/Mods/ModArchiveReader.cs`
 
-Checks ZIP and 7z member paths, types, count, and expanded size. It extracts files covered by the reviewed descriptor and hashes the result. The ReShade reader opens the embedded ZIP at the pinned package's reviewed offset without executing the installer. SharpCompress reads 7z archives.
+Checks ZIP and 7z member paths, types, count, and expanded size. It extracts files covered by the reviewed descriptor and hashes the result, reusing one copy buffer across members. The ReShade reader opens the embedded ZIP at the pinned package's reviewed offset without executing the installer. SharpCompress reads 7z archives.
 
 ## `avalonia/LGLauncher.Desktop/Mods/SharpCompress.LICENSE.txt`
 

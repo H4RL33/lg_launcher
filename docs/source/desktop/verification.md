@@ -121,9 +121,9 @@ The RSS interval field verifies matching horizontal and vertical step-button ins
 
 ## `avalonia/LGLauncher.Desktop/UpdateInstallVerification.cs`
 
-Adapts the real updater for the smoke harness. It reads a fixture from the isolated executable directory through an injected HTTP handler, verifies rejection of the wrong checksum, starts the update worker, records the new launch, and exercises rollback when readiness is rejected.
+Adapts the real updater for the smoke harness. It reads a fixture from the isolated executable directory through an injected HTTP handler, verifies rejection of the wrong checksum, starts the update worker, and records the new launch. Portable cases exercise rollback after early exit, another-instance activation, and readiness timeout. A separate case verifies restart when the outcome message cannot be written. The custom-directory Setup harness supplies a unique app ID at build time and uses the same worker and readiness path.
 
 - **Depends on** `Program.cs` verification and restart arguments, `UpdateInstaller` and `UpdateFeed`, .NET hashing and process APIs, and the PowerShell harness's reserved test executable and report filenames.
-- **Used by** the `--verify-update-install` and test restart branches and by `tests/Verify-AvaloniaUpdate.ps1`.
+- **Used by** the `--verify-update-install` and test restart branches and by both updater harnesses.
 
-[Update smoke source](../../../avalonia/LGLauncher.Desktop/UpdateInstallVerification.cs) · [Update harness](../../../tests/Verify-AvaloniaUpdate.ps1) · [Official updates](updates.md)
+[Update smoke source](../../../avalonia/LGLauncher.Desktop/UpdateInstallVerification.cs) · [Portable harness](../../../tests/Verify-AvaloniaUpdate.ps1) · [Setup harness](../../../tests/Verify-AvaloniaSetupUpdate.ps1) · [Official updates](updates.md)

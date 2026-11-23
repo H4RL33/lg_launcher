@@ -10,7 +10,7 @@ Checks GitHub's latest release endpoint, requires a stable `vX.Y.Z` tag, and com
 
 About makes a separate request using the app's exact `vX.Y.Z` tag and accepts only a matching public stable release with a bounded Markdown body. It uses the accepted newer release's version and Markdown from the existing latest-release response for the available notes. The same HTTP client limits response size and time for both requests. [GitHub release-by-tag endpoint](https://docs.github.com/en/rest/releases/releases#get-a-release-by-tag-name)
 
-- **Depends on** the official LG Launcher GitHub release metadata, .NET HTTP and JSON APIs, and the desktop assembly version.
+- **Depends on** the official LG Launcher GitHub release metadata, `VerifiedDownload` for digest validation, .NET HTTP and JSON APIs, and the desktop assembly version.
 - **Used by** startup, the manual About check and release notes, the main window version label, the installer transaction, and smoke tests with injected feed data.
 
 [Update feed source](../../../avalonia/LGLauncher.Desktop/UpdateFeed.cs) · [Startup and shell](app.md)
@@ -26,11 +26,22 @@ Connects the feed result to the status bar and About actions, and selects the pa
 
 ## `avalonia/LGLauncher.Desktop/UpdateInstaller.cs`
 
-Implements the Windows single-file update transaction. `LG-Launcher.install.ini` beside the executable identifies a Setup-managed copy, including custom installation directories. The `Scope=User` marker enables the Setup updater. Portable downloads stage beside the executable and Setup downloads stage in the current user's temporary directory. Both paths verify redirect hosts, version, length, and digest.
+Implements the Windows single-file update transaction. `LG-Launcher.install.ini` beside the executable identifies a Setup-managed copy, including custom installation directories. The `Scope=User` marker enables the Setup updater. Before staging, during handoff, and before running Setup, the updater checks the executable's directory against the registered per-user installation. It passes that directory explicitly to Setup. Portable downloads stage beside the executable and Setup downloads stage in the current user's temporary directory. Both paths verify redirect hosts, version, length, and digest.
 
-The helper validates the parent and staged package before the launcher exits. The portable helper replaces the executable under the launcher mutex and restores its backup if restart fails. The Setup helper waits for the launcher to exit, rechecks and holds the package open for reading, and runs the installer with a progress window. The installer keeps the previous per-user installation directory and updates its registration. The helper verifies the installed version, reopens the launcher with the result after success, cancellation, or failure, and the restarted launcher cleans up staging.
+The helper validates the parent and staged package before the launcher exits. A successful restart requires the replacement process to acknowledge readiness within 30 seconds. An early exit, including activation of an existing instance, counts as a failed restart. The portable helper replaces the executable under the launcher mutex. It stops its own unacknowledged replacement on timeout so it can restore and reopen the backup. If the executable is still locked, the helper keeps the backup in staging.
 
-- **Depends on** `UpdateFeed.Package` and digest validation, the single-file build marker, Windows executable metadata, .NET file/process APIs, and the mutex and restart argument contract in `Program.cs`.
+The Setup helper waits for the launcher to exit, rechecks and holds the package open for reading, and runs the installer with a progress window. It verifies the installed version and attempts to reopen the launcher after success, cancellation, or failure. Setup owns the installed files and registration. A restart timeout reports failure to the helper while allowing the installed launcher to finish opening. The restarted launcher cleans up staging and displays the result message when available.
+
+- **Depends on** `UpdateFeed.Package`, `VerifiedDownload`, the single-file build marker, Windows executable metadata and per-user uninstall registration, .NET file/process APIs, and the mutex and restart argument contract in `Program.cs`.
 - **Used by** the launcher update controls, the early command-line worker and restart modes, and `UpdateInstallVerification.cs` for download, replacement, relaunch, and rollback coverage.
 
 [Update transaction source](../../../avalonia/LGLauncher.Desktop/UpdateInstaller.cs) · [Desktop verification](verification.md)
+
+## `avalonia/LGLauncher.Desktop/VerifiedDownload.cs`
+
+Streams HTTP response bodies into a caller-owned destination, checks the advertised and actual byte counts, and verifies SHA-256 before the caller can publish the result. It reports increasing whole percentages during the copy. Callers validate source URLs, handle timeouts and redirects, and decide how to stage and publish the validated data.
+
+- **Depends on** .NET HTTP, stream, and cryptography APIs.
+- **Used by** `UpdateFeed`, `UpdateInstaller`, and `ModPackageStore`. The update and mod fixtures exercise both download paths.
+
+[Download verification source](../../../avalonia/LGLauncher.Desktop/VerifiedDownload.cs) · [Mod package cache](mods.md#avalonialglauncherdesktopmodsmodpackagescs)
