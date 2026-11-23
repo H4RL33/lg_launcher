@@ -71,7 +71,7 @@ Checks the repository files discovered by `lint.ps1`. It uses PowerShell's Markd
 
 ## `.github/workflows/pull-request-lint.yml`
 
-Checks pull request titles and routing for `dev`, `next`, and `main`, then runs lint and core fixtures on Windows. Pull requests to `next` and `main` and pushes to `next` also run desktop, portable updater, and Setup smoke. Pull requests into `main` must come from this repository's `next` branch and name the version in the Desktop project. New commits cancel earlier runs for the same pull request or push branch. The **Lint** job is the corresponding status check for a branch ruleset.
+Checks pull request titles and routing for `dev`, `next`, and `main`, then runs lint and core fixtures on Windows. Pull requests to `next` and `main` and pushes to `next` also run desktop, portable updater, and Setup smoke. On a pull request into `main`, GitHub tests the proposed merge as **Release integration**. The job requires this repository's `next` branch as the source and checks the title against the version in the Desktop project. The `main` ruleset requires this GitHub Actions check. Other runs report **Lint**. New commits cancel earlier runs for the same pull request or push branch.
 
 [Pull-request workflow](../../.github/workflows/pull-request-lint.yml) · [GitHub required status checks](https://docs.github.com/en/pull-requests/reference/status-checks)
 

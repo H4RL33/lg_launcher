@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   lint:
-    name: Lint
+    name: ${{ github.base_ref == 'main' && 'Release integration' || 'Lint' }}
     runs-on: windows-2025
     timeout-minutes: 25
     steps:
