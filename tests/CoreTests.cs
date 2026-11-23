@@ -169,6 +169,8 @@ internal static class CoreTests
                 "Existing and new profiles leave game process priority unchanged by default");
             Check(!oldLibrary.Preferences.PlayThemeMusic && !library.Preferences.PlayThemeMusic,
                 "Existing and new profiles leave theme music off by default");
+            Check(!oldLibrary.Preferences.UsePreviewUpdates && !library.Preferences.UsePreviewUpdates,
+                "Existing and new profiles use Stable updates by default");
             Check(oldLibrary.Preferences.DefaultAccentColour == null && library.Preferences.DefaultAccentColour == null,
                 "Existing and new profiles retain the built-in accent palette");
             Check(oldLibrary.Games.Single().ArtworkPosition.Zoom == 1, "Artwork positions saved before zoom use the original framing scale");
@@ -190,6 +192,7 @@ internal static class CoreTests
             library.Preferences.ShowStoreTags = false;
             library.Preferences.DisableArtworkAccent = true;
             library.Preferences.DefaultAccentColour = "#31415D";
+            library.Preferences.UsePreviewUpdates = true;
             library.Collections.Add(new GameCollection
             {
                 Name = "Space adventures", Rules = new List<CollectionRule>
@@ -202,6 +205,7 @@ internal static class CoreTests
             store.Save(library);
             var saved = store.Load();
             Check(saved.UsageNoticeAccepted, "The first-run acknowledgement is stored between launches");
+            Check(saved.Preferences.UsePreviewUpdates, "Next preview opt-in survives reload");
             Check(saved.Folder == root && saved.Games[0].CollectionIds.Single() == saved.Collections[0].Id, "Watched folder and collection membership survive reload");
             Check(saved.Games[0].PlaySeconds == 271 && saved.Games[0].LastPlayedUtc == launched && saved.Games[0].SteamId == 19, "Play history and Steam ID survive reload");
             var simulation = new GameCollection { GenreFilters = new List<string> { "Simulation" } };

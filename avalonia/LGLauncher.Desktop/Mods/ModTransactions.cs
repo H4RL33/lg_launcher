@@ -135,25 +135,30 @@ internal sealed class ModTransactions(string profile, Action<ModTransactionStep>
         var folder = Folder(id);
         ModPaths.RejectReparsePoints(folder);
         var existing = plan.ExistingInstallation is { } ? ReadState(folder)?.Installation : null;
+        var incoming = plan.Packages.Select(package => package.Provider).ToHashSet();
+        if (plan.ExistingInstallation != null && (existing == null || !existing.Target.Matches(plan.Target) || ReadJournal(folder) != null ||
+            existing.Packages.Any(package => incoming.Contains(package.Provider))))
+            throw new InvalidDataException("The managed installation changed after preview.");
         if (plan.ReShadeVulkan != null && (plan.ReShadeChain != null || plan.Packages.Count != 1 ||
             plan.Packages[0].Provider != ModProviderId.ReShade || plan.Changes.Count != 1 ||
             plan.Changes[0].Owner != ModProviderId.ReShade || plan.Changes[0].ExpectedHash != null ||
             !plan.Changes[0].Relative.Equals(ModPaths.Relative(Path.Combine(Path.GetDirectoryName(plan.Target.Executable) ?? "",
                 ModReShadeVulkan.ActivationFile)), StringComparison.OrdinalIgnoreCase)))
             throw new InvalidDataException("The ReShade Vulkan plan does not match the rendering executable.");
-        if (plan.ExistingInstallation != null)
+        if (plan.ReShadeChain is { } link)
         {
-            if (existing == null || !existing.Target.Matches(plan.Target) || (plan.ReShadeChain == null && plan.ReShadeVulkan == null) ||
-                existing.Files.Any(file => file.Owner == ModProviderId.ReShade) ||
-                plan.Packages.Count != 1 || plan.Packages[0].Provider != ModProviderId.ReShade)
-                throw new InvalidDataException("The managed OptiScaler installation changed after preview.");
-            if (plan.ReShadeChain is { } link)
-            {
-                var (configuration, bytes) = ModInstallPlanner.ReadChainingConfiguration(existing);
-                if (!configuration.Equals(link.Configuration, StringComparison.OrdinalIgnoreCase) ||
-                    ModFileSnapshot.For(bytes).Hash != link.ExpectedHash || ModDxgiConfiguration.ReadReShade(bytes) != link.PreviousValue)
-                    throw new InvalidDataException("The OptiScaler INI changed after preview. Preview the ReShade installation again.");
-            }
+            if (existing == null || !incoming.SetEquals([ModProviderId.ReShade]))
+                throw new InvalidDataException("The ReShade chain needs a managed OptiScaler installation.");
+            var (configuration, bytes) = ModInstallPlanner.ReadChainingConfiguration(existing);
+            if (!configuration.Equals(link.Configuration, StringComparison.OrdinalIgnoreCase) ||
+                ModFileSnapshot.For(bytes).Hash != link.ExpectedHash || ModDxgiConfiguration.ReadReShade(bytes) != link.PreviousValue)
+                throw new InvalidDataException("The OptiScaler INI changed after preview. Preview the ReShade installation again.");
+        }
+        foreach (var requirement in plan.Dependencies ?? [])
+        {
+            if (!incoming.Contains(requirement.Dependent) || requirement.Dependent == requirement.Required ||
+                (!plan.Packages.Any(requirement.Matches) && !HasWorkingDependency(existing, requirement, token)))
+                throw new InvalidDataException($"Install a working copy of {ModPackageStore.Name(requirement.Required)} before installing {ModPackageStore.Name(requirement.Dependent)}.");
         }
         var allPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -170,20 +175,19 @@ internal sealed class ModTransactions(string profile, Action<ModTransactionStep>
             var prior = ModFileSnapshot.Read(destination);
             if (prior?.Hash != change.ExpectedHash) throw new InvalidDataException($"The file changed after preview: {relative}");
             var trackedIndex = files.FindIndex(file => file.Relative.Equals(relative, StringComparison.OrdinalIgnoreCase));
-            if (existing != null && (trackedIndex >= 0
-                ? prior == null || !relative.Equals(plan.ReShadeChain?.Configuration, StringComparison.OrdinalIgnoreCase) ||
-                    files[trackedIndex].Owner != ModProviderId.OptiScaler || change.Owner != ModProviderId.OptiScaler
-                : prior != null || change.Owner != ModProviderId.ReShade))
-                throw new InvalidDataException($"The ReShade plan overlaps a managed file: {relative}.");
+            if (trackedIndex >= 0 && (prior == null || !relative.Equals(plan.ReShadeChain?.Configuration, StringComparison.OrdinalIgnoreCase) ||
+                files[trackedIndex].Owner != ModProviderId.OptiScaler || change.Owner != ModProviderId.OptiScaler))
+                throw new InvalidDataException($"Another managed mod owns {relative}.");
             for (var parent = Path.GetDirectoryName(destination)!; parent != plan.Target.Root && !Directory.Exists(parent); parent = Path.GetDirectoryName(parent)!)
             {
                 if (File.Exists(parent)) throw new InvalidDataException("A file occupies a planned folder.");
                 directories.Add(Path.GetRelativePath(plan.Target.Root, parent));
             }
             var after = ModFileSnapshot.For(change.Bytes);
-            if (prior?.Hash == after.Hash) throw new InvalidDataException($"An existing copy occupies {relative}.");
+            if (prior is not null && prior.Hash == after.Hash) after = prior;
             var payload = $"payload/{operationId:N}/{operations.Count}";
-            var backup = prior == null ? null : trackedIndex >= 0 ? $"undo/{operationId:N}/{operations.Count}" : $"original/{operations.Count}";
+            var backup = prior == null ? null : trackedIndex >= 0 ? $"undo/{operationId:N}/{operations.Count}" :
+                $"original/{operationId:N}/{operations.Count}";
             if (prior != null) CopyVerified(destination, ModPaths.Within(folder, backup!), prior);
             if (trackedIndex >= 0 && prior != null) after = after with { Created = prior.Created, Attributes = prior.Attributes };
             WritePayload(ModPaths.Within(folder, payload), change.Bytes);
@@ -197,7 +201,7 @@ internal sealed class ModTransactions(string profile, Action<ModTransactionStep>
         var record = new ModInstallationRecord(id, plan.Target, [.. existing?.Packages ?? [], .. plan.Packages], [.. files],
             [.. existing?.CreatedDirectories ?? [], .. orderedDirectories], existing?.RecipeId ?? plan.RecipeId,
             existing == null ? plan.Dependencies : existing.KnownDependencies().Concat(plan.Dependencies ?? []).Distinct().ToArray(),
-            plan.ReShadeChain, plan.ReShadeVulkan != null);
+            plan.ReShadeChain ?? existing?.ReShadeChain, plan.ReShadeVulkan != null || existing?.ReShadeVulkan == true);
         Apply(folder, new(operationId, plan.Target, [.. operations], orderedDirectories, record), token, progress == null ? null : AdvanceProgress,
             plan.ReShadeVulkan is { } layer ? () => Vulkan.Ensure(layer) : null);
         ReportProgress(100);
@@ -224,6 +228,20 @@ internal sealed class ModTransactions(string profile, Action<ModTransactionStep>
         }
     }
 
+    private bool HasWorkingDependency(ModInstallationRecord? existing, ModDependencyLink requirement, CancellationToken token)
+    {
+        if (existing?.HasDependency(requirement) != true) return false;
+        var providers = existing.DependencyChain(requirement).Select(link => link.Required).ToHashSet();
+        foreach (var file in existing.Files.Where(file => providers.Contains(file.Owner)))
+        {
+            token.ThrowIfCancellationRequested();
+            var current = ModFileSnapshot.Read(ModPaths.Within(existing.Target.Root, file.Relative));
+            if (current == null || (!file.Relative.EndsWith(".ini", StringComparison.OrdinalIgnoreCase) && current.Hash != file.DeployedHash))
+                return false;
+        }
+        return !providers.Contains(ModProviderId.ReShade) || !existing.ReShadeVulkan || CheckVulkanLayer().Issue == null;
+    }
+
     private ModOperationResult Uninstall(Guid id, bool archiveEditedConfiguration, CancellationToken token, ModProviderId? provider)
     {
         var folder = Folder(id);
@@ -248,17 +266,18 @@ internal sealed class ModTransactions(string profile, Action<ModTransactionStep>
             var path = ModPaths.Within(observed.Root, file.Relative);
             var current = ModFileSnapshot.Read(path);
             if (current?.Hash == file.Original?.Hash) continue;
-            var editedIni = file.Original == null && current != null && file.Relative.EndsWith(".ini", StringComparison.OrdinalIgnoreCase) &&
+            var editedIni = current != null && file.Relative.EndsWith(".ini", StringComparison.OrdinalIgnoreCase) &&
                 (archiveEditedConfiguration || (IsVulkanActivation(record, file) && current.Hash != file.DeployedHash));
-            if ((!editedIni && current?.Hash != file.DeployedHash) ||
+            if ((current != null && !editedIni && current.Hash != file.DeployedHash) ||
                 (file.Original != null && (!record.Target.Matches(observed) ||
                     !MatchesBackup(folder, file.OriginalBackup, file.Original))))
             {
                 unresolved.Add(file);
                 continue;
             }
-            var beforeBackup = editedIni ? $"saved-configuration/{operationId:N}/{file.Relative}" : $"undo/{operationId:N}/{operations.Count}";
-            CopyVerified(path, ModPaths.Within(folder, beforeBackup), current!);
+            var beforeBackup = current == null ? null : editedIni ? $"saved-configuration/{operationId:N}/{file.Relative}" :
+                $"undo/{operationId:N}/{operations.Count}";
+            if (current != null) CopyVerified(path, ModPaths.Within(folder, beforeBackup!), current);
             operations.Add(new(file.Relative, current, beforeBackup, file.Original, file.OriginalBackup));
             archivedConfiguration |= editedIni;
         }
@@ -291,7 +310,7 @@ internal sealed class ModTransactions(string profile, Action<ModTransactionStep>
         {
             Files = [.. remaining],
             Packages = record.Packages.Where(package => remaining.Any(file => file.Owner == package.Provider)).ToArray(),
-            Dependencies = record.KnownDependencies(),
+            Dependencies = record.KnownDependencies().Where(link => remaining.Any(file => file.Owner == link.Dependent)).ToArray(),
             ReShadeChain = remaining.Any(file => file.Owner == ModProviderId.ReShade) ? record.ReShadeChain : null,
             ReShadeVulkan = remaining.Any(file => file.Owner == ModProviderId.ReShade) && record.ReShadeVulkan
         };

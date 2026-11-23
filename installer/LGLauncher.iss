@@ -52,7 +52,8 @@ Name: desktopicon; Description: "Create a desktop shortcut"; Flags: unchecked
 ; Replace the launcher executable when migrating from the old 1.x numbering.
 Source: "{#LauncherBinary}"; DestDir: "{app}"; DestName: "LG-Launcher.exe"; Flags: ignoreversion
 #else
-Source: "{#LauncherBinary}"; DestDir: "{app}"; DestName: "LG-Launcher.exe"
+; Next previews and their final release share a file version and have distinct product versions.
+Source: "{#LauncherBinary}"; DestDir: "{app}"; DestName: "LG-Launcher.exe"; Flags: replacesameversion
 #endif
 
 [INI]

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Avalonia.Controls;
+using Avalonia.Layout;
 
 namespace LGLauncher;
 
@@ -7,6 +8,8 @@ internal sealed partial class Launcher
 {
     private StartupWindow? _splash;
     private UpdateFeed.Result? _updateResult;
+    private TextBlock? _updateMessage;
+    private int _updateCheckRequest;
     private bool _startupScanning;
     private bool _startupUpdating;
     private bool _startupComplete;
@@ -67,11 +70,12 @@ internal sealed partial class Launcher
 
     private async Task CheckUpdates(CancellationToken token, bool startup = false)
     {
+        var request = ++_updateCheckRequest;
         try
         {
             if (_verification) return;
-            var result = await UpdateFeed.Check(token);
-            if (_closed || token.IsCancellationRequested) return;
+            var result = await UpdateFeed.Check(token, includePreviews: _library.Preferences.UsePreviewUpdates);
+            if (_closed || token.IsCancellationRequested || request != _updateCheckRequest) return;
             _updateResult = result;
             if (result.UpdateAvailable) Status(result.Message);
             _automaticUpdatePending = startup && !Program.IsUpdateRestart && AvailableInstaller != null;
@@ -80,6 +84,22 @@ internal sealed partial class Launcher
             TryAutomaticUpdate();
         }
         finally { _startupUpdating = false; ShowStartupProgress(); }
+    }
+
+    private bool SelectReleaseChannel(bool preview)
+    {
+        if (_updateHandoff) return false;
+        var preferences = _library.Preferences;
+        if (!SavePreference(preferences.UsePreviewUpdates, preview, value => preferences.UsePreviewUpdates = value, null))
+            return false;
+        _updateResult = null;
+        _automaticUpdatePending = false;
+        _updateInstall?.Cancel();
+        RefreshUpdateActions();
+        RefreshReleaseNotes();
+        Status(preview ? "Next preview channel selected." : "Stable release channel selected.");
+        _ = CheckUpdates(_background.Token);
+        return true;
     }
 
     private void ShowStartupProgress()
@@ -100,7 +120,7 @@ internal sealed partial class Launcher
 
     private Control BuildUpdateSettings()
     {
-        var message = Label(UpdateMessage(), muted: true);
+        var message = _updateMessage = Label("", muted: true);
         var open = ActionButton("Open release page", () =>
         {
             if (_updateResult?.ReleasePage is not { } page) return;
@@ -124,22 +144,27 @@ internal sealed partial class Launcher
             catch (OperationCanceledException) { message.Text = "Update check cancelled."; }
             finally { check.IsEnabled = true; }
         };
+        var channels = BuildChoicePicker("Release channel", new[] { false, true }, _library.Preferences.UsePreviewUpdates,
+            preview => preview ? "Next preview" : "Stable", SelectReleaseChannel);
+        channels.Width = 160;
+        channels.HorizontalAlignment = HorizontalAlignment.Right;
         return Section("Version & Updates", new StackPanel
         {
             Spacing = 8,
             Children =
             {
-                Label($"Version {UpdateFeed.CurrentVersion.ToString(3)} · Build {UpdateFeed.CurrentVersion}", muted: true),
+                Label($"Version {UpdateFeed.DisplayVersion(UpdateFeed.CurrentVersion)} · Build {UpdateFeed.CurrentVersion}", muted: true),
+                PreferenceRow("Release channel", channels, "Next preview includes prereleases from the next branch."),
                 Actions(check, _settingsInstallAction, open, IconButton("Support on Ko-fi", "LG.Icon.KoFi", OpenSupportPage)), message
             }
         });
+    }
 
-        string UpdateMessage()
-        {
-            if (!UpdateInstaller.IsSetupInstallation || AvailableInstaller != null ||
-                _updateResult is not { UpdateAvailable: true } available)
-                return _updateResult?.Message ?? "";
-            return $"{available.Message} Download Windows Setup from the release page.";
-        }
+    private string UpdateMessage()
+    {
+        if (!UpdateInstaller.IsSetupInstallation || AvailableInstaller != null ||
+            _updateResult is not { UpdateAvailable: true } available)
+            return _updateResult?.Message ?? "";
+        return $"{available.Message} Download Windows Setup from the release page.";
     }
 }

@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection.PortableExecutable;
 using SharpCompress.Archives.SevenZip;
 using SharpCompress.Common;
 
@@ -20,7 +21,18 @@ internal static class ModArchiveReader
         long expanded = 0;
         int count = 0;
 
-        if (package.Key.Provider == ModProviderId.ReShade)
+        if (package.Key.Provider == ModProviderId.RenoDx)
+        {
+            var name = package.Files.Single();
+            if (!ModRenoDxCatalog.IsAddonName(name) || package.Address.AbsolutePath.Split('/')[^1] != name)
+                throw new InvalidDataException("The RenoDX add-on filename is invalid.");
+            using var binary = new PEReader(File.OpenRead(archivePath));
+            if (binary.PEHeaders.CoffHeader.Machine != Machine.Amd64 || !binary.PEHeaders.IsDll || binary.PEHeaders.PEHeader == null)
+                throw new InvalidDataException("The RenoDX package is not a Windows x64 add-on.");
+            File.Copy(archivePath, ModPaths.Within(destination, name));
+            written.Add(name, package.Key.Digest);
+        }
+        else if (package.Key.Provider == ModProviderId.ReShade)
         {
             var setup = File.ReadAllBytes(archivePath);
             if (setup.Length <= ReShadeZipOffset || !setup.AsSpan(ReShadeZipOffset).StartsWith("PK\u0003\u0004"u8))

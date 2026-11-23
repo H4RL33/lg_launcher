@@ -1,4 +1,4 @@
-param([string]$Compiler)
+param([string]$Compiler, [switch]$PreviewPromotion)
 
 $ErrorActionPreference = 'Stop'
 $repository = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -23,9 +23,11 @@ if (!$Compiler) {
 function New-SetupFixture([string]$Version) {
     $output = Join-Path $root $Version
     $artifacts = Join-Path $root 'artifacts'
+    $fileVersion = ([Version]$Version).ToString(3) + '.0'
     & $dotnet publish $project --configuration Release --runtime win-x64 --self-contained false --artifacts-path $artifacts `
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true "-p:Version=$Version" `
-        "-p:SetupFixtureAppId=$appId" -p:IncludeSourceRevisionInInformationalVersion=false -o $output | Out-Host
+        "-p:FileVersion=$fileVersion" "-p:SetupFixtureAppId=$appId" `
+        -p:IncludeSourceRevisionInInformationalVersion=false -o $output | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "Could not build the $Version setup fixture." }
     $binary = Join-Path $output 'LG Launcher.exe'
     & $Compiler "/DLauncherBinary=$binary" "/DReleaseVersion=$Version" "/DInstallerAppId=$appId" `
@@ -61,7 +63,7 @@ try {
         if (!$env:DOTNET_CLI_HOME) { $env:DOTNET_CLI_HOME = Join-Path $work '.avalonia-cli' }
         if (!$env:NUGET_PACKAGES) { $env:NUGET_PACKAGES = Join-Path $work '.avalonia-nuget' }
     }
-    $previous = New-SetupFixture '0.0.1'
+    $previous = New-SetupFixture $(if ($PreviewPromotion) { '0.0.2.17' } else { '0.0.1' })
     $next = New-SetupFixture '0.0.2'
     $env:TEMP = $env:TMP = $tempDirectory
     $quietSetupArguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-')

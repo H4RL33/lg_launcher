@@ -8,6 +8,8 @@ The launcher executable includes isolated verification entry points so checks ca
 
 Implements the main desktop smoke check. It covers saved library data, startup, shell status, Home, collections, search and history, artwork framing and glass, menus, and major navigation paths. It runs the more focused verification partials and provides helpers for assertions, asynchronous waits, and screenshots.
 
+Update fixtures check the Stable and Next endpoints, exact package identity, preview revision ordering, same-base stable promotion, and rejection of older, draft, or unrelated releases.
+
 The navigation check verifies eviction of the oldest route at the 64-entry limit and Back and Forward after eviction. The genre fixture persists two Steam App IDs together and verifies that manual genres and a rematched game survive the batch. Search covers a query with terms split between the title and genres.
 
 The collection sidebar check opens a collection from its row, compares the game and collection row sizes, checks the miniature symbols, and verifies the sort picker's frosted menu. At 730, 1230, and 1600 dips wide it captures the sidebar, popup, and sorted tile during and after movement. It tracks the remaining translation through animation cleanup to catch any jump toward the original slot. The same widths exercise and capture the immediate reorder with motion disabled.
@@ -35,6 +37,8 @@ The Mods fixture verifies the warning count, intermediate clipping during reveal
 
 The ReShade cache fixture seeds three downloads, including two variants of the same version. It checks and captures the single trash action and its shared version menu at 730, 1230, and 1600 pixels wide. It also checks confirmation, cancellation, and that deleting one download keeps the other versions and variants.
 
+The Mods fixture checks standalone REFramework setup, OptiScaler and RenoDX prerequisite warnings, and RenoDX’s full add-on ReShade requirement. It compares the available-mod names and order in Settings and the game list and checks that legacy Special K still opens its manager. It verifies that RenoDX’s Settings action opens the game-specific Info dialog and that the row has no global download action. It checks the per-mod Lucide symbols and captures both lists, the Info dialog, the warning panel, and the animated OptiScaler DLL and RenoDX add-on pickers at 730, 1230, and 1600 pixels wide. It verifies that the selected DLL reaches the install preview and that the add-on picker applies a selected variant.
+
 The ReShade dialog fixture checks the Settings entry, rendering executable, shared graphics API picker, Vulkan guidance, preview action, and return to the game Mods list. It also checks the full add-on upgrade action and confirmation. With `-Archives`, the package fixture verifies both official ReShade editions and checks registration, reuse, upgrade, removal, and coexistence using an isolated registry substitute.
 
 The ReShade coexistence preview fixture checks and captures the blue **Modified** row for an edited `OptiScaler.ini` beside the green **Add** row for the ReShade DLL at 730, 1230, and 1600 pixels wide.
@@ -44,6 +48,8 @@ The ReShade coexistence preview fixture checks and captures the blue **Modified*
 ## `avalonia/LGLauncher.Desktop/Launcher.Settings.Verification.cs`
 
 Checks that preferences apply and persist, that older scale values map to the dropdown, and that feature overrides and disabled fades respect Reduce Motion. It also checks artwork controls, Library preferences, and the About page. Injected GitHub responses exercise release-by-tag selection, the unavailable and loading states, native formatting, and selection between separate installed and available notes. The fixture verifies that the header link follows the selected release and that the accent underline animates only when motion is enabled. It captures About at narrow, typical, and wider sizes.
+
+The About fixture switches from Stable to Next preview and back. It checks that both choices save and captures the shared picker and its open menu at 730, 1230, and 1600 pixels wide.
 
 The Library settings fixture checks that Theme music starts off and saves both switch states. It captures the enabled setting at 730, 1230, and 1600 pixels wide.
 
