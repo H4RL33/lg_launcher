@@ -8,6 +8,8 @@ The launcher executable includes isolated verification entry points so checks ca
 
 Implements the main desktop smoke check. It covers saved library data, startup, shell status, Home, collections, search and history, artwork framing and glass, menus, and major navigation paths. It runs the more focused verification partials and provides helpers for assertions, asynchronous waits, and screenshots.
 
+The navigation check verifies eviction of the oldest route at the 64-entry limit and Back and Forward after eviction. The genre fixture persists two Steam App IDs together and verifies that manual genres and a rematched game survive the batch. Search covers a query with terms split between the title and genres.
+
 The collection sidebar check opens a collection from its row, compares the game and collection row sizes, checks the miniature symbols, and verifies the sort picker's frosted menu. At 730, 1230, and 1600 dips wide it captures the sidebar, popup, and sorted tile during and after movement. It tracks the remaining translation through animation cleanup to catch any jump toward the original slot. The same widths exercise and capture the immediate reorder with motion disabled.
 
 The Home fixture checks that Collections hides its scrollbar and retains animated shelf arrows and horizontal wheel input. It captures the overflowing shelves across narrow, typical, and wide windows.
@@ -66,6 +68,8 @@ Exercises Edit game against an injected Steam genre lookup. It checks that the m
 
 The fixture opens Manage metadata from Edit game and captures its four file controls at 730, 1230, and 1600 pixels wide. At each width it checks the game title’s alignment with the modal heading and the vertical centring of the recommendations beside their field labels. It checks that pending Edit game fields survive dismissal.
 
+The game save fixture locks the profile’s temporary save file to exercise a failed Add game and Edit game. It checks the draft, the stored and in-memory library, discovery and Steam retry state, and the successful Edit game retry after release of the lock. It captures the error at all three widths.
+
 - **Depends on** `ShowGameEditor`, `Confirm`, the shared modal host, test event dispatch, and the fixture game and preview helpers.
 - **Used by** the main migration verifier to protect the modal and game editor flow.
 
@@ -97,6 +101,8 @@ Parses the pinned Lucide geometries and checks rule-derived and fallback icons. 
 
 Uses a generated logo and a test game to verify cache reuse, title fallback, metadata refresh controls, complete genres, and tag layout and visibility. It checks the Steam App ID placement and captures matched and unmatched game details at narrow, typical, and wider sizes.
 
+Generated artwork checks verify height-limited thumbnails, the resolution of a 2:3 portrait, and rejection of a source over the dimension limit. The Steam cache validator accepts the generated image and rejects truncated and oversized inputs. An isolated shared-header fixture cancels the Game Details wait while a card is waiting and verifies that the card receives the image.
+
 The import fixture uses generated images and WAV, MP3, Ogg Vorbis, and Opus files. It checks the recommended image sizes, filename persistence after reopening, that compressed imports preserve the track length, and that a failed import removes staged files from read-only sources. The unmatched game’s custom portrait refreshes both manual and dynamic collection mosaics on Home. Clearing the portrait restores their normal fallbacks. A local Steam album fixture checks duplicate library paths and exact and ambiguous track matches.
 
 The theme playback fixture uses a silent WAV to check the selection delay, intermediate fade volumes in both directions, and cancellation when the user skips a game or playback stops before the delay elapses.
@@ -110,6 +116,8 @@ The theme playback fixture uses a silent WAV to check the selection delay, inter
 
 Tests RSS settings, file and OPML import, enablement, saved refresh interval, offline reuse, the Home shelf, article history, rendering, and image viewport loading. Local data and injected HTTP responses exercise Atom and RSS parsing, conditional requests, restricted web links, and bounded markup.
 
+The image fixture opens game details from a scrolled article, checks that the decoded image detaches, then returns to the article through history and captures it at narrow, typical, and wider widths.
+
 The Home shelf fixture checks its two empty messages, the settings link, the shared refresh request, and header alignment at narrow, typical, and wider window widths.
 
 The RSS interval field verifies matching horizontal and vertical step-button insets on either side, including on a taller field, and captures the hover appearance.
@@ -121,9 +129,9 @@ The RSS interval field verifies matching horizontal and vertical step-button ins
 
 ## `avalonia/LGLauncher.Desktop/UpdateInstallVerification.cs`
 
-Adapts the real updater for the smoke harness. It reads a fixture from the isolated executable directory through an injected HTTP handler, verifies rejection of the wrong checksum, starts the update worker, records the new launch, and exercises rollback when readiness is rejected.
+Adapts the real updater for the smoke harness. It reads a fixture from the isolated executable directory through an injected HTTP handler, verifies rejection of the wrong checksum, starts the update worker, and records the new launch. Portable cases exercise rollback after early exit, another-instance activation, and readiness timeout. A separate case verifies restart when the outcome message cannot be written. The custom-directory Setup harness supplies a unique app ID at build time and uses the same worker and readiness path.
 
 - **Depends on** `Program.cs` verification and restart arguments, `UpdateInstaller` and `UpdateFeed`, .NET hashing and process APIs, and the PowerShell harness's reserved test executable and report filenames.
-- **Used by** the `--verify-update-install` and test restart branches and by `tests/Verify-AvaloniaUpdate.ps1`.
+- **Used by** the `--verify-update-install` and test restart branches and by both updater harnesses.
 
-[Update smoke source](../../../avalonia/LGLauncher.Desktop/UpdateInstallVerification.cs) · [Update harness](../../../tests/Verify-AvaloniaUpdate.ps1) · [Official updates](updates.md)
+[Update smoke source](../../../avalonia/LGLauncher.Desktop/UpdateInstallVerification.cs) · [Portable harness](../../../tests/Verify-AvaloniaUpdate.ps1) · [Setup harness](../../../tests/Verify-AvaloniaSetupUpdate.ps1) · [Official updates](updates.md)

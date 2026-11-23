@@ -1155,7 +1155,7 @@
         "SearchEmpty",
         "SearchArtworkHost",
         "ResultsArtworkHost",
-        "MatchesLibrarySearch"
+        "CreateLibrarySearch"
       ],
       "related": [
         "component.library-row",

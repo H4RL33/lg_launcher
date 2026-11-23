@@ -4,7 +4,7 @@
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Navigation.cs`
 
-Keeps in-process view history for games, collections, and RSS articles. It records the outer page scroll position and pagination offset, discards forward history on a new route, skips removed entries, and restores focus-related UI state by closing search and cancelling artwork edits or animation as appropriate. Navigation refreshes the selected game's [mod status](mods.md).
+Keeps up to 64 in-process view entries for games, collections, and RSS articles. It drops the oldest entry when adding a view at the limit. It records the outer page scroll position and pagination offset, discards forward history on a new route, skips removed entries, and restores focus-related UI state by closing search and cancelling artwork edits or animation as appropriate. Opening game details from an article detaches the reader so its image requests and decoded bitmaps are released. The history entry keeps the article data for a return visit. Navigation refreshes the selected game's [mod status](mods.md).
 
 - **Depends on** the main window's page and profile state, `Game`, `GameCollection`, RSS article and subscription types, Avalonia mouse buttons, the shared renderer, and search and artwork helpers.
 - **Used by** the main window and page actions, search results, settings navigation, RSS reader, and collections. Desktop history checks exercise mouse Back and Forward and restoration of the saved position.
@@ -61,7 +61,7 @@ Rule values offer searchable suggestions from the library's genres or current St
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Search.cs`
 
-Implements the main window's library search dropdown. It debounces typing, builds title and genre results, maintains selection on refresh, handles keyboard or pointer activation, and closes the dropdown on outside clicks, focus loss, or page changes. The editor also uses its result height calculation for rule suggestions.
+Implements the main window's library search dropdown. It debounces typing and parses the query once per results refresh before matching titles and genres. It maintains selection on refresh, handles keyboard or pointer activation, and closes the dropdown on outside clicks, focus loss, or page changes. The editor also uses its result height calculation for rule suggestions.
 
 - **Depends on** named search controls in `Launcher.axaml`, Avalonia's dispatcher and input events, the title/genre matcher, `LibraryEntry` sidebar artwork, and `SelectGame` history navigation.
 - **Used by** the main window constructor and render dispatcher, genre chips, navigation and artwork editing, and the search results and animation smoke checks.
