@@ -7,8 +7,11 @@ param(
 $ErrorActionPreference = 'Stop'
 $binary = Get-Item -LiteralPath (Resolve-Path -LiteralPath $Launcher).Path
 $version = $binary.VersionInfo.ProductVersion
-if ($binary.Extension -ne '.exe' -or $version -notmatch '^\d+\.\d+\.\d+$') {
-    throw 'Select a stable LG Launcher Windows executable.'
+$parsedVersion = $null
+if ($binary.Extension -ne '.exe' -or ![Version]::TryParse($version, [ref]$parsedVersion) -or
+    $parsedVersion.Build -lt 0 -or $parsedVersion.Revision -eq 0 -or $parsedVersion.Revision -gt 65534 -or
+    $version -cne $parsedVersion.ToString()) {
+    throw 'Select a packaged LG Launcher Windows executable.'
 }
 if (!$Compiler) {
     $portable = Join-Path $PSScriptRoot '.build-work\inno-toolchain\compiler\ISCC.exe'
@@ -65,7 +68,7 @@ if ($Smoke) {
                 throw 'The Start menu shortcut does not point to the per-user installation.'
             }
             if ((Get-FileHash -LiteralPath $installed).Hash -ne (Get-FileHash -LiteralPath $binary.FullName).Hash) {
-                throw 'The installed executable differs from the stable build.'
+                throw 'The installed executable differs from the packaged build.'
             }
             $testProfile = (New-Item -ItemType Directory -Path (Join-Path $root 'test-profile') -Force).FullName
             $profileFile = Join-Path $testProfile 'library.json'

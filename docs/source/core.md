@@ -14,6 +14,8 @@ The four files here are linked into the .NET 10 Desktop project. The Windows cor
 
 Profiles with unreadable JSON or null game, collection, or RSS subscription records fall back to the last readable backup. The first successful save after recovery replaces the unusable primary while preserving that backup. Subsequent saves resume backing up the previous primary.
 
+The optional `UsePreviewUpdates` preference records the Next preview opt-in. Fresh and existing profiles default to Stable when the field is absent.
+
 Desktop saves backdrop, portrait, and logo overrides as separate GUIDs in the current profile. `CustomArtworkPath` resolves them under `artwork/custom`. The optional `ThemeMusicFile` is a GUID plus a supported extension. `ThemeMusicPath` validates the complete filename before resolving it under `music`. Optional original basenames are saved with each override for display in Manage metadata. Earlier overrides can have an asset ID without an original name. Existing profiles start with theme music off.
 
 ## `src/SteamCatalog.cs`

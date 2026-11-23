@@ -59,6 +59,11 @@ internal sealed partial class Launcher
                     scopeText.Contains("game-agnostic", StringComparison.Ordinal) &&
                     scopeText.Contains("Vortex", StringComparison.Ordinal) && requestScope.Bounds.Height > 0,
                     "The Mods page did not show its request scope below the heading.");
+                var available = PageBody.GetVisualDescendants().OfType<HeaderedContentControl>()
+                    .Single(panel => Equals(panel.Header, "Available mods"));
+                var settingsMods = available.GetVisualDescendants().OfType<Button>().Select(AutomationProperties.GetName)
+                    .OfType<string>().Where(name => name.StartsWith("About ", StringComparison.Ordinal)).Select(name => name[6..]).ToArray();
+                VerifyModIcons(available);
                 Capture(Path.Combine(previews, $"mods-settings-{size.Width}.png"));
                 if (size.Width == 1230) await VerifyModInformation(previews);
                 SelectGame(game);
@@ -72,6 +77,11 @@ internal sealed partial class Launcher
                     "The game details did not show an accessible wrench matching the Steam refresh button size.");
                 Capture(Path.Combine(previews, $"mods-details-{size.Width}.png"));
                 await OpenModsList();
+                var gameMods = ActiveModDialog!;
+                Require(settingsMods.SequenceEqual(gameMods.Body.Children.OfType<Button>().Select(AutomationProperties.GetName)) &&
+                    settingsMods.SequenceEqual(["OptiScaler", "REFramework", "ReShade", "RenoDX"]),
+                    "The Settings and game available-mod lists did not show the same supported mods in order.");
+                VerifyModIcons(gameMods);
                 Capture(Path.Combine(previews, $"mods-list-{size.Width}.png"));
                 DialogHost.DismissTop();
                 Navigate(Page.Mods);
@@ -109,6 +119,7 @@ internal sealed partial class Launcher
             await VerifyModPreviewPreparation(game, previews);
             await VerifySetupModDownload(game, previews);
             await VerifyManagedMod(previews);
+            await VerifyNewGameModRows(previews);
         }
         finally
         {
@@ -393,6 +404,10 @@ internal sealed partial class Launcher
         var next = PreviewButton(setup);
         var spoofing = FindDxgiSpoofingChoice(setup);
         Require(AutomationProperties.GetHelpText(spoofing) == "Current value Automatic", "Guided setup did not default to automatic DXGI spoofing.");
+        var loader = setup.Body.GetVisualDescendants().OfType<Button>()
+            .Single(button => AutomationProperties.GetName(button) == "OptiScaler DLL name");
+        await VerifyModPicker(loader, previews, "optiscaler-loader");
+        await ChoosePreference(loader, "d3d12.dll");
         await ChoosePreference(spoofing, "Enabled");
         var handedOff = false;
         setup.Closed += (_, _) => handedOff = ActiveModDialog is { } dialog &&
@@ -400,7 +415,8 @@ internal sealed partial class Launcher
         next.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         next.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Require(calls == 1 && ActiveModDialog == setup && Equals(next.Content, "Preparing preview…") && !next.IsEnabled &&
-            request?.DxgiSpoofing == ModDxgiSpoofing.Enabled, "Preparing an install preview exposed the Mods list or dropped the selected spoofing mode.");
+            request?.DxgiSpoofing == ModDxgiSpoofing.Enabled && request.Loader == "d3d12.dll",
+            "Preparing an install preview exposed the Mods list or dropped the selected options.");
         foreach (var size in new[] { (Width: 730, Height: 510), (Width: 1230, Height: 805), (Width: 1600, Height: 900) })
         {
             Width = size.Width;
@@ -426,7 +442,7 @@ internal sealed partial class Launcher
         var cancelled = CancellationToken.None;
         var retry = new TaskCompletionSource<ModPlanPreview>(TaskCreationOptions.RunContinuationsAsynchronously);
         var recipe = new ModRecipe(game.SteamId, [target.Executable], target.Executable, target.Build,
-            package.Version, package.Digest, "dxgi.dll", [], [], [], DisableDxgiSpoofing: true);
+            package.Version, package.Digest, "dxgi.dll", [], [], DisableDxgiSpoofing: true);
         var verified = new ModAssessment(ModCompatibilityStatus.Verified, null, recipe, target);
         work = ShowModSetup(game, snapshot, verified, list, (input, token) =>
         {
@@ -662,11 +678,16 @@ internal sealed partial class Launcher
                 "The uninstall confirmation did not identify the installed dependent.");
             Capture(Path.Combine(previews, "mods-dependency-warning.png"));
             DialogHost.DismissTop();
+            await Task.Yield();
+            Require(ActiveModDialog == modsList, "Closing the REFramework uninstall prompt did not return to the Mods list.");
             await VerifyInstalledSpoofing(optiScaler, config, previews);
+            await WaitFor(() => _modInspectionTasks.Count == 0, "The inspection after saving DXGI spoofing did not finish.");
             File.WriteAllText(Path.Combine(root, "dxgi.dll"), "third-party changes");
             File.AppendAllText(config, "\n; external note\n");
             await RefreshSelectedModStatus();
-            Require(optiScaler.GetVisualDescendants().OfType<TextBlock>().Any(label => label.Text == "Review changes"),
+            UpdateLayout();
+            Require(ActiveModDialog == modsList &&
+                optiScaler.GetVisualDescendants().OfType<TextBlock>().Any(label => label.Text == "Review changes"),
                 "The Mods list did not update after an external change to a managed file.");
             optiScaler.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await WaitFor(() => ActiveModDialog is { } dialog && AutomationProperties.GetName(dialog) == "Manage OptiScaler",
@@ -1079,7 +1100,7 @@ internal sealed partial class Launcher
         Require(panels.Select(panel => panel.Header).SequenceEqual(["Available mods", "Managed installations"]),
             "Mods settings did not group packages and installations into separate panels.");
         var section = panels[0];
-        foreach (var title in new[] { "OptiScaler", "REFramework", "Special K" })
+        foreach (var title in AvailableModProviders.Select(ModPackageStore.Name))
         {
             var info = section.GetVisualDescendants().OfType<Button>().Single(button => AutomationProperties.GetName(button) == $"About {title}");
             var label = section.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == title);
@@ -1091,6 +1112,13 @@ internal sealed partial class Launcher
                 $"The {title} package check did not use the Steam refresh symbol.");
             Require(info.Content is SymbolIcon symbol && Equals(symbol.Data, this.FindResource("LG.Icon.Info")),
                 $"The {title} settings card did not show its information icon.");
+            if (title == "RenoDX")
+            {
+                Require(!section.GetVisualDescendants().OfType<Button>().Any(button => AutomationProperties.GetName(button) == "Download RenoDX"),
+                    "RenoDX offered a global download.");
+                await VerifyRenoDxInformation(info, previews);
+                continue;
+            }
             info.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(ToolTip.GetIsOpen(info) && ToolTip.GetTip(info) is TextBlock { Text.Length: > 20 },
                 $"The {title} information button did not open its description.");
@@ -1105,6 +1133,32 @@ internal sealed partial class Launcher
         }
     }
 
+    private async Task VerifyRenoDxInformation(Button info, string previews)
+    {
+        var size = (Width, Height);
+        info.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var dialog = ActiveModDialog;
+        try
+        {
+            Require(dialog != null && AutomationProperties.GetName(dialog) == "About RenoDX" &&
+                dialog.Body.Children.OfType<TextBlock>().Any(label => label.Text is { } text &&
+                    text.Contains("add-on files for each game", StringComparison.Ordinal) &&
+                    text.Contains("game’s Mods list", StringComparison.Ordinal)),
+                "RenoDX info did not open a modal describing game-specific downloads.");
+            foreach (var window in new[] { (Width: 730, Height: 510), (Width: 1230, Height: 805), (Width: 1600, Height: 900) })
+            {
+                (Width, Height) = window;
+                await Task.Delay(40);
+                Capture(Path.Combine(previews, $"mods-renodx-info-{window.Width}.png"));
+            }
+        }
+        finally
+        {
+            dialog?.Close();
+            (Width, Height) = size;
+        }
+    }
+
     private async Task<Button> OpenModsList()
     {
         GameModsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -1113,5 +1167,123 @@ internal sealed partial class Launcher
         UpdateLayout();
         return ActiveModDialog!.Body.Children.OfType<Button>().Single(button =>
             button.GetVisualDescendants().OfType<TextBlock>().Any(label => label.Text == "OptiScaler"));
+    }
+
+    private async Task VerifyNewGameModRows(string previews)
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Program.DataDirectory, "new-mods-fixture")).FullName;
+        var executable = Path.Combine(root, "re9.exe");
+        File.Copy(Path.Combine(Environment.SystemDirectory, "cmd.exe"), executable);
+        var game = new Game { Title = "Resident Evil Requiem", SteamId = 3764200, Path = executable };
+        _library.Games.Add(game);
+        var (index, release) = ModVerification.RenoDxFixture(game.Title, game.SteamId, [1, 2, 3]);
+        using var source = new HttpClient(new ModVerification.ResponseHandler(request => new(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(request.RequestUri == ModRenoDxCatalog.Source ? index : release)
+        }));
+        var size = (Width, Height);
+        try
+        {
+            Require(await _renoDxCatalog.RefreshAsync(CancellationToken.None, source), "The RenoDX UI fixture catalog did not load.");
+            SelectGame(game);
+            await OpenModsList();
+            var list = ActiveModDialog!;
+            var warnings = list.Body.Children.OfType<WarningExpander>().Single();
+            warnings.IsExpanded = true;
+            await WaitFor(() => warnings.RevealProgress == 1, "The dependency warnings did not open.");
+            Require(warnings.Content is StackPanel messages && messages.Children.OfType<TextBlock>().Any(label =>
+                label.Text?.Contains("OptiScaler needs REFramework", StringComparison.Ordinal) == true) &&
+                messages.Children.OfType<TextBlock>().Any(label =>
+                    label.Text?.Contains("RenoDX needs ReShade with full add-on support", StringComparison.Ordinal) == true),
+                "The Mods list did not identify the missing REFramework and ReShade requirements.");
+            foreach (var window in new[] { (730, 510), (1230, 805), (1600, 900) })
+            {
+                (Width, Height) = window;
+                await Task.Delay(40);
+                Capture(Path.Combine(previews, $"mods-required-{Width}.png"));
+            }
+            var framework = list.Body.Children.OfType<Button>().Single(button => AutomationProperties.GetName(button) == "REFramework");
+            framework.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(ActiveModDialog is { } setup && AutomationProperties.GetName(setup) == "Set up REFramework" &&
+                setup.Footer.Children.OfType<Button>().Any(button => Equals(button.Content, "Preview install")),
+                "REFramework did not expose standalone setup.");
+            Capture(Path.Combine(previews, "mods-reframework-setup.png"));
+            DialogHost.DismissTop();
+            await Task.Yield();
+            var renoDx = list.Body.Children.OfType<Button>().Single(button => AutomationProperties.GetName(button) == "RenoDX");
+            renoDx.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(ActiveModDialog?.Body.Children.OfType<TextBlock>().Any(label =>
+                label.Text?.StartsWith("Install ReShade with full add-on support", StringComparison.Ordinal) == true) == true,
+                "RenoDX setup did not explain the missing ReShade requirement.");
+            DialogHost.DismissTop();
+            await Task.Yield();
+
+            var target = GameInstallTarget.Capture(root, executable);
+            var reShade = ModPackageStore.Approved(ModProviderId.ReShade).Key;
+            var legacy = ModPackageStore.Approved(ModProviderId.SpecialK).Key;
+            await _modTransactions.InstallAsync(new(target,
+                [new("dxgi.dll", null, "fixture ReShade"u8.ToArray(), reShade.Provider),
+                    new("SpecialK64.dll", null, "fixture Special K"u8.ToArray(), legacy.Provider)],
+                [reShade, legacy]), CancellationToken.None);
+            RefreshGameModList(game);
+            renoDx.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var dialog = ActiveModDialog!;
+            UpdateLayout();
+            var picker = dialog.Body.GetVisualDescendants().OfType<Button>()
+                .Single(button => AutomationProperties.GetName(button) == "RenoDX add-on");
+            await VerifyModPicker(picker, previews, "renodx-addon");
+            await ChoosePreference(picker, "Fixture · SDR");
+            DialogHost.DismissTop();
+            await Task.Yield();
+            var legacyRow = list.Body.Children.OfType<StackPanel>().Single().Children.OfType<Button>().Single();
+            Require(AutomationProperties.GetName(legacyRow) == "Special K" && list.Body.Children.OfType<Button>().Count() == 4,
+                "A legacy Special K installation appeared as an available mod or could not be managed.");
+            legacyRow.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(ActiveModDialog is { } manager && AutomationProperties.GetName(manager) == "Manage Special K",
+                "The legacy Special K row did not open its manager.");
+            DialogHost.DismissTop();
+            DialogHost.DismissTop();
+        }
+        finally
+        {
+            (Width, Height) = size;
+            _library.Games.Remove(game);
+        }
+    }
+
+    private async Task VerifyModPicker(Button picker, string previews, string name)
+    {
+        var menu = PreferenceMenu(picker);
+        var size = (Width, Height);
+        try
+        {
+            foreach (var window in new[] { (730, 510), (1230, 805), (1600, 900) })
+            {
+                (Width, Height) = window;
+                await Task.Delay(40);
+                UpdateLayout();
+                Capture(Path.Combine(previews, $"mods-{name}-{Width}.png"));
+                picker.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await WaitFor(() => menu.IsOpen && menu.RevealProgress == 1, "The mod picker menu did not open.");
+                VerifyMenuTheme(menu, Path.Combine(previews, $"mods-{name}-menu-{Width}.png"));
+                menu.Close();
+                await WaitFor(() => !menu.IsOpen, "The mod picker menu did not close.");
+            }
+        }
+        finally { (Width, Height) = size; }
+    }
+
+    private static void VerifyModIcons(Control view)
+    {
+        (string Title, string Icon)[] expected = [("OptiScaler", "scaling"), ("REFramework", "construction"),
+            ("ReShade", "palette"), ("RenoDX", "lightbulb")];
+        foreach (var (title, icon) in expected)
+        {
+            var label = view.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == title);
+            var glyph = label.GetVisualAncestors().OfType<Grid>()
+                .SelectMany(grid => grid.Children.OfType<SymbolIcon>()).FirstOrDefault();
+            Require(glyph is { Width: 19, Height: 19, Data: not null } && Equals(glyph.Data, LucideIconCatalog.Find(icon)?.Geometry),
+                $"The {title} row did not show its shared {icon} icon.");
+        }
     }
 }

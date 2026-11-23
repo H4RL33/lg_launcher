@@ -1,5 +1,10 @@
 [CmdletBinding()]
-param([switch]$Test, [switch]$Smoke, [switch]$NoRestore)
+param(
+    [switch]$Test,
+    [switch]$Smoke,
+    [switch]$NoRestore,
+    [ValidateRange(1, 65534)][int]$PreviewRevision
+)
 
 $ErrorActionPreference = 'Stop'
 $output = Join-Path $PSScriptRoot 'build'
@@ -24,8 +29,17 @@ if ($Test) {
 
 $project = Join-Path $PSScriptRoot 'avalonia\LGLauncher.Desktop\LGLauncher.Desktop.csproj'
 $stage = Join-Path $work 'publish'
+$previewProperties = @()
+if ($PreviewRevision) {
+    $desktop = [xml](Get-Content -Raw -LiteralPath $project)
+    $version = $desktop.Project.PropertyGroup.Version
+    if ($version -cnotmatch '^\d+\.\d+\.\d+$') { throw 'Preview builds require a three-part Desktop project version.' }
+    # Keep the Windows file version at the base version so Setup can replace a preview with its stable release.
+    $previewProperties = @("-p:Version=$version.$PreviewRevision", "-p:FileVersion=$version.0",
+        '-p:IncludeSourceRevisionInInformationalVersion=false')
+}
 & $dotnet publish $project -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true `
-    -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -o $stage @restore
+    -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=embedded -o $stage @restore @previewProperties
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $candidate = Join-Path $stage 'LG Launcher.exe'

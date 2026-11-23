@@ -7,7 +7,7 @@ internal static class UpdateFeed
     private static readonly HttpClient Client = new(new HttpClientHandler { AllowAutoRedirect = false })
     {
         Timeout = TimeSpan.FromSeconds(6),
-        MaxResponseContentBufferSize = 256 * 1024
+        MaxResponseContentBufferSize = 2 * 1024 * 1024
     };
 
     static UpdateFeed() => Client.DefaultRequestHeaders.UserAgent.ParseAdd("LGLauncher/" + CurrentVersion);
@@ -15,9 +15,12 @@ internal static class UpdateFeed
     internal static Version CurrentVersion => typeof(UpdateFeed).Assembly.GetName().Version!;
     private const string ReleasesApi = "https://api.github.com/repos/H4RL33/lg_launcher/releases";
     private static readonly Uri LatestRelease = new(ReleasesApi + "/latest");
+    private static readonly Uri RecentReleases = new(ReleasesApi + "?per_page=20");
     private const string Releases = "https://github.com/H4RL33/lg_launcher/releases";
     internal const long MaximumPackageSize = 256L * 1024 * 1024;
-    private static string ReleaseTag(Version version) => $"v{version.ToString(3)}";
+    internal static string DisplayVersion(Version version) => version.Revision > 0
+        ? $"{version.ToString(3)}-next.{version.Revision}" : version.ToString(3);
+    internal static string ReleaseTag(Version version) => $"v{DisplayVersion(version)}";
     internal static Uri ReleasePage(Version version) => new($"{Releases}/tag/{ReleaseTag(version)}");
 
     internal sealed record Result(string Message, Uri? ReleasePage = null, bool UpdateAvailable = false, Package? Installer = null,
@@ -25,12 +28,13 @@ internal static class UpdateFeed
     internal sealed record Package(Uri Url, string Sha256, long Length, Version Version);
     internal sealed record ReleaseNotes(Version Version, string? Markdown);
 
-    internal static async Task<Result> Check(CancellationToken token, HttpClient? client = null)
+    internal static async Task<Result> Check(CancellationToken token, HttpClient? client = null, bool includePreviews = false)
     {
         try
         {
-            var json = await (client ?? Client).GetStringAsync(LatestRelease, token).ConfigureAwait(false);
-            return Read(json, CurrentVersion);
+            var address = includePreviews ? RecentReleases : LatestRelease;
+            var json = await (client ?? Client).GetStringAsync(address, token).ConfigureAwait(false);
+            return Read(json, CurrentVersion, includePreviews);
         }
         catch (Exception error) when (error is HttpRequestException or JsonException || error is OperationCanceledException && !token.IsCancellationRequested)
         {
@@ -46,7 +50,8 @@ internal static class UpdateFeed
             var json = await (client ?? Client).GetStringAsync($"{ReleasesApi}/tags/{tag}", token).ConfigureAwait(false);
             using var document = JsonDocument.Parse(json);
             var release = document.RootElement;
-            if (Text(release, "tag_name") != tag || Flag(release, "draft") || Flag(release, "prerelease")) return null;
+            if (Text(release, "tag_name") != tag || Flag(release, "draft") ||
+                Flag(release, "prerelease") != (CurrentVersion.Revision > 0)) return null;
             return ReleaseBody(release);
         }
         catch (Exception error) when (error is HttpRequestException or JsonException || error is OperationCanceledException && !token.IsCancellationRequested)
@@ -55,21 +60,55 @@ internal static class UpdateFeed
         }
     }
 
-    internal static Result Read(string json, Version current)
+    internal static Result Read(string json, Version current, bool includePreviews = false)
     {
         using var document = JsonDocument.Parse(json);
         var release = document.RootElement;
-        if (Flag(release, "draft") || Flag(release, "prerelease")) return new("The update feed did not provide a stable release.");
-        var tag = Text(release, "tag_name");
-        if (tag == null || !tag.StartsWith('v') || !Version.TryParse(tag.AsSpan(1), out var latest) ||
-            latest.Build < 0 || latest.Revision >= 0 || tag != $"v{latest}")
-            return new("GitHub did not provide a valid stable release version.");
-        if (tag is "v1.1.1" or "v1.1.2" or "v1.2.0" or "v1.2.1" or "v1.2.2")
-            return new("The official feed is showing a release from before the 0.1.x version reset.");
-        if (Normalize(latest) <= Normalize(current)) return new("LG Launcher is up to date.");
-        var (portable, setup) = ReadPackages(release, tag, latest);
-        return new($"LG Launcher {latest} is available.", ReleasePage(latest),
+        var latest = ReadVersion(release, includePreviews: false);
+        if (includePreviews)
+        {
+            if (release.ValueKind != JsonValueKind.Array) return new("GitHub did not provide a valid Next update feed.");
+            latest = null;
+            foreach (var candidate in document.RootElement.EnumerateArray())
+            {
+                var version = ReadVersion(candidate, includePreviews: true);
+                if (version == null || latest != null && Compare(version, latest) <= 0) continue;
+                latest = version;
+                release = candidate;
+            }
+        }
+        if (latest == null) return new(includePreviews ? "No Next updates are currently listed." : "GitHub did not provide a valid stable release.");
+        if (Compare(latest, current) <= 0)
+            return new(!includePreviews && current.Revision > 0
+                ? "You’re on a Next preview. This copy will update when a newer Stable release is available."
+                : "LG Launcher is up to date.");
+        var (portable, setup) = ReadPackages(release, ReleaseTag(latest), latest);
+        return new($"LG Launcher {DisplayVersion(latest)} is available.", ReleasePage(latest),
             true, portable, new(latest, ReleaseBody(release)), setup);
+    }
+
+    private static Version? ReadVersion(JsonElement release, bool includePreviews)
+    {
+        var tag = Text(release, "tag_name");
+        if (Flag(release, "draft") || tag == null || !tag.StartsWith('v') ||
+            tag is "v1.1.1" or "v1.1.2" or "v1.2.0" or "v1.2.1" or "v1.2.2") return null;
+        var preview = Flag(release, "prerelease");
+        if (preview && !includePreviews) return null;
+        var versionText = preview ? tag[1..].Replace("-next.", ".", StringComparison.Ordinal) : tag[1..];
+        if (!Version.TryParse(versionText, out var version) || version.Build < 0 ||
+            (preview ? version.Revision is <= 0 or > 65534 : version.Revision != -1) ||
+            tag != ReleaseTag(version)) return null;
+        return version;
+    }
+
+    internal static int Compare(Version left, Version right)
+    {
+        var threePart = new Version(left.Major, left.Minor, Math.Max(0, left.Build))
+            .CompareTo(new(right.Major, right.Minor, Math.Max(0, right.Build)));
+        if (threePart != 0) return threePart;
+        // Stable sorts after every preview of the same version even though its build revision is zero.
+        return (left.Revision > 0 ? left.Revision : Int32.MaxValue)
+            .CompareTo(right.Revision > 0 ? right.Revision : Int32.MaxValue);
     }
 
     private static string? ReleaseBody(JsonElement release)

@@ -55,7 +55,7 @@ internal sealed partial class Launcher : Window
     {
         InitializeComponent();
         DialogHost.Underlay = ShellSurface;
-        WindowTitle.Text = Title = $"LG Launcher v{UpdateFeed.CurrentVersion.ToString(3)}";
+        WindowTitle.Text = Title = $"LG Launcher {UpdateFeed.ReleaseTag(UpdateFeed.CurrentVersion)}";
         _store = store;
         _library = library;
         _steam = new SteamCatalog(store.ArtworkDirectory, CanDecodeSteamArtwork);

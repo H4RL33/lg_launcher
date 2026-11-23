@@ -2,11 +2,11 @@
 
 [Desktop source index](README.md)
 
-The Mods page uses the standard settings navigation row with a wrench and the shared section, action, tooltip, and dialog styles. Each package row in Available mods has an info button that shows a short description. [Mods source article](mods.md)
+The Mods page uses the standard settings navigation row with a wrench and the shared section, action, tooltip, and dialog styles. The Available mods info buttons describe packages. RenoDX’s info button opens a dialog explaining where to find its game-specific add-ons. [Mods source article](mods.md)
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Behaviour.cs`
 
-Builds App Behaviour settings and the common settings navigation rows. It coordinates sign-in registration, tray and window restoration, and view animations. It also supplies icon and icon-button helpers used throughout the desktop shell.
+Builds App Behaviour settings and the common settings navigation rows. Rows accept a theme icon resource or a prebuilt `SymbolIcon`, which lets the Mods list use the bundled Lucide catalog. It coordinates sign-in registration, tray and window restoration, and view animations. It also supplies icon and icon-button helpers used throughout the desktop shell.
 
 Per-user Setup and portable installations support the **Automatic updates** opt-in. Earlier machine-wide installs show the switch disabled and retain the saved preference for the one-time move to per-user Setup.
 
@@ -25,11 +25,11 @@ The main window reuses `RestoreWindow` to restore and activate the launcher when
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Settings.cs`
 
-Renders Appearance, Library, and About. About places release notes for the installed version below the update controls. The settings code applies font size, interface scale, translucency, and motion to the live shell. Reusable preference rows disable overridden choices, expose the reason, and keep the underlying preference available for restoration. For example, Reduce Motion overrides Interactive Artwork Shift.
+Renders Appearance, Library, and About. About places release notes for the installed version below the release-channel picker and update controls. The settings code applies font size, interface scale, translucency, and motion to the live shell. Reusable preference rows disable overridden choices, expose the reason, and keep the underlying preference available for restoration. For example, Reduce Motion overrides Interactive Artwork Shift.
 
 Library → Game Details contains the Windows **Theme music** toggle, off by default. When enabled, game details play a local custom or matched Steam soundtrack track while the launcher is active. [Theme music](steam.md)
 
-Appearance uses `BuildChoicePicker` for the font family, font size, and scale. Its button displays the current value, and its scrollable menu uses the same frosted surface, spacing, and motion as context menus. The menu aligns to the button's left edge and switches to its right edge if the measured menu would extend past the launcher. Font families keep keyboard text search. The preference applies after the menu closes so changes to typography and scale leave the closing animation aligned with its trigger. Collections use the same picker for member sorting and rule matching, attributes, and operators. Mods use it for OptiScaler DXGI spoofing and the ReShade graphics API.
+Appearance uses `BuildChoicePicker` for the font family, font size, and scale. Its button displays the current value, and its scrollable menu uses the same frosted surface, spacing, and motion as context menus. The menu aligns to the button's left edge and switches to its right edge if the measured menu would extend past the launcher. Font families keep keyboard text search. The preference applies after the menu closes so changes to typography and scale leave the closing animation aligned with its trigger. Collections use the same picker for member sorting and rule matching, attributes, and operators. Mods use it for OptiScaler’s DLL name and DXGI spoofing, the ReShade graphics API, and RenoDX add-on variants.
 
 Theme includes a Default accent colour picker for the launcher palette. Its dialog shows colour-only preset buttons and a square live preview the same height as the six-digit hex field. Apply saves the selection and updates the launcher immediately. Selecting the first purple swatch restores the built-in palette. The Artwork accent colour switch is enabled by default and uses the selected game's artwork colour on Game Details when available.
 

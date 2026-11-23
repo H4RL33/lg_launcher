@@ -42,7 +42,7 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 - **Purpose** — Loads the bundled Lucide names, labels, and keywords once per process and parses each icon's geometry on first use.
 - **Depends on** — The embedded icon pack, Avalonia's `StreamGeometry`, and the 24-unit convention shared by `SymbolIcon`.
-- **Used by** — Desktop's collection icon picker, automatic sidebar icon resolver, and migration smoke check.
+- **Used by** — Desktop's collection icon picker, automatic sidebar icon resolver, per-mod symbols, and migration smoke checks.
 
 ## `avalonia/LGLauncher.Components/Lucide.0.468.0.tsv`
 

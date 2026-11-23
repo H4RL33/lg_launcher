@@ -128,7 +128,7 @@ internal static class UpdateInstaller
         if (!IsSupported || !Guid.TryParseExact(id, "N", out _) ||
             Path.GetFileName(fileName) != fileName || !fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
             !VerifiedDownload.IsSha256(digest) || length <= 0 || length > UpdateFeed.MaximumPackageSize) return 1;
-        var comparison = UpdateFeed.Normalize(version).CompareTo(UpdateFeed.Normalize(UpdateFeed.CurrentVersion));
+        var comparison = UpdateFeed.Compare(version, UpdateFeed.CurrentVersion);
         if (comparison < 0 || (setup && comparison == 0)) return 1;
 
         Staging stage;
