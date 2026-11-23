@@ -4,7 +4,7 @@
 
 ## `avalonia/LGLauncher.Desktop/LGLauncher.Desktop.csproj`
 
-Defines the desktop executable, assembly version, linked core sources, and embedded resources. It embeds the OptiScaler catalog, references the 7z reader and the Markdig release-notes parser, and marks single-file publishes as eligible for the in-app updater. The Setup upgrade smoke harness uses `SetupFixtureAppId` to build disposable bundles for its unique per-user registration.
+Defines the desktop executable, assembly version, linked core sources, and embedded resources. It embeds the OptiScaler catalog, references the 7z reader and the Markdig release-notes parser, and marks single-file publishes as eligible for the in-app updater.
 
 The project embeds its MIT license as `LGLauncher.LICENSE.txt`, so the portable executable and the executable installed by Windows Setup carry the notice. [Project license](../../../LICENSE)
 

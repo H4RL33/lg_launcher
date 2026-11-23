@@ -10,7 +10,7 @@ using System.Threading;
 namespace LGLauncher
 {
     [DataContract]
-    internal sealed class Game
+    internal sealed partial class Game
     {
         [DataMember] public string Id = Guid.NewGuid().ToString("N");
         [DataMember] public string Title { get; set; }
@@ -197,7 +197,6 @@ namespace LGLauncher
     {
         private readonly string file;
         private readonly DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(Library));
-        private bool loadedBackup;
         public string ArtworkDirectory { get; private set; }
 
         public LibraryStore(string directory)
@@ -228,9 +227,7 @@ namespace LGLauncher
 
         public Library Load()
         {
-            var primary = Read(file);
-            var library = primary ?? Read(file + ".bak");
-            loadedBackup = primary == null && library != null;
+            var library = Read(file) ?? Read(file + ".bak");
             if (library == null)
             {
                 if (File.Exists(file) || File.Exists(file + ".bak"))
@@ -258,20 +255,10 @@ namespace LGLauncher
             if (!File.Exists(path)) return null;
             try
             {
-                Library library;
                 using (var stream = File.OpenRead(path))
-                    library = (Library)serializer.ReadObject(stream);
-                if (library == null || HasNullRecord(library.Games) || HasNullRecord(library.Collections) ||
-                    (library.Preferences != null && HasNullRecord(library.Preferences.RssFeeds)))
-                    return null;
-                return library;
+                    return (Library)serializer.ReadObject(stream);
             }
             catch (SerializationException) { return null; }
-        }
-
-        private static bool HasNullRecord<T>(List<T> records) where T : class
-        {
-            return records != null && records.Contains(null);
         }
 
         public void Save(Library library)
@@ -283,10 +270,8 @@ namespace LGLauncher
                 serializer.WriteObject(stream, library);
                 stream.Flush(true);
             }
-            // The primary was unusable when we loaded the backup. Keep that backup until a good primary is saved.
-            if (File.Exists(file)) File.Replace(temporary, file, loadedBackup ? null : file + ".bak");
+            if (File.Exists(file)) File.Replace(temporary, file, file + ".bak");
             else File.Move(temporary, file);
-            loadedBackup = false;
         }
     }
 

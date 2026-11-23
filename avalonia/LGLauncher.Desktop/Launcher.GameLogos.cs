@@ -67,7 +67,7 @@ internal sealed partial class Launcher
             var picture = await Task.Run(() => ReadCachedGameLogo(id), token);
             if (picture == null && online && StillSelected() && !_unavailableGameLogos.Contains(id))
             {
-                var path = await _steam.GetLogo(id, token, refresh: _steam.CachedLogo(id) != null);
+                var path = await _steam.GetLogo(id, token);
                 if (path != null) picture = await Task.Run(() => ReadGameLogo(path), token);
                 if (picture == null && StillSelected()) _unavailableGameLogos.Add(id);
             }
@@ -152,7 +152,11 @@ internal sealed partial class Launcher
             : path;
     }
 
-    private static Bitmap? ReadGameLogo(string path) => TryReadBitmap(path, 800);
+    private static Bitmap? ReadGameLogo(string path)
+    {
+        try { return ReadBitmap(path, 800); }
+        catch (Exception error) when (IsArtworkError(error)) { return null; }
+    }
 
     private void ClearGameLogo()
     {

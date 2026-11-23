@@ -11,7 +11,7 @@ internal sealed partial class Launcher
 
     private void QueueSteamMetadata()
     {
-        _ = QueueGenres();
+        QueueGenres();
         _ = QueueStoreTags();
     }
 

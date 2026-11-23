@@ -100,13 +100,15 @@ internal static class UpdateFeed
     {
         if (Text(asset, "state") != "uploaded") return null;
         var digest = Text(asset, "digest");
-        if (digest == null || !digest.StartsWith("sha256:", StringComparison.Ordinal) || !VerifiedDownload.IsSha256(digest[7..])) return null;
+        if (digest == null || !digest.StartsWith("sha256:", StringComparison.Ordinal) || !IsDigest(digest[7..])) return null;
         var releaseUrl = new Uri($"{Releases}/download/{tag}/{name}");
         if (Text(asset, "browser_download_url") != releaseUrl.AbsoluteUri ||
             !asset.TryGetProperty("size", out var size) || size.ValueKind != JsonValueKind.Number ||
             !size.TryGetInt64(out var length) || length <= 0 || length > MaximumPackageSize) return null;
         return new Package(releaseUrl, digest[7..], length, version);
     }
+
+    internal static bool IsDigest(string value) => value.Length == 64 && value.All(Uri.IsHexDigit);
 
     private static bool Flag(JsonElement json, string name) =>
         json.ValueKind == JsonValueKind.Object && json.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;

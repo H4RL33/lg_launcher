@@ -105,7 +105,7 @@ internal sealed partial class Launcher
         {
             var updated = await Task.Run(() => new GameMedia(
                 Import(choices.Backdrop, original.Backdrop, "Backdrop artwork", 2560),
-                Import(choices.Portrait, original.Portrait, "Portrait artwork", PortraitBitmapWidth, PortraitBitmapHeight),
+                Import(choices.Portrait, original.Portrait, "Portrait artwork", 420),
                 Import(choices.Logo, original.Logo, "Game logo", 800),
                 Import(choices.Music, original.Music, "Theme music", null)), token);
             if (token.IsCancellationRequested || _closed || !_library.Games.Contains(game)) return false;
@@ -135,7 +135,7 @@ internal sealed partial class Launcher
             }
         }
 
-        MediaAsset Import(MediaChoice choice, MediaAsset current, string label, int? maximumWidth, int? maximumHeight = null)
+        MediaAsset Import(MediaChoice choice, MediaAsset current, string label, int? maximumWidth)
         {
             token.ThrowIfCancellationRequested();
             if (choice.Reset) return default;
@@ -149,7 +149,7 @@ internal sealed partial class Launcher
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 stagedFiles.Add(destination);
-                ImportGameMediaFile(choice.Source, destination, maximumWidth, token, maximumHeight);
+                ImportGameMediaFile(choice.Source, destination, maximumWidth, token);
                 return new MediaAsset(id, Path.GetFileName(choice.Source));
             }
             catch (Exception error) when (IsArtworkError(error))
@@ -159,8 +159,7 @@ internal sealed partial class Launcher
         }
     }
 
-    private static void ImportGameMediaFile(string source, string destination, int? maximumImageWidth, CancellationToken token,
-        int? maximumImageHeight = null)
+    private static void ImportGameMediaFile(string source, string destination, int? maximumImageWidth, CancellationToken token)
     {
         if (maximumImageWidth == null && ThemeAudioImport.NeedsDecoding(source))
         {
@@ -181,7 +180,7 @@ internal sealed partial class Launcher
         token.ThrowIfCancellationRequested();
         if (maximumImageWidth is { } width)
         {
-            using var picture = ReadBitmap(destination, width, maximumImageHeight);
+            using var picture = ReadBitmap(destination, width);
         }
         else if (!ThemeMusicPlayer.CanOpen(destination))
         {

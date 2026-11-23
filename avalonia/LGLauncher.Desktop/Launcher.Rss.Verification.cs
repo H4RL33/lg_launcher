@@ -194,7 +194,7 @@ internal sealed partial class Launcher
         Require(_page == Page.RssArticle && PageTitle.Text == "New build available",
             "Mouse Forward did not restore the RSS article.");
         Capture(Path.Combine(Path.GetDirectoryName(preview)!, "rss-article.png"));
-        await VerifyRssImageViewport(preview);
+        await VerifyRssImageViewport();
 
         File.WriteAllText(path, RssFixture.Replace("New build available", "Refreshed article"));
         await RefreshRss();
@@ -352,7 +352,7 @@ internal sealed partial class Launcher
             "Paragraphs inside list items separated list markers from their text.");
     }
 
-    private async Task VerifyRssImageViewport(string preview)
+    private async Task VerifyRssImageViewport()
     {
         using var fixture = new RssImageFixture();
         using var client = new HttpClient(fixture);
@@ -368,25 +368,8 @@ internal sealed partial class Launcher
         await WaitFor(() => image.Child is Image { Source: Bitmap bitmap } &&
             bitmap.PixelSize.Width is > 0 and <= 1280 && bitmap.PixelSize.Height is > 0 and <= 1280,
             "The reader could not download, decode and present a visible raster image.");
+        PageBody.Children.Remove(image);
         PageBody.Children.Remove(separator);
-        var articleTitle = PageTitle.Text;
-        SelectGame(_library.Games.First());
-        Require(_page == Page.Game && !PageBody.Children.Contains(image) && image.Child is TextBlock,
-            "Opening game details left a decoded RSS image attached to the hidden article.");
-        ReleaseHistoryButton(forward: false);
-        Require(_page == Page.RssArticle && PageTitle.Text == articleTitle,
-            "Mouse Back did not restore the article after releasing its decoded image.");
-        var originalWidth = Width;
-        try
-        {
-            foreach (var width in new[] { MinWidth, 1230, 1600 })
-            {
-                Width = width;
-                UpdateLayout();
-                Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"rss-article-return-{width}.png"));
-            }
-        }
-        finally { Width = originalWidth; }
     }
 
     private sealed class RssImageFixture : HttpMessageHandler

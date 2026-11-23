@@ -4,8 +4,8 @@ $ErrorActionPreference = 'Stop'
 $source = (Resolve-Path -LiteralPath $Launcher).Path
 $root = New-Item -ItemType Directory -Path (Join-Path $PSScriptRoot ('..\.build-work\update-smoke\' + [Guid]::NewGuid().ToString('N'))) -Force
 
-foreach ($case in @('install', 'rollback', 'activation', 'timeout', 'missing-message')) {
-    $rollback = $case -in 'rollback', 'activation', 'timeout'
+foreach ($rollback in @($false, $true)) {
+    $case = if ($rollback) { 'rollback' } else { 'install' }
     $folder = New-Item -ItemType Directory -Path (Join-Path $root.FullName $case)
     $target = Join-Path $folder.FullName 'update-test.exe'
     $fixture = Join-Path $folder.FullName 'fixture.exe'
@@ -22,15 +22,13 @@ foreach ($case in @('install', 'rollback', 'activation', 'timeout', 'missing-mes
         if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report }
         throw "The update $case handoff failed."
     }
-    $deadline = [DateTime]::UtcNow.AddSeconds(50)
+    $deadline = [DateTime]::UtcNow.AddSeconds(30)
     while (!(Test-Path -LiteralPath $report) -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
     if (!(Test-Path -LiteralPath $report)) { throw "The update $case process did not relaunch." }
     $actualHash = (Get-FileHash -LiteralPath $target).Hash
     if ($actualHash -ne (Get-FileHash -LiteralPath $expected).Hash) { throw "The update $case left the wrong executable installed." }
     $message = Get-Content -LiteralPath $report -Raw
-    $prefix = if ($rollback) { 'The update could not be installed.' }
-        elseif ($case -eq 'missing-message') { 'Restart was acknowledged without a result message.' }
-        else { 'LG Launcher updated to ' }
+    $prefix = if ($rollback) { 'The update could not be installed.' } else { 'LG Launcher updated to ' }
     if (!$message.StartsWith($prefix)) { throw "The update $case did not report its outcome. $message" }
     if (Get-ChildItem -LiteralPath $folder.FullName -Force -Directory -Filter '.lg-launcher-update-*') {
         throw "The update $case did not clean up the staging folder."

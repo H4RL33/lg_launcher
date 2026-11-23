@@ -3,11 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Threading;
-using System.Threading.Tasks;
 using LGLauncher;
 
 internal static class CoreTests
@@ -16,64 +12,6 @@ internal static class CoreTests
     {
         if (!condition) throw new Exception(message);
         Console.WriteLine("PASS " + message);
-    }
-
-    private sealed class SteamImageResponse : HttpMessageHandler
-    {
-        public byte[] Image = "undecodable artwork"u8.ToArray();
-
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
-        {
-            token.ThrowIfCancellationRequested();
-            if (request.RequestUri.Host == "api.steampowered.com")
-                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") });
-
-            var content = new ByteArrayContent(Image);
-            content.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
-        }
-    }
-
-    private static void VerifySteamArtworkRefresh(string root)
-    {
-        var artwork = Path.Combine(root, "steam-artwork");
-        var portrait = Path.Combine(Directory.CreateDirectory(Path.Combine(artwork, "portraits")).FullName, "620.jpg");
-        var original = "readable portrait fixture"u8.ToArray();
-        File.WriteAllBytes(portrait, original);
-        var response = new SteamImageResponse();
-        using var client = new HttpClient(response);
-        var replacement = "readable replacement fixture"u8.ToArray();
-        using var canceled = new CancellationTokenSource();
-        var cancelValidation = false;
-        var steam = new SteamCatalog(artwork, staged =>
-        {
-            var bytes = File.ReadAllBytes(staged);
-            if (cancelValidation) canceled.Cancel();
-            return bytes.SequenceEqual(replacement);
-        }, client);
-
-        var rejected = steam.GetPortrait(620, CancellationToken.None, refresh: true).GetAwaiter().GetResult();
-        Check(rejected == null && File.ReadAllBytes(portrait).SequenceEqual(original),
-            "An undecodable Steam image does not replace an existing portrait");
-
-        response.Image = replacement;
-        cancelValidation = true;
-        try
-        {
-            steam.GetPortrait(620, canceled.Token, refresh: true).GetAwaiter().GetResult();
-            throw new InvalidOperationException("Steam published an image after cancellation.");
-        }
-        catch (OperationCanceledException)
-        {
-            Check(File.ReadAllBytes(portrait).SequenceEqual(original),
-                "An artwork refresh canceled during validation preserves the cache");
-        }
-
-        cancelValidation = false;
-        var refreshed = steam.GetPortrait(620, CancellationToken.None, refresh: true).GetAwaiter().GetResult();
-        Check(refreshed == portrait && File.ReadAllBytes(portrait).SequenceEqual(replacement) &&
-            !Directory.EnumerateFiles(artwork, "*.tmp", SearchOption.AllDirectories).Any(),
-            "A readable Steam image replaces the existing portrait and removes staged files");
     }
 
     public static void Main(string[] args)
@@ -87,7 +25,7 @@ internal static class CoreTests
             return;
         }
 
-        var root = Path.Combine(AppContext.BaseDirectory, "fixtures", Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(Path.GetTempPath(), "lg-test-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         try
         {
@@ -152,7 +90,6 @@ internal static class CoreTests
             const string screenshots = "{\"2380050\":{\"success\":true,\"data\":{\"screenshots\":[{\"path_full\":\"https://example.test/bad.jpg\"},{\"path_full\":\"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/2380050/ss_example.jpg\",\"path_thumbnail\":\"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/2380050/ss_example.600x338.jpg\"}]}}}";
             Check(SteamCatalog.ScreenshotUrls(2380050, screenshots).Single() == cdn + "ss_example.jpg",
                 "The screenshot fallback uses full-size game artwork from Steam");
-            VerifySteamArtworkRefresh(root);
 
             var store = new LibraryStore(Path.Combine(root, "data"));
             var library = store.Load();
@@ -234,25 +171,8 @@ internal static class CoreTests
                 "Imported music is confined to the profile music folder and supported extensions");
             saved.Games[0].Title = "Renamed";
             store.Save(saved);
-            var libraryPath = Path.Combine(root, "data", "library.json");
-            var backupPath = libraryPath + ".bak";
-            var backup = File.ReadAllText(backupPath);
-            File.WriteAllText(libraryPath, "broken");
-            var recovered = store.Load();
-            Check(recovered.Games.Single().Title == "Star Voyage", "Previous library is recovered when the latest save is unreadable");
-            recovered.Games[0].Title = "Recovered and edited";
-            store.Save(recovered);
-            Check(File.ReadAllText(backupPath) == backup, "Saving a recovered library preserves the last readable backup");
-            Check(store.Load().Games.Single().Title == "Recovered and edited", "A recovered library can save new edits");
-            recovered.Games[0].Title = "Edited again";
-            store.Save(recovered);
-            Check(File.ReadAllText(backupPath) != backup, "Later saves resume rotating the recovery backup");
-            foreach (var invalidLibrary in new[] { "{\"Games\":[null]}", "{\"Collections\":[null]}", "{\"Preferences\":{\"RssFeeds\":[null]}}" })
-            {
-                File.WriteAllText(libraryPath, invalidLibrary);
-                Check(store.Load().Games.Single().Title == "Recovered and edited",
-                    "A null game, collection, or RSS record falls back to the last readable backup");
-            }
+            File.WriteAllText(Path.Combine(root, "data", "library.json"), "broken");
+            Check(store.Load().Games.Single().Title == "Star Voyage", "Previous library is recovered when the latest save is unreadable");
 
             var watched = Directory.CreateDirectory(Path.Combine(root, "watch"));
             using (var changed = new ManualResetEventSlim())

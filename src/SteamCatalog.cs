@@ -7,10 +7,10 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace LGLauncher
 {
@@ -50,20 +50,10 @@ namespace LGLauncher
         private readonly SemaphoreSlim backdropRequests = new SemaphoreSlim(1);
         private readonly SemaphoreSlim portraitRequests = new SemaphoreSlim(2);
         private readonly SemaphoreSlim logoRequests = new SemaphoreSlim(1);
-        private readonly SemaphoreSlim artworkValidation = new SemaphoreSlim(1);
         private readonly ConcurrentDictionary<int, string> pictures = new ConcurrentDictionary<int, string>();
         private readonly string directory;
-        private readonly Func<string, bool> canDecodeArtwork;
-        private readonly HttpClient client;
-        private readonly HttpClient backdropClient;
 
-        public SteamCatalog(string directory, Func<string, bool> canDecodeArtwork, HttpClient client = null)
-        {
-            this.directory = directory;
-            this.canDecodeArtwork = canDecodeArtwork ?? throw new ArgumentNullException(nameof(canDecodeArtwork));
-            this.client = client ?? Client;
-            backdropClient = client ?? BackdropClient;
-        }
+        public SteamCatalog(string directory) { this.directory = directory; }
 
         private static HttpClient MakeClient(int maximumResponseBytes = 4 * 1024 * 1024)
         {
@@ -87,12 +77,12 @@ namespace LGLauncher
             finally { requests.Release(); }
         }
 
-        private async Task<string> GetText(string url, CancellationToken token)
+        private static async Task<string> GetText(string url, CancellationToken token)
         {
-            using (var response = await client.GetAsync(url, token).ConfigureAwait(false))
+            using (var response = await Client.GetAsync(url, token).ConfigureAwait(false))
             {
                 response.EnsureSuccessStatusCode();
-                return await response.Content.ReadAsStringAsync(token).ConfigureAwait(false);
+                return await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             }
         }
 
@@ -164,11 +154,11 @@ namespace LGLauncher
                 if (!refresh && File.Exists(path)) return path;
                 var tried = new HashSet<string>(StringComparer.Ordinal);
                 var direct = AssetHost + "store_item_assets/steam/apps/" + id.ToString(CultureInfo.InvariantCulture) + "/";
-                if (await TrySaveArtwork(path, new[] { direct + "library_600x900_2x.jpg" }, tried, client, token, replace: refresh).ConfigureAwait(false))
+                if (await TrySaveArtwork(path, new[] { direct + "library_600x900_2x.jpg" }, tried, Client, token, replace: refresh).ConfigureAwait(false))
                     return path;
                 var metadata = await ReadLibraryAssetMetadata(id, token).ConfigureAwait(false);
                 var candidates = LibraryPortraitUrls(id, metadata).Concat(new[] { direct + "library_600x900.jpg" });
-                return await TrySaveArtwork(path, candidates, tried, client, token, replace: refresh).ConfigureAwait(false) ? path : null;
+                return await TrySaveArtwork(path, candidates, tried, Client, token, replace: refresh).ConfigureAwait(false) ? path : null;
             }
             finally { portraitRequests.Release(); }
         }
@@ -195,12 +185,12 @@ namespace LGLauncher
                 if (!refresh && File.Exists(path)) return path;
                 var tried = new HashSet<string>(StringComparer.Ordinal);
                 Func<byte[], bool> valid = bytes => bytes.Take(PngSignature.Length).SequenceEqual(PngSignature);
-                var found = await TrySaveArtwork(path, LibraryLogoUrls(id), tried, client, token, valid, refresh).ConfigureAwait(false);
+                var found = await TrySaveArtwork(path, LibraryLogoUrls(id), tried, Client, token, valid, refresh).ConfigureAwait(false);
                 if (!found && refresh)
                 {
                     var metadata = await ReadLibraryAssetMetadata(id, token).ConfigureAwait(false);
                     found = await TrySaveArtwork(path, LibraryAssetUrls(id, metadata, "library_logo_2x", "library_logo", "logo_2x", "logo"),
-                        tried, client, token, valid, refresh).ConfigureAwait(false);
+                        tried, Client, token, valid, refresh).ConfigureAwait(false);
                 }
                 return found ? path : null;
             }
@@ -322,23 +312,23 @@ namespace LGLauncher
                 if (!refresh && File.Exists(path)) return path;
                 var tried = new HashSet<string>(StringComparer.Ordinal);
                 var direct = AssetHost + "store_item_assets/steam/apps/" + key + "/";
-                if (await TrySaveArtwork(path, new[] { direct + "library_hero_2x.jpg" }, tried, backdropClient, token, replace: refresh).ConfigureAwait(false))
+                if (await TrySaveArtwork(path, new[] { direct + "library_hero_2x.jpg" }, tried, BackdropClient, token, replace: refresh).ConfigureAwait(false))
                     return path;
 
                 var metadata = await ReadLibraryAssetMetadata(id, token).ConfigureAwait(false);
                 var heroes = LibraryHeroUrls(id, metadata).Concat(new[] { direct + "library_hero.jpg" });
-                if (await TrySaveArtwork(path, heroes, tried, backdropClient, token, replace: refresh).ConfigureAwait(false))
+                if (await TrySaveArtwork(path, heroes, tried, BackdropClient, token, replace: refresh).ConfigureAwait(false))
                     return path;
 
                 var details = await ReadOptionalMetadata(Store + "/api/appdetails?l=english&filters=screenshots&appids=" + key, token).ConfigureAwait(false);
-                return await TrySaveArtwork(path, ScreenshotUrls(id, details).Take(3), tried, backdropClient, token, replace: refresh).ConfigureAwait(false) ? path : null;
+                return await TrySaveArtwork(path, ScreenshotUrls(id, details).Take(3), tried, BackdropClient, token, replace: refresh).ConfigureAwait(false) ? path : null;
             }
             finally { backdropRequests.Release(); }
         }
 
-        private Task<string> ReadLibraryAssetMetadata(int id, CancellationToken token)
+        private static Task<string> ReadLibraryAssetMetadata(int id, CancellationToken token)
         {
-            var request = JsonSerializer.Serialize(new
+            var request = SerializeJson(new
             {
                 ids = new[] { new { appid = id } },
                 context = new { language = "english", country_code = RegionInfo.CurrentRegion.TwoLetterISORegionName, steam_realm = 1 },
@@ -348,14 +338,14 @@ namespace LGLauncher
                 Uri.EscapeDataString(request), token);
         }
 
-        private async Task<string> ReadOptionalMetadata(string url, CancellationToken token)
+        private static async Task<string> ReadOptionalMetadata(string url, CancellationToken token)
         {
             try { return await GetText(url, token).ConfigureAwait(false); }
             catch (HttpRequestException) { return null; }
             catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); return null; }
         }
 
-        private async Task<bool> TrySaveArtwork(string path, IEnumerable<string> urls, HashSet<string> tried,
+        private static async Task<bool> TrySaveArtwork(string path, IEnumerable<string> urls, HashSet<string> tried,
             HttpClient imageClient, CancellationToken token, Func<byte[], bool> validImage = null, bool replace = false)
         {
             foreach (var url in urls)
@@ -366,7 +356,8 @@ namespace LGLauncher
                 catch (HttpRequestException) { continue; }
                 catch (OperationCanceledException) { token.ThrowIfCancellationRequested(); continue; }
                 if (bytes == null || bytes.Length == 0 || (validImage != null && !validImage(bytes))) continue;
-                if (await TryPublishImage(path, bytes, token, replace).ConfigureAwait(false)) return true;
+                SaveImage(path, bytes, token, replace);
+                return true;
             }
             return false;
         }
@@ -432,6 +423,11 @@ namespace LGLauncher
             catch (JsonException) { return null; }
         }
 
+        private static string SerializeJson<T>(T data)
+        {
+            return JsonSerializer.Serialize(data);
+        }
+
         private static object ReadJson(JsonElement element)
         {
             switch (element.ValueKind)
@@ -471,9 +467,10 @@ namespace LGLauncher
                 var html = await GetText(Community + "/app/" + key + "/discussions/", token).ConfigureAwait(false);
                 var url = FindCommunityIcon(id, html);
                 if (url == null) return null;
-                var bytes = await GetImageBytes(url, token, client).ConfigureAwait(false);
+                var bytes = await GetImageBytes(url, token).ConfigureAwait(false);
                 if (bytes == null || bytes.Length == 0) return null;
-                return await TryPublishImage(path, bytes, token, refresh).ConfigureAwait(false) ? path : null;
+                SaveImage(path, bytes, token, refresh);
+                return path;
             }
             finally { requests.Release(); }
         }
@@ -524,10 +521,11 @@ namespace LGLauncher
                 {
                     try
                     {
-                        var bytes = await GetImageBytes(url, token, client).ConfigureAwait(false);
+                        var bytes = await GetImageBytes(url, token).ConfigureAwait(false);
                         if (bytes == null || bytes.Length == 0) continue;
                         var path = Path.Combine(directory, key + ".jpg");
-                        if (await TryPublishImage(path, bytes, token, refresh).ConfigureAwait(false)) return path;
+                        SaveImage(path, bytes, token, refresh);
+                        return path;
                     }
                     catch (HttpRequestException error) { networkFailure = error; }
                     catch (OperationCanceledException error) { token.ThrowIfCancellationRequested(); networkFailure = error; }
@@ -538,37 +536,37 @@ namespace LGLauncher
             finally { requests.Release(); }
         }
 
-        private async Task<bool> TryPublishImage(string path, byte[] bytes, CancellationToken token, bool replace)
+        private static void SaveImage(string path, byte[] bytes, CancellationToken token, bool replace = false)
         {
             token.ThrowIfCancellationRequested();
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             try
             {
-                await File.WriteAllBytesAsync(temporary, bytes, token).ConfigureAwait(false);
-                // Codecs may need a full raster for some formats. Limit validation to one decode at a time.
-                await artworkValidation.WaitAsync(token).ConfigureAwait(false);
-                try
-                {
-                    if (!canDecodeArtwork(temporary)) return false;
-                }
-                finally { artworkValidation.Release(); }
+                File.WriteAllBytes(temporary, bytes);
                 token.ThrowIfCancellationRequested();
-                try { File.Move(temporary, path, overwrite: replace); }
-                catch (IOException) when (!replace && File.Exists(path)) { }
-                return true;
+                if (replace && File.Exists(path)) File.Replace(temporary, path, null);
+                else
+                {
+                    try { File.Move(temporary, path); }
+                    catch (IOException)
+                    {
+                        if (!File.Exists(path)) throw;
+                        if (replace) File.Replace(temporary, path, null);
+                    }
+                }
             }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
         }
 
-        private static async Task<byte[]> GetImageBytes(string url, CancellationToken token, HttpClient client)
+        private static async Task<byte[]> GetImageBytes(string url, CancellationToken token, HttpClient client = null)
         {
-            using (var response = await client.GetAsync(url, token).ConfigureAwait(false))
+            using (var response = await (client ?? Client).GetAsync(url, token).ConfigureAwait(false))
             {
                 var contentType = response.Content.Headers.ContentType;
                 if (!response.IsSuccessStatusCode || contentType == null ||
                     !contentType.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) return null;
-                return await response.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false);
+                return await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
             }
         }
 

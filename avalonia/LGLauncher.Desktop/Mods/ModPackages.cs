@@ -147,7 +147,7 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
     {
         if (!Directory.Exists(_root)) return [];
         ModPaths.RejectReparsePoints(_root);
-        return Directory.EnumerateDirectories(_root).Where(path => VerifiedDownload.IsSha256(Path.GetFileName(path)))
+        return Directory.EnumerateDirectories(_root).Where(path => UpdateFeed.IsDigest(Path.GetFileName(path)))
             .Select(Read).OfType<CachedModPackage>().Where(package => package.Key.Provider == provider).ToArray();
     }
 
@@ -195,7 +195,7 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
 
     private async Task Download(ModPackageDescriptor descriptor, Stream output, CancellationToken token, IProgress<int>? progress = null)
     {
-        if (!VerifiedDownload.IsSha256(descriptor.Key.Digest) || descriptor.Length is <= 0 or > 256L * 1024 * 1024 ||
+        if (!UpdateFeed.IsDigest(descriptor.Key.Digest) || descriptor.Length is <= 0 or > 256L * 1024 * 1024 ||
             !AllowedAddress(descriptor.Address, descriptor.Key.Provider, redirect: false))
             throw new InvalidDataException("The package source is invalid.");
 
@@ -203,8 +203,32 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
         deadline.CancelAfter(TimeSpan.FromMinutes(4));
         using var response = await Request(descriptor, deadline.Token).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
-        await VerifiedDownload.CopyAsync(response.Content, output, descriptor.Length, descriptor.Key.Digest, progress, deadline.Token)
-            .ConfigureAwait(false);
+        if (response.Content.Headers.ContentLength is long length && length != descriptor.Length)
+            throw new InvalidDataException("The package size did not match the reviewed release.");
+        await using var input = await response.Content.ReadAsStreamAsync(deadline.Token).ConfigureAwait(false);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[65536];
+        long total = 0;
+        var lastProgress = 0;
+        int read;
+        while ((read = await input.ReadAsync(buffer, deadline.Token).ConfigureAwait(false)) != 0)
+        {
+            total += read;
+            if (total > descriptor.Length) throw new InvalidDataException("The package is larger than expected.");
+            hash.AppendData(buffer, 0, read);
+            await output.WriteAsync(buffer.AsMemory(0, read), deadline.Token).ConfigureAwait(false);
+            if (progress != null)
+            {
+                var percent = (int)(total * 100 / descriptor.Length);
+                if (percent > lastProgress)
+                {
+                    progress.Report(percent);
+                    lastProgress = percent;
+                }
+            }
+        }
+        if (total != descriptor.Length || !Convert.ToHexString(hash.GetHashAndReset()).Equals(descriptor.Key.Digest, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("The package did not match the reviewed SHA-256 digest.");
     }
 
     private async Task<HttpResponseMessage> Request(ModPackageDescriptor descriptor, CancellationToken token)

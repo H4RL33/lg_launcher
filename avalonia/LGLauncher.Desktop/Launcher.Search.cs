@@ -58,8 +58,7 @@ internal sealed partial class Launcher
         }
 
         var selection = _displayedSearchQuery == query ? SearchResults.SelectedItem : null;
-        var matchesQuery = CreateLibrarySearch(query);
-        var matches = _shownEntries.Where(entry => matchesQuery(entry.Game)).ToArray();
+        var matches = _shownEntries.Where(entry => MatchesLibrarySearch(entry.Game, query)).ToArray();
         var changed = SearchResults.ItemsSource is not LibraryEntry[] previous || !previous.SequenceEqual(matches);
         if (changed)
             SearchResults.ItemsSource = matches;
@@ -72,20 +71,6 @@ internal sealed partial class Launcher
             ResizeSearchResults(SearchDropdown, SearchResultsFrame, SearchResults, matches.Length);
         }
         _displayedSearchQuery = query;
-    }
-
-    private static Func<Game, bool> CreateLibrarySearch(string query)
-    {
-        const StringComparison comparison = StringComparison.CurrentCultureIgnoreCase;
-        if (query.StartsWith("genre:", StringComparison.OrdinalIgnoreCase))
-        {
-            var genre = query[6..].Trim();
-            return game => genre.Length == 0 || game.GenreNames.Any(value => value.Contains(genre, comparison));
-        }
-
-        var terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return game => terms.All(term => game.Title.Contains(term, comparison) ||
-            game.GenreNames.Any(genre => genre.Contains(term, comparison)));
     }
 
     private void ResizeSearchResults(Control dropdown, Border frame, ListBox results, int count)

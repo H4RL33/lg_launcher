@@ -98,7 +98,6 @@ internal sealed partial class Launcher
         await editing;
         Require(!DialogHost.HasModal && MainShell.IsEffectivelyEnabled && EditGameButton.IsFocused && (game.Genres ?? []).SequenceEqual(originalGenres),
             "Cancelling Edit game did not discard the fetched values and return focus to the launcher.");
-        await VerifyGameEditorSaveFailure(game, preview);
 
         static bool VerticallyCentred(Control first, Control second, Control relativeTo)
         {
@@ -106,120 +105,6 @@ internal sealed partial class Launcher
             var secondCentre = second.TranslatePoint(new Point(0, second.Bounds.Height / 2), relativeTo);
             return firstCentre is { } firstPoint && secondCentre is { } secondPoint && Math.Abs(firstPoint.Y - secondPoint.Y) < 1;
         }
-    }
-
-    private async Task VerifyGameEditorSaveFailure(Game game, string preview)
-    {
-        const int steamId = 4200;
-        await WaitFor(() => _scan == null, "The folder scan did not finish before the save failure checks.");
-        var libraryPath = Path.Combine(Program.DataDirectory, "library.json");
-        var discovery = _discoveries.Single(item => Path.GetFileName(item.Path) == "New Discovery.exe");
-        var saved = File.ReadAllText(libraryPath);
-        var originalGames = _library.Games.ToArray();
-        var originalDiscoveries = _discoveries.ToArray();
-        var originalIgnored = _library.IgnoredPaths.ToArray();
-        var originalDetails = (game.Title, game.Path, game.Arguments, game.SteamId, game.Genres, game.ManualGenres,
-            game.GenreSteamId, game.SteamGenresComplete, game.SteamTags, game.TagSteamId);
-        var originalSaveFailed = _saveFailed;
-        var originalGenreAttempt = _attemptedGenres.Contains(steamId);
-        var originalTagAttempt = _attemptedTags.Contains(steamId);
-        var originalSize = (Width, Height);
-        var originalWatcher = _watcher;
-        var added = new Game { Title = discovery.Title, Path = discovery.Path };
-        var retrySaved = false;
-
-        try
-        {
-            // Keep the fixture's overlapping ignored and discovered path stable while the dialog is open.
-            _watcher = null;
-            _library.IgnoredPaths.Add(discovery.Path);
-            _attemptedGenres.Add(steamId);
-            _attemptedTags.Add(steamId);
-            foreach (var adding in new[] { true, false })
-            {
-                _saveFailed = !adding;
-                var editing = ShowGameEditor(adding ? added : game, adding, (_, _) => Task.FromResult<List<string>?>(null));
-                UpdateLayout();
-                var dialog = DialogHost.GetVisualDescendants().OfType<ModalDialog>().Single();
-                var title = Field("Game title");
-                var path = Field("Executable");
-                var arguments = Field("Launch arguments");
-                var app = Field("Steam App ID");
-                var genres = Field("Genres");
-                title.Text = "Save failure fixture";
-                path.Text = discovery.Path;
-                arguments.Text = "--fixture";
-                app.Text = steamId.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                genres.Text = "";
-
-                using (File.Open(libraryPath + ".tmp", FileMode.Create, FileAccess.Write, FileShare.None))
-                {
-                    var sizes = adding ? new[] { originalSize } : new[] { (730d, 510d), (1230d, 805d), (1600d, 900d) };
-                    foreach (var size in sizes)
-                    {
-                        (Width, Height) = size;
-                        await Task.Delay(65);
-                        dialog.DefaultButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                        Require(DialogHost.HasModal && !editing.IsCompleted,
-                            "The game editor closed after a failed save.");
-                        Require(title.Text == "Save failure fixture" && path.Text == discovery.Path && arguments.Text == "--fixture" &&
-                            app.Text == "4200" && genres.Text == "", "The editor discarded the unsaved draft.");
-                        Require(originalDetails == (game.Title, game.Path, game.Arguments, game.SteamId, game.Genres, game.ManualGenres,
-                                game.GenreSteamId, game.SteamGenresComplete, game.SteamTags, game.TagSteamId) &&
-                            _library.Games.SequenceEqual(originalGames) && File.ReadAllText(libraryPath) == saved,
-                            "A failed game save changed the library.");
-                        Require(_discoveries.SequenceEqual(originalDiscoveries) && _library.IgnoredPaths.SequenceEqual(originalIgnored.Append(discovery.Path)),
-                            "A failed game save changed discoveries or ignored paths.");
-                        Require(_saveFailed == !adding && _attemptedGenres.Contains(steamId) && _attemptedTags.Contains(steamId),
-                            "A failed game save changed the previous save failure or metadata retry state.");
-                        await WaitFor(() => dialog.Body.Children.OfType<TextBlock>().Any(label => label.Text?.Contains("try again", StringComparison.Ordinal) == true),
-                            "The editor did not explain how to retry a failed save.");
-                        if (!adding)
-                        {
-                            await Task.Delay(65);
-                            Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"edit-game-save-failure-{size.Item1}.png"));
-                        }
-                    }
-                }
-
-                if (adding) dialog.Close();
-                else dialog.DefaultButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                Require(!DialogHost.HasModal, "The game editor did not close after a successful retry or cancellation.");
-                await editing;
-                if (adding) continue;
-                retrySaved = true;
-                var persisted = _store.Load().Games.Single(entry => entry.Id == game.Id);
-                Require(persisted.Title == "Save failure fixture" && persisted.Path == discovery.Path && persisted.Arguments == "--fixture" &&
-                    persisted.SteamId == steamId && !_discoveries.Contains(discovery) && !_library.IgnoredPaths.Contains(discovery.Path) &&
-                    !_attemptedGenres.Contains(steamId) && !_attemptedTags.Contains(steamId) && !_saveFailed,
-                    "Retrying a game save did not persist the draft and clear the matching discovery.");
-
-                TextBox Field(string name) => dialog.GetVisualDescendants().OfType<TextBox>()
-                    .Single(field => AutomationProperties.GetName(field) == name);
-            }
-        }
-        finally
-        {
-            (Width, Height) = originalSize;
-            _library.Games.Remove(added);
-            (game.Title, game.Path, game.Arguments, game.SteamId, game.Genres, game.ManualGenres, game.GenreSteamId,
-                game.SteamGenresComplete, game.SteamTags, game.TagSteamId) = originalDetails;
-            _library.IgnoredPaths = [.. originalIgnored];
-            _discoveries = [.. originalDiscoveries];
-            _watcher = originalWatcher;
-            if (!originalGenreAttempt) _attemptedGenres.Remove(steamId);
-            else _attemptedGenres.Add(steamId);
-            if (!originalTagAttempt) _attemptedTags.Remove(steamId);
-            else _attemptedTags.Add(steamId);
-            if (retrySaved)
-            {
-                InvalidateEntry(game);
-                Require(Save(), "The game editor fixture could not restore the library.");
-                Render();
-            }
-            _saveFailed = originalSaveFailed;
-        }
-        await WaitFor(() => _detailsRequest == null && _artwork.Picture != null, "The fixture game's artwork did not return after the save checks.");
     }
 
     private async Task VerifyAutomaticUpdatePrompt(string preview)

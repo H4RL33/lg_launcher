@@ -11,7 +11,6 @@
   </PropertyGroup>
   <ItemGroup>
     <AssemblyMetadata Include="SupportsInAppUpdates" Value="true" Condition="'$(PublishSingleFile)' == 'true'" />
-    <AssemblyMetadata Include="SetupFixtureAppId" Value="$(SetupFixtureAppId)" Condition="'$(SetupFixtureAppId)' != ''" />
     <ProjectReference Include="../LGLauncher.Components/LGLauncher.Components.csproj" />
     <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />

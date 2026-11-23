@@ -55,8 +55,6 @@ Loads installed release notes when their About section attaches. It reuses succe
 
 Centralises modal opening and field layout, font selection and popup font resources, first-run usage acknowledgement, confirmation and notice dialogs, native pickers, folder and game editing, and shared game menu actions. Editing and asynchronous Steam lookups stay inside the modal until the user saves or cancels.
 
-When a game save fails, Add game and Edit game keep the draft open and show a retry message in the form. The previous library and ignored paths are restored, and the discovery list and Steam retry state change only after a successful save.
-
 **Manage metadata** opens from the game context menu and the left side of the **Edit game** footer. Opening it from Edit game preserves the parent form and returns focus there when the child dialog closes. [Game media](steam.md)
 
 Confirmation dialogs can use the shared red button treatment for the submit action. The cached mod download confirmation uses that treatment.
