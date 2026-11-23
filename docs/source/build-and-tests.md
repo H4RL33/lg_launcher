@@ -191,7 +191,7 @@ Provides representative wiki tables for the importer tests, including entries an
 
 ## `.github/workflows/optiscaler-catalog.yml`
 
-Runs in the public LG Launcher publication repository on `main`. The job runs at 04:37 UTC daily, on changes to the publisher or its fixtures, and when dispatched manually. It runs the tests and fetches the wiki on each run. It publishes changed entries as `optiscaler-v1.json` on the `compatibility-catalog` branch. When the entries are unchanged, it normally exits without a commit and makes an empty keepalive commit if the branch's last commit is at least 30 days old. A failed import or validation leaves the previous catalog available.
+Runs in the public LG Launcher repository on `main`. The job runs at 04:37 UTC daily, on changes to the publisher or its fixtures, and when dispatched manually. It runs the tests and fetches the wiki on each run. It publishes changed entries as `optiscaler-v1.json` on `mods-support/compatibility-catalog`. When the entries are unchanged, it normally exits without a commit and makes an empty keepalive commit if the branch's last commit is at least 30 days old. A failed import or validation leaves the previous catalog available.
 
 [Workflow](../../.github/workflows/optiscaler-catalog.yml) · [Launcher catalog cache](desktop/mods.md#avalonialglauncherdesktopmodsmodcatalogstorecs)
 

@@ -64,7 +64,7 @@ Matches the bundled wiki snapshot by normalized title or a linked Steam App ID. 
 
 ## `avalonia/LGLauncher.Desktop/Mods/ModCatalogStore.cs`
 
-Downloads the versioned OptiScaler advisory feed over HTTPS with a size limit and timeout. It validates the data before atomically replacing `mods/optiscaler-catalog-v1.json` in the local profile. A failed check keeps the last usable catalog. A missing or invalid cache falls back to the bundled snapshot. The launcher checks when it starts and periodically while open, with a daily automatic check interval and a manual refresh. Downloaded reports supply display labels, supported inputs, notes, and official wiki links. Install eligibility uses the bundled catalog and local checks. [Public feed](https://raw.githubusercontent.com/H4RL33/lg_launcher/refs/heads/compatibility-catalog/optiscaler-v1.json)
+Downloads the versioned OptiScaler advisory feed over HTTPS with a size limit and timeout. It validates the data before atomically replacing `mods/optiscaler-catalog-v1.json` in the local profile. A failed check keeps the last usable catalog. A missing or invalid cache falls back to the bundled snapshot. The launcher checks when it starts and periodically while open, with a daily automatic check interval and a manual refresh. Downloaded reports supply display labels, supported inputs, notes, and official wiki links. Install eligibility uses the bundled catalog and local checks. The v0.1.16 executable uses a retired feed URL and falls back to its cached or bundled catalog. [Public feed](https://raw.githubusercontent.com/H4RL33/lg_launcher/refs/heads/mods-support/compatibility-catalog/optiscaler-v1.json)
 
 ## `avalonia/LGLauncher.Desktop/Mods/mod-catalog.json`
 
