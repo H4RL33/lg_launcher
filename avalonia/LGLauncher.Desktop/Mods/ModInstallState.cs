@@ -65,7 +65,11 @@ internal sealed record ModFileSnapshot(string Hash, long Length, DateTime Create
 }
 
 internal sealed record ModFileChange(string Relative, string? ExpectedHash, byte[] Bytes, ModProviderId Owner);
-internal sealed record ModDependencyLink(ModProviderId Dependent, ModProviderId Required);
+internal sealed record ModDependencyLink(ModProviderId Dependent, ModProviderId Required, string? Variant = null)
+{
+    internal bool Matches(ModPackageKey package) => package.Provider == Required &&
+        (Variant == null || Variant.Equals(package.Variant, StringComparison.OrdinalIgnoreCase));
+}
 internal sealed record ModReShadeChain(string Configuration, string PreviousValue, string ExpectedHash);
 internal sealed record ModInstallPlan(GameInstallTarget Target, IReadOnlyList<ModFileChange> Changes, IReadOnlyList<ModPackageKey> Packages,
     string? RecipeId = null, ModDxgiSpoofing? DxgiSpoofing = null, ModDependencyLink[]? Dependencies = null,
@@ -81,6 +85,36 @@ internal sealed record ModInstallationRecord(Guid Id, GameInstallTarget Target, 
         if (!Packages.Any(package => package.Provider == ModProviderId.OptiScaler)) return [];
         return Packages.Where(package => package.Provider != ModProviderId.OptiScaler)
             .Select(package => new ModDependencyLink(ModProviderId.OptiScaler, package.Provider)).ToArray();
+    }
+
+    internal bool HasDependency(ModDependencyLink requirement, ModInstallInspection? inspection = null)
+    {
+        if (inspection is { BuildChanged: true } or { RecoveryNeeded: true }) return false;
+        foreach (var link in DependencyChain(requirement))
+        {
+            if (!Packages.Any(link.Matches)) return false;
+            var files = Files.Where(file => file.Owner == link.Required).ToArray();
+            if (files.Length == 0) return false;
+            if (inspection != null && (files.Any(file => inspection.Missing.Contains(file.Relative, StringComparer.OrdinalIgnoreCase) ||
+                !file.Relative.EndsWith(".ini", StringComparison.OrdinalIgnoreCase) &&
+                inspection.Changed.Contains(file.Relative, StringComparer.OrdinalIgnoreCase)) ||
+                link.Required == ModProviderId.ReShade && inspection.VulkanLayerIssue != null))
+                return false;
+        }
+        return true;
+    }
+
+    internal IEnumerable<ModDependencyLink> DependencyChain(ModDependencyLink requirement)
+    {
+        var links = KnownDependencies();
+        var visited = new HashSet<ModDependencyLink>();
+        var pending = new Queue<ModDependencyLink>([requirement]);
+        while (pending.TryDequeue(out var link))
+        {
+            if (!visited.Add(link)) continue;
+            yield return link;
+            foreach (var next in links.Where(next => next.Dependent == link.Required)) pending.Enqueue(next);
+        }
     }
 
     internal ModProviderId[] InstalledDependentsOf(ModProviderId provider)

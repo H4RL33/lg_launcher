@@ -167,7 +167,7 @@ The same generated tone encoded as Ogg Opus. It checks that a supplied Opus trac
 
 ## `tests/Verify-AvaloniaMods.ps1`
 
-Runs catalog, mod package, deployment, and recovery checks under `.build-work/mods-smoke/`. The default run uses synthetic fixtures. Optional `-Archives` points to a directory containing the official assets listed in the [reviewed package table](desktop/mods.md#avalonialglauncherdesktopmodsmodpackagescs) under their original filenames. Supply both the full add-on `ReShade_Setup_6.8.0_Addon.exe` and the standard `ReShade_Setup_6.8.0.exe` to exercise the upgrade. Optional `-Catalog` checks a generated wiki catalog through the launcher's downloader and cache. Both inputs can be used in the same run.
+Runs catalog, mod package, deployment, and recovery checks under `.build-work/mods-smoke/`. The default run uses synthetic fixtures, including the RenoDX index and release metadata and a test x64 DLL. Optional `-Archives` points to a directory containing the fixed official assets listed in the [reviewed package table](desktop/mods.md#avalonialglauncherdesktopmodsmodpackagescs) under their original filenames. Supply both the full add-on `ReShade_Setup_6.8.0_Addon.exe` and the standard `ReShade_Setup_6.8.0.exe` to exercise the upgrade. Optional `-Catalog` checks a generated OptiScaler wiki catalog through the launcher's downloader and cache. Both inputs can be used in the same run.
 
 The selected executable supplies the embedded fixtures. Any failed fixture fails the script, with the launcher report included in the error. The published v0.1.17 executable embeds an older DXGI spoofing fixture that can encounter a sharing violation after closing its disposable game process.
 
