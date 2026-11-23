@@ -85,6 +85,8 @@ Coordinates the main window. Its constructor wires the shared shell and initiali
 
 When the last tracked game exits, `EndSession` saves the game-return count with playtime and uses the normal tray restore path to show and activate the launcher. It then checks whether a contribution reminder is due.
 
+When the window opens minimised after an update, it acknowledges the restart before awaiting library discovery. It shows the update result once the launcher is ready to display status.
+
 `Launch` passes the profile's process priority opt-in to `GameSessions` for the selected executable.
 
 `SortCollection` captures each visible page member's position by game before rebuilding the sorted grid. A wrapper applies the resulting translation so `GameCard` keeps its own hover feedback. New grid members appear in place, and changing pages cancels the motion when the old tile hosts detach.
