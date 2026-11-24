@@ -16,6 +16,11 @@ namespace LGLauncher;
 internal sealed partial class Launcher
 {
     private const string SupportUrl = "https://ko-fi.com/h4rl33";
+    private const int DefaultTileColumns = 6;
+    private const int MaximumTileColumns = 10;
+    private const int DefaultTileMinimumWidth = 120;
+    private static readonly int[] TileColumnChoices = Enumerable.Range(1, MaximumTileColumns).ToArray();
+    private static readonly int[] TileWidthChoices = [32, 48, 64, 80, 96, 112, DefaultTileMinimumWidth, 128, 144, 160, 192, 224, 256];
     private const string UsageDisclosure =
         "LG Launcher is for legally obtained games. Do not use it to launch pirated copies. LG Launcher does not condone video game piracy.";
     private const int MinimumInterfaceScale = 75;
@@ -205,6 +210,11 @@ internal sealed partial class Launcher
         var prefs = _library.Preferences;
         var clearPlaytime = ModDeleteButton("Clear playtime data", () => _ = ClearPlaytime());
         clearPlaytime.HorizontalAlignment = HorizontalAlignment.Right;
+        var dateFormat = BuildChoicePicker("Date format", new[] { false, true }, prefs.FriendlyLaunchDates,
+            friendly => friendly ? "Friendly" : "Numeric",
+            friendly => SavePreference(prefs.FriendlyLaunchDates, friendly, value => prefs.FriendlyLaunchDates = value, null));
+        dateFormat.MinWidth = 112;
+        dateFormat.HorizontalAlignment = HorizontalAlignment.Right;
         return new StackPanel
         {
             Spacing = 14,
@@ -232,9 +242,7 @@ internal sealed partial class Launcher
                             overrideReason: () => OperatingSystem.IsWindows() ? null : "Theme music playback is available on Windows."),
                         PreferenceToggle("Show Store Tags", "Show tags below genres on game details.",
                             prefs.ShowStoreTags, value => prefs.ShowStoreTags = value),
-                        PreferenceRow("Date format", BuildChoicePicker("Date format", new[] { false, true }, prefs.FriendlyLaunchDates,
-                            friendly => friendly ? "Friendly" : "Numeric",
-                            friendly => SavePreference(prefs.FriendlyLaunchDates, friendly, value => prefs.FriendlyLaunchDates = value, null)))
+                        PreferenceRow("Date format", dateFormat)
                     }
                 }),
                 Section("Game Tiles", new StackPanel
@@ -246,7 +254,13 @@ internal sealed partial class Launcher
                             !prefs.HideTileModIndicator, value => prefs.HideTileModIndicator = !value),
                         PreferenceToggle("Show playtime caption", "Show tracked time below game artwork.",
                             !prefs.HideTilePlaytime, value => prefs.HideTilePlaytime = !value,
-                            overrideReason: () => TrackPlaytime ? null : "Turn on Track playtime to show captions.")
+                            overrideReason: () => TrackPlaytime ? null : "Turn on Track playtime to show captions."),
+                        PreferenceChoice("Columns", TileColumnChoices, GameTileColumns, "",
+                            value => SavePreference(prefs.TileColumns, value == DefaultTileColumns ? (int?)null : value,
+                                count => prefs.TileColumns = count, null)),
+                        PreferenceChoice("Minimum width", TileWidthChoices, GameTileMinimumWidth, " px",
+                            value => SavePreference(prefs.TileMinimumWidth, value == DefaultTileMinimumWidth ? (int?)null : value,
+                                width => prefs.TileMinimumWidth = width, null))
                     }
                 }),
                 Section("Home", PreferenceToggle("Display most-recent RSS articles on Home",
@@ -254,6 +268,13 @@ internal sealed partial class Launcher
             }
         };
     }
+
+    private int GameTileColumns => Math.Clamp(_library.Preferences.TileColumns ?? DefaultTileColumns, 1, MaximumTileColumns);
+    private int GameTileMinimumWidth =>
+        _library.Preferences.TileMinimumWidth is { } width && TileWidthChoices.Contains(width) ? width : DefaultTileMinimumWidth;
+
+    private int FittingGameTileColumns(double width) => Math.Clamp(
+        (int)((width + GameTileColumnSpacing) / (GameTileMinimumWidth + GameTileColumnSpacing)), 1, GameTileColumns);
 
     private void ApplyPlaytimeTracking()
     {
@@ -311,10 +332,20 @@ internal sealed partial class Launcher
         };
     }
 
+    private static ToggleSwitch CompactToggle(bool isChecked = false) => new()
+    {
+        Classes = { "lg-compact" },
+        IsChecked = isChecked,
+        OnContent = "",
+        OffContent = "",
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Center
+    };
+
     private Control PreferenceToggle(string title, string description, bool current, Action<bool> save,
         Action? apply = null, Func<string?>? overrideReason = null)
     {
-        var toggle = new ToggleSwitch { IsChecked = current, OnContent = "", OffContent = "" };
+        var toggle = CompactToggle(current);
         AutomationProperties.SetName(toggle, title);
         var row = PreferenceRow(title, toggle, description);
         toggle.IsCheckedChanged += (_, _) =>

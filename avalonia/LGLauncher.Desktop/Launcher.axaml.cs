@@ -417,7 +417,11 @@ internal sealed partial class Launcher : Window
     {
         const int pageSize = 24;
         _offset = Math.Min(_offset, (games.Length - 1) / pageSize * pageSize);
-        var grid = new UniformGrid { ColumnSpacing = 12, RowSpacing = 14, HorizontalAlignment = HorizontalAlignment.Left };
+        var grid = new UniformGrid { Columns = GameTileColumns, ColumnSpacing = GameTileColumnSpacing, RowSpacing = 14 };
+        grid.SizeChanged += (_, args) =>
+        {
+            if (args.WidthChanged && args.NewSize.Width > 0) grid.Columns = FittingGameTileColumns(args.NewSize.Width);
+        };
         foreach (var game in games.Skip(_offset).Take(pageSize))
         {
             // The host carries the reorder translation while the card retains its hover transform.
@@ -455,10 +459,9 @@ internal sealed partial class Launcher : Window
 
     private void SizeCardGrid()
     {
-        if (_cardGrid is not { Children.Count: > 0 } grid) return;
-        var isCollectionOverview = _page == Page.Collections && _collection == null;
-        var cardWidth = isCollectionOverview ? 200 : 182;
-        var minimumGridCardWidth = isCollectionOverview ? 162 : 150;
+        if (_cardGrid is not { Children.Count: > 0 } grid || _page != Page.Collections || _collection != null) return;
+        const int cardWidth = 200;
+        const int minimumGridCardWidth = 162;
         var viewport = ContentScroll.Viewport.Width > 0 ? ContentScroll.Viewport.Width : Width - 205;
         var available = Math.Max(minimumGridCardWidth, viewport - 54);
         var slots = Math.Max(1, (int)((available + grid.ColumnSpacing) / (minimumGridCardWidth + grid.ColumnSpacing)));
