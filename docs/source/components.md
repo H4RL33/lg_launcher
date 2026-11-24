@@ -14,7 +14,7 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 ## `avalonia/LGLauncher.Components/Widgets.cs`
 
-`GameCard.IsModded` toggles the unbacked wrench overlay in the portrait's top-right corner. `ModIndicatorBrush` supplies its foreground, white by default. The template renders it at 70% opacity.
+`GameCard.IsModded` toggles a white wrench in an opaque, bordered badge at the portrait's top-right corner. The `:compact` state reduces the badge size and playtime padding below 64 DIP. The playtime pill stays within the card width.
 
 [Source](../../avalonia/LGLauncher.Components/Widgets.cs)
 
@@ -127,6 +127,8 @@ Shared text boxes use the darker `LG.FieldHover` fill and a white border on poin
 - **Purpose** — Defines themed text fields, combo boxes, number spinners, preference rows and picker buttons, colour swatches, toggle motion, tooltips, context menus, and the shared `lg-progress` track. Number step buttons stretch inside a uniform inset on either side of the field. Appearance's list pickers and collection rule picker buttons open the shared context menu. The default accent uses the same trigger styling and opens a modal colour picker. Game search and collection rule suggestions share frame, row, and height transition styles. Progress and search result transitions run when the host enables motion.
 - **Depends on** — Fluent control templates and named parts, `FrostedContextMenu.cs`, `SymbolIcon.cs`, and the sibling tokens and icons. Desktop supplies runtime font and motion values.
 - **Used by** — Both theme hosts through `Components.axaml`. Consumer views opt in via control classes or the shared factories. When changing a Fluent template selector, verify it against the configured Avalonia version.
+
+Caption-free `ToggleSwitch.lg-compact` controls lay the track and knob across Fluent's spacer column. This removes the trailing gap and aligns the track with neighbouring buttons without changing input handling or knob motion.
 
 ## `avalonia/LGLauncher.Components/Theme/Tokens.axaml`
 

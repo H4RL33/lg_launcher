@@ -138,6 +138,7 @@ internal sealed partial class Launcher
         var librarySize = (Width, Height);
         var tileCaption = Setting<ToggleSwitch>("Show playtime caption");
         var clearButton = Setting<Button>("Clear playtime data");
+        var dateFormatPicker = Setting<Button>("Date format");
         foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
         {
             (Width, Height) = size;
@@ -147,10 +148,30 @@ internal sealed partial class Launcher
                     clearButton.BorderThickness.Left + clearButton.BorderThickness.Right)) <= 1 &&
                 Math.Abs(clearButton.Bounds.Right - row.Bounds.Width) <= 1,
                 "Clear playtime did not use the compact, right-aligned symbolic delete button.");
+            var deleteEdge = clearButton.TranslatePoint(new Point(clearButton.Bounds.Width, 0), PageBody)!.Value.X;
+            var tracks = playtime.GetVisualDescendants().OfType<Border>()
+                .Where(border => border.Name is "OuterBorder" or "SwitchKnobBounds").ToArray();
+            Require(tracks.Length == 2 && tracks.All(track =>
+                Math.Abs(track.TranslatePoint(new Point(track.Bounds.Width, 0), PageBody)!.Value.X - deleteEdge) <= 1),
+                $"The playtime toggle tracks did not align with the delete button at {size.Item1}px.");
             Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"library-theme-music-{size.Item1}.png"));
             tileCaption.BringIntoView();
             UpdateLayout();
             Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"library-game-tiles-{size.Item1}.png"));
+            Require(dateFormatPicker.Parent is Grid dateRow && dateFormatPicker.Bounds.Width is >= 112 and <= 136 &&
+                Math.Abs(dateFormatPicker.Bounds.Right - dateRow.Bounds.Width) <= 1,
+                "The Date format picker was not compact and right-aligned.");
+            var dateMenu = PreferenceMenu(dateFormatPicker);
+            dateFormatPicker.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitFor(() => dateMenu.IsOpen && dateMenu.RevealProgress == 1, "The Date format menu did not open.");
+            dateMenu.UpdateLayout();
+            CaptureControl(dateMenu, Path.Combine(Path.GetDirectoryName(preview)!, $"library-date-format-menu-{size.Item1}.png"));
+            var dateMenuWidth = dateMenu.Bounds.Width / EffectiveInterfaceScale;
+            Require(dateMenuWidth >= dateFormatPicker.Bounds.Width - 1 && dateMenuWidth <= 160 &&
+                dateMenu.Items.OfType<MenuItem>().Select(item => item.Header).SequenceEqual(["Numeric", "Friendly"]),
+                $"The Date format menu did not fit both choices at a compact width ({dateMenuWidth:0} DIP).");
+            dateMenu.Close();
+            await WaitFor(() => !dateMenu.IsOpen, "The Date format menu did not close.");
             ContentScroll.Offset = default;
         }
         (Width, Height) = librarySize;
@@ -326,6 +347,86 @@ internal sealed partial class Launcher
             Require(body.FontWeight == FontWeight.Normal && body.FontFamily == FontFamily && heading.FontWeight == FontWeight.SemiBold,
                 $"Release note typography was {body.FontFamily.Name} {body.FontWeight} for body text and {heading.FontWeight} for the heading.");
         }
+    }
+
+    private async Task VerifyGameTileLayout(Game game, string preview)
+    {
+        var librarySize = (Width, Height);
+        Navigate(Page.LibrarySettings);
+        UpdateLayout();
+        var layoutPicker = Picker("Minimum width");
+        foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
+        {
+            (Width, Height) = size;
+            await Task.Delay(40);
+            layoutPicker.BringIntoView();
+            UpdateLayout();
+            Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"library-game-tile-layout-{size.Item1}.png"));
+        }
+        (Width, Height) = librarySize;
+
+        var columns = Picker("Columns");
+        columns.BringIntoView();
+        UpdateLayout();
+        var minimumWidth = Picker("Minimum width");
+        Require(AutomationProperties.GetHelpText(columns) == "Current value 6" && GameTileColumns == 6,
+            "Existing profiles did not default to six game tile columns.");
+        Require(AutomationProperties.GetHelpText(minimumWidth) == "Current value 120 px" && GameTileMinimumWidth == 120,
+            "Existing profiles did not default to a 120 px minimum tile width.");
+        await ChoosePreference(columns, "10");
+        minimumWidth.BringIntoView();
+        UpdateLayout();
+        await ChoosePreference(minimumWidth, "32 px");
+        Require(_store.Load().Preferences is { TileColumns: 10, TileMinimumWidth: 32 },
+            "Changing the game tile layout did not save both preferences.");
+        (Width, Height) = (730, 510);
+        Navigate(Page.Library);
+        UpdateLayout();
+        var allGames = _cardGrid;
+        Require(allGames is { Columns: 10 } && Math.Abs(allGames.Bounds.Width - PageBody.Bounds.Width) <= 1,
+            "The full Library did not fill the available space with ten columns.");
+        var playedTile = allGames!.Children.OfType<Border>().Select(host => host.Child).OfType<GameCard>().First(card => card.ShowPlaytime);
+        var caption = playedTile.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "PlaytimePill");
+        Require(caption.Bounds.Width > 0 && caption.Bounds.Width <= playedTile.Bounds.Width,
+            "A dense game tile's playtime caption overflowed the tile.");
+        Capture(Path.Combine(Path.GetDirectoryName(preview)!, "library-game-columns-10-730.png"));
+        Navigate(Page.Collections, _library.Collections.First(collection => collection.Includes(game)));
+        UpdateLayout();
+        Require(_cardGrid is { Columns: 10 } members && Math.Abs(members.Bounds.Width - PageBody.Bounds.Width) <= 1,
+            "Collection members did not use the saved game column count.");
+        Navigate(Page.Home);
+        UpdateLayout();
+        var homeLibrary = PageBody.Children.OfType<ItemsControl>().Single(view => view.Name == "HomeLibraryGrid");
+        homeLibrary.BringIntoView();
+        await WaitFor(() => homeLibrary.GetVisualDescendants().OfType<UniformGrid>().Any(grid => grid.Columns == 10),
+            "The Home Library did not use the saved game column count.");
+        (Width, Height) = librarySize;
+        Navigate(Page.LibrarySettings);
+        UpdateLayout();
+        minimumWidth = Picker("Minimum width");
+        minimumWidth.BringIntoView();
+        UpdateLayout();
+        await ChoosePreference(minimumWidth, "160 px");
+        for (var count = 2; count <= 10; count++)
+        {
+            var threshold = count * 160 + (count - 1) * GameTileColumnSpacing;
+            Require(FittingGameTileColumns(threshold - 1) == count - 1 && FittingGameTileColumns(threshold) == count,
+                $"Tile sizing skipped the {count}-column threshold.");
+        }
+        (Width, Height) = (730, 510);
+        Navigate(Page.Library);
+        await WaitFor(() => _cardGrid?.Columns == 2, "The narrow Library did not reduce columns at the higher minimum tile width.");
+        (Width, Height) = librarySize;
+        await WaitFor(() => _cardGrid?.Columns > 2, "The Library did not restore columns at the wider size.");
+        Navigate(Page.LibrarySettings);
+        UpdateLayout();
+        await ChoosePreference(Picker("Columns"), "6");
+        await ChoosePreference(Picker("Minimum width"), "120 px");
+        Require(_store.Load().Preferences is { TileColumns: null, TileMinimumWidth: null }, "Restoring default tile settings did not persist.");
+        Navigate(Page.Home);
+
+        Button Picker(string name) => PageBody.GetVisualDescendants().OfType<Button>()
+            .Single(button => AutomationProperties.GetName(button) == name);
     }
 
     private async Task VerifyColourwaysAndWidgets(string preview)

@@ -163,6 +163,9 @@ internal static class CoreTests
             Check(oldLibrary.UsageNoticeAccepted && oldLibrary.Preferences.InterfaceFont == null && oldLibrary.Preferences.ShowRecentRss,
                 "Existing libraries enable Home RSS by default without resetting their acknowledgment");
             Check(oldLibrary.Preferences.ShowStoreTags, "Old settings keep store tags visible by default");
+            Check(oldLibrary.Preferences.TileColumns == null && library.Preferences.TileColumns == null &&
+                oldLibrary.Preferences.TileMinimumWidth == null && library.Preferences.TileMinimumWidth == null,
+                "Old and new profiles use the default game tile geometry");
             Check(!oldLibrary.Preferences.DisableArtworkAccent && !library.Preferences.DisableArtworkAccent,
                 "Existing and new profiles enable artwork accents by default");
             Check(!oldLibrary.Preferences.SetProcessPriority && !library.Preferences.SetProcessPriority,
@@ -198,6 +201,8 @@ internal static class CoreTests
             library.Preferences.DisablePlaytimeTracking = true;
             library.Preferences.HideTilePlaytime = true;
             library.Preferences.HideTileModIndicator = true;
+            library.Preferences.TileColumns = 4;
+            library.Preferences.TileMinimumWidth = 160;
             library.Preferences.FriendlyLaunchDates = true;
             library.Preferences.ShowStoreTags = false;
             library.Preferences.DisableArtworkAccent = true;
@@ -217,6 +222,7 @@ internal static class CoreTests
             var savedGame = saved.Games[0];
             Check(saved.Preferences.HideTilePlaytime && saved.Preferences.HideTileModIndicator && saved.Preferences.FriendlyLaunchDates,
                 "Tile visibility and launch date preferences survive reload");
+            Check(saved.Preferences.TileColumns == 4 && saved.Preferences.TileMinimumWidth == 160, "The game tile geometry survives reload");
             Check(savedGame.TagNames.SequenceEqual(new[] { "Co-op" }) && savedGame.SteamTagsFor().Contains("Space Sim"),
                 "Manual tags override the displayed tag list while Steam tags remain available");
             var developerRule = new CollectionRule
