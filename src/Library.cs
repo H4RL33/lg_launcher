@@ -183,6 +183,8 @@ namespace LGLauncher
         [DataMember(EmitDefaultValue = false)] public bool DisablePlaytimeTracking { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool HideTilePlaytime { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool HideTileModIndicator { get; set; }
+        [DataMember(EmitDefaultValue = false)] public int? TileColumns { get; set; }
+        [DataMember(EmitDefaultValue = false)] public int? TileMinimumWidth { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool FriendlyLaunchDates { get; set; }
         [DataMember(EmitDefaultValue = false)] public string Colourway { get; set; }
         [DataMember(EmitDefaultValue = false)] public int? WidgetRadius { get; set; }

@@ -108,14 +108,13 @@
       "kind": "component",
       "scope": "shared-avalonia",
       "source": "avalonia/LGLauncher.Components/Widgets.cs",
-      "summary": "Displays a responsive two-to-three portrait tile, accessible open action, optional playtime, and a top-right wrench for managed mods at 70% opacity.",
+      "summary": "Displays a responsive two-to-three portrait tile, accessible open action, optional playtime, and a compact white wrench badge for managed mods.",
       "symbols": [
         "GameCard",
         "Title",
         "Playtime",
         "ShowPlaytime",
         "IsModded",
-        "ModIndicatorBrush",
         "Artwork",
         "ArtworkStretch",
         "ArtworkHeight",
@@ -755,7 +754,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
-      "summary": "Lays out a responsive bounded card grid and supplies previous and next paging actions for the collections and discoveries workflows.",
+      "summary": "Fills the content width with up to the configured game columns, reduces columns at the saved minimum tile width, and sizes the separate collection cover grid.",
       "symbols": [
         "ShowCardGrid",
         "SizeCardGrid",
@@ -963,7 +962,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
-      "summary": "Constructs a portrait tile for a game, applies saved indicator and caption visibility, loads artwork, and attaches the shared game menu. The displayed artwork behind the wrench determines its contrast. Sorting moves tiles when motion is enabled.",
+      "summary": "Constructs a game portrait, applies the saved visibility of the wrench badge and playtime caption, loads artwork, and attaches the game menu. The grid uses the configured columns and animates sort changes when motion is enabled.",
       "symbols": [
         "BuildGameCard",
         "RenderCards",
@@ -1098,16 +1097,20 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Home.cs",
-      "summary": "Builds the full-library card grid as virtualised rows with adaptable column count. Recently played uses a separate shelf.",
+      "summary": "Builds Home's virtualised game grid with the configured tile-width threshold and column limit, plus the full Library's sort picker. Recently played uses the same sizing.",
       "symbols": [
         "HomeLibraryGrid",
+        "HomeLibraryHeader",
+        "HomeLibrarySortPicker",
+        "RefreshHomeLibrarySort",
         "RenderHome",
         "VirtualizingStackPanel",
         "ItemsControl"
       ],
       "related": [
         "component.game-card",
-        "pattern.desktop.game-card"
+        "pattern.desktop.game-card",
+        "style.choice-picker"
       ]
     },
     {
@@ -1180,14 +1183,17 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Settings.cs",
-      "summary": "Groups playtime recording and a compact symbolic clear action, game tile indicator and caption switches, game details date format, metadata display and music, and the recent RSS shelf.",
+      "summary": "Groups playtime recording and clearing, game tile columns and minimum width, visibility switches, compact date format, game metadata and music, and the recent RSS shelf.",
       "symbols": [
         "BuildLibrarySettings",
+        "GameTileColumns",
+        "GameTileMinimumWidth",
         "ApplyPlaytimeTracking",
         "ClearPlaytime"
       ],
       "related": [
         "pattern.desktop.preference-controls",
+        "style.choice-picker",
         "style.button.destructive"
       ]
     },
@@ -1247,6 +1253,7 @@
         "EditInterfaceScale",
         "SavePreference",
         "PreferencesChanged",
+        "CompactToggle",
         "overrideReason"
       ],
       "related": [
@@ -2061,12 +2068,14 @@
       "kind": "style",
       "scope": "shared-avalonia",
       "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
-      "summary": "Keeps the Fluent toggle switch face. The knob transition is enabled only under lg-motion.",
+      "summary": "Keeps the Fluent toggle face and motion. Caption-free launcher switches use the width of their track so the trailing edge aligns with neighbouring controls.",
       "selectors": [
         "ToggleSwitch",
+        "ToggleSwitch.lg-compact /template/ Border#OuterBorder, ToggleSwitch.lg-compact /template/ Border#SwitchKnobBounds, ToggleSwitch.lg-compact /template/ Canvas#PART_SwitchKnob",
         ".lg-motion ToggleSwitch"
       ],
       "classes": [
+        "lg-compact",
         "lg-motion"
       ],
       "resourceKeys": [
@@ -2180,12 +2189,13 @@
       "kind": "control-theme",
       "scope": "shared-avalonia",
       "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
-      "summary": "Renders clipped portrait art, a game-icon fallback, an accessible open button, an optional playtime pill, and an optional 70% opacity wrench.",
+      "summary": "Renders clipped portrait art, a game-icon fallback, an accessible open button, a width-constrained playtime pill, and a fixed white wrench on a small bordered badge.",
       "resourceKey": "{x:Type lg:GameCard}",
       "targetType": "GameCard",
       "symbols": [
         "PortraitFrame",
         "PlaytimePill",
+        "ModdedBadge",
         "ModdedWrench"
       ]
     },

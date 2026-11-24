@@ -14,7 +14,7 @@ The four files here are linked into the .NET 10 Desktop project. The Windows cor
 
 Profiles with unreadable JSON or null game, collection, or RSS subscription records fall back to the last readable backup. The first successful save after recovery replaces the unusable primary while preserving that backup. Subsequent saves resume backing up the previous primary.
 
-The optional `UsePreviewUpdates` preference records the Next preview opt-in. Fresh and existing profiles default to Stable when the field is absent.
+The optional `UsePreviewUpdates` preference records the Next preview opt-in. Fresh and existing profiles default to Stable when the field is absent. The optional `TileColumns` and `TileMinimumWidth` preferences store the game tile column limit and width threshold. Desktop defaults to six columns and 120 px when those fields are absent.
 
 Optional game properties store the added date, manual tags, scale, and Steam release date, developers, and publishers. Steam details are scoped to the ID that supplied them. Collection creation dates and older game addition dates can be unknown. Dynamic rules also accept Developer, Publisher, and Modded. The launcher populates Modded from installation records after loading a profile. Profiles can override the base colourway, widget radii and shadow strength, or disable playtime tracking. Optional flags hide the tile playtime caption or mod indicator, or enable friendly launch dates. Older profiles retain both captions and numeric dates by default.
 
