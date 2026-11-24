@@ -1098,7 +1098,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Home.cs",
-      "summary": "Builds the full-library card grid as virtualised rows with adaptable column count. Recently played uses a separate shelf.",
+      "summary": "Builds the complete library on Home as virtualised card rows with an adaptable column count and a sort picker shared with the sidebar. Recently played uses a separate shelf.",
       "symbols": [
         "HomeLibraryGrid",
         "RenderHome",
@@ -1352,12 +1352,12 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
-      "summary": "Shows top-level navigation and Settings. Library and Collections share semibold headings, smaller light sort labels, and animated list clips with plus-leading Add new actions.",
+      "summary": "Shows Home, Collections, Web, RSS, and Settings. Library and Collections share semibold headings, smaller light sort labels, and animated list clips with plus-leading Add new actions.",
       "symbols": [
         "LibrarySurface",
         "HomeNav",
         "CollectionsNav",
-        "LibraryNav",
+        "WebNav",
         "RssNav",
         "SidebarLists",
         "LibrarySectionHeader",
@@ -1384,6 +1384,84 @@
       "usedBy": [
         "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
         "avalonia/LGLauncher.Desktop/Launcher.Artwork.cs"
+      ]
+    },
+    {
+      "id": "pattern.desktop.web-workspace",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.cs",
+      "summary": "Switches among Browser, Downloads, and Files through a symbolic right rail while keeping browser tabs attached for state and transfers.",
+      "symbols": [
+        "RenderWebWorkspace",
+        "SelectWebView",
+        "ShowWebFiles"
+      ],
+      "related": [
+        "pattern.desktop.sidebar",
+        "pattern.desktop.web-browser",
+        "pattern.desktop.web-downloads",
+        "pattern.desktop.web-files"
+      ]
+    },
+    {
+      "id": "pattern.desktop.web-browser",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Browser.cs",
+      "summary": "Places the square address field and New tab icon above a full-height, evenly divided tab strip. Each tab contains its own close icon. The bookmark icon opens the saved list and current-page action. Opens the native WebView2 page on first navigation.",
+      "symbols": [
+        "BuildWebBrowser",
+        "WebAddress",
+        "WebTabStrip",
+        "WebAddressBar",
+        "WebNewTab",
+        "WebBookmarkList",
+        "WebNativeHost"
+      ],
+      "related": [
+        "pattern.desktop.web-workspace",
+        "style.button.selected",
+        "style.text-box",
+        "component.modal-dialog"
+      ]
+    },
+    {
+      "id": "pattern.desktop.web-downloads",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Transfers.cs",
+      "summary": "Shows download progress and cancellation for browser files and Magnet transfers and opens completed downloads in Files.",
+      "symbols": [
+        "BuildWebTransfers",
+        "WebMagnetInput",
+        "WebAddMagnet",
+        "WebTransferList"
+      ],
+      "related": [
+        "pattern.desktop.web-workspace",
+        "pattern.desktop.web-files",
+        "style.progress-bar",
+        "style.text-box"
+      ]
+    },
+    {
+      "id": "pattern.desktop.web-files",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Files.cs",
+      "summary": "Browses local folders starting from launcher downloads. Can select a completed transfer and open local files with the Windows shell.",
+      "symbols": [
+        "BuildWebFiles",
+        "WebFilesPath",
+        "WebFilesEntries",
+        "WebFilesOpen"
+      ],
+      "related": [
+        "pattern.desktop.web-workspace",
+        "pattern.desktop.web-downloads",
+        "style.text-box",
+        "component.modal-dialog"
       ]
     },
     {

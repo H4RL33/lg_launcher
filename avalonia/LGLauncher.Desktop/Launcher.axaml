@@ -75,8 +75,8 @@
                         <Button x:Name="CollectionsNav" Classes="lg quiet" HorizontalAlignment="Stretch" ToolTip.Tip="Collections" AutomationProperties.Name="Collections">
                             <ContentControl x:Name="CollectionsNavIcon"/>
                         </Button>
-                        <Button x:Name="LibraryNav" Classes="lg quiet" HorizontalAlignment="Stretch" ToolTip.Tip="Library" AutomationProperties.Name="Library">
-                            <lg:SymbolIcon Data="{DynamicResource LG.Icon.Library}" Width="19" Height="19"/>
+                        <Button x:Name="WebNav" Classes="lg quiet" HorizontalAlignment="Stretch" ToolTip.Tip="Web" AutomationProperties.Name="Web">
+                            <ContentControl x:Name="WebNavIcon"/>
                         </Button>
                         <Button x:Name="RssNav" Classes="lg quiet" HorizontalAlignment="Stretch" ToolTip.Tip="RSS" AutomationProperties.Name="RSS">
                             <lg:SymbolIcon Data="{DynamicResource LG.Icon.Rss}" Width="19" Height="19"/>
@@ -194,6 +194,8 @@
                         <StackPanel x:Name="PageBody" Spacing="12"/>
                     </StackPanel>
                 </ScrollViewer>
+                <ContentControl x:Name="WebWorkspaceHost" IsVisible="False" HorizontalContentAlignment="Stretch"
+                                VerticalContentAlignment="Stretch"/>
                 <StackPanel x:Name="SearchSurface" Width="246" Spacing="6"
                             HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,18,27,0">
                     <Grid>

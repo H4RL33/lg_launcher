@@ -9,6 +9,7 @@ Run commands from the repository root. The default Windows product is `build/LG 
 | After changes | `pwsh -NoProfile -File ./lint.ps1` |
 | Shared model, parsers, process tracking, or discovery | `pwsh -NoProfile -File ./build.ps1 -Test` |
 | Windows desktop behaviour, migration, or update handoff | `pwsh -NoProfile -File ./build.ps1 -Smoke` |
+| Experimental Web workspace | Build the Windows executable, then run `pwsh -NoProfile -File ./tests/Verify-AvaloniaMigration.ps1 -WebOnly` with the WebView2 Runtime installed. |
 | Windows Mods UI only | `pwsh -NoProfile -File ./tests/Verify-AvaloniaMigration.ps1 -Launcher './build/LG Launcher.exe' -ModsOnly` |
 | Windows mod package and transaction fixtures | `pwsh -NoProfile -File ./tests/Verify-AvaloniaMods.ps1 -Launcher './build/LG Launcher.exe'` |
 | OptiScaler catalog importer | `python -B -m unittest discover -s tests -p 'test_import_optiscaler_catalog.py'` |

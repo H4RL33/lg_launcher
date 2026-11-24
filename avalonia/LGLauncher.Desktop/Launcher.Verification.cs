@@ -963,9 +963,11 @@ internal sealed partial class Launcher
         {
             _sort = 0;
             _motion = false;
-            LibraryNav.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Require(_page == Page.Library && _cardGrid?.Children.Count == _library.Games.Count,
-                "The Library button did not open the whole library grid.");
+            HomeNav.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            UpdateLayout();
+            var homeLibrary = PageBody.Children.OfType<ItemsControl>().Single(control => control.Name == "HomeLibraryGrid");
+            Require(homeLibrary.Items.Cast<Game[]>().Sum(row => row.Length) == _library.Games.Count,
+                "Home did not show all games in its Library section.");
             foreach (var button in new[] { AddGame, AddCollection })
                 Require(button.Content is StackPanel { Children: [SymbolIcon plus, TextBlock { Text: "Add new" }] } &&
                     Equals(plus.Data, this.FindResource("LG.Icon.Plus")), "The Add new action did not put the plus before its text.");
@@ -983,10 +985,12 @@ internal sealed partial class Launcher
             var librarySort = PageBody.GetVisualDescendants().OfType<Button>().Single(button =>
                 AutomationProperties.GetName(button) == "Sort library");
             await ChoosePreference(librarySort, "Title Z–A");
-            Require(_shownEntries[0].Game == played && _cardGrid?.Children[0].Tag == played,
-                "The Library sort did not reorder the grid and sidebar together.");
+            await WaitFor(() => _shownEntries[0].Game == played && PageBody.Children.OfType<ItemsControl>()
+                .Single(control => control.Name == "HomeLibraryGrid").Items.Cast<Game[]>().FirstOrDefault()?.FirstOrDefault() == played,
+                "The Library sort did not reorder Home and the sidebar together.");
             await ChoosePreference(PageBody.GetVisualDescendants().OfType<Button>().Single(button =>
                 AutomationProperties.GetName(button) == "Sort library"), "Title A–Z");
+            Navigate(Page.Collections, manual);
             foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
             {
                 (Width, Height) = size;
@@ -1003,7 +1007,7 @@ internal sealed partial class Launcher
                 UpdateModIndicatorContrast(tile, bright);
                 Require(icon.Foreground is ISolidColorBrush { Color: var ink } && ink == Colors.Black,
                     "The bright portrait did not use a black wrench.");
-                Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"whole-library-{size.Item1}.png"));
+                Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"modded-collection-{size.Item1}.png"));
                 tile.Artwork = null;
             }
             Navigate(Page.Collections);

@@ -14,7 +14,7 @@ The navigation check verifies eviction of the oldest route at the 64-entry limit
 
 The collection sidebar check opens a collection from its row, compares the game and collection row sizes, checks the miniature symbols, and verifies the sort picker's frosted menu. At 730, 1230, and 1600 dips wide it captures the sidebar, popup, and sorted tile during and after movement. It tracks the remaining translation through animation cleanup to catch any jump toward the original slot. The same widths exercise and capture the immediate reorder with motion disabled.
 
-The Library fixture opens the whole-library grid from its icon, collapses and reopens its sidebar list, checks the plus signs and collection type chooser, and verifies that reverse sorting updates the list and grid together.
+The Library fixture opens Home, collapses and reopens the Library sidebar list, checks the plus signs and collection type chooser, and verifies that reverse sorting updates the list and Home grid together. The collection grid fixture checks the modded portrait indicator.
 
 The Home fixture checks that Collections hides its scrollbar and retains animated shelf arrows and horizontal wheel input. It captures the overflowing shelves across narrow, typical, and wide windows.
 

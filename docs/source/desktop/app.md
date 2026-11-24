@@ -4,7 +4,7 @@
 
 ## `avalonia/LGLauncher.Desktop/LGLauncher.Desktop.csproj`
 
-Defines the desktop executable, assembly version, linked core sources, and embedded resources. It embeds the OptiScaler catalog, references the 7z reader and the Markdig release-notes parser, and marks single-file publishes as eligible for the in-app updater. The Setup upgrade smoke harness uses `SetupFixtureAppId` to build disposable bundles for its unique per-user registration.
+Defines the desktop executable, assembly version, linked core sources, and embedded resources. It embeds the OptiScaler catalog, references the 7z reader, the Markdig release-notes parser, and the experimental web and transfer packages, and marks single-file publishes as eligible for the in-app updater. The Setup upgrade smoke harness uses `SetupFixtureAppId` to build disposable bundles for its unique per-user registration.
 
 The project embeds its MIT license as `LGLauncher.LICENSE.txt`, so the portable executable and the executable installed by Windows Setup carry the notice. [Project license](../../../LICENSE)
 
@@ -37,7 +37,7 @@ Bundles the upstream license notices for NVorbis, Concentus.Oggfile, and Concent
 
 ## `avalonia/LGLauncher.Desktop/Program.cs`
 
-Provides the desktop process entry point. It separates a normal single-instance launch from early update worker, restart, and verification arguments, including the mod fixture runner. The worker and restart modes retain whether the package is Windows Setup or a portable executable so they can find the correct staging directory. Both Setup and portable launches resolve the running account's Local Application Data known folder and append `LG Launcher`. An existing Windows instance receives an activation signal. Smoke modes, including `--verify-setup`, take an explicit fixture directory and preview path.
+Provides the desktop process entry point. It separates a normal single-instance launch from early update worker, restart, and verification arguments, including the mod fixture runner. The worker and restart modes retain whether the package is Windows Setup or a portable executable so they can find the correct staging directory. Both Setup and portable launches resolve the running account's Local Application Data known folder and append `LG Launcher`. An existing Windows instance receives an activation signal. Smoke modes, including `--verify-setup` and `--verify-web`, take an explicit fixture directory and preview path.
 
 The entry point loads the profile before platform initialization and passes it to the window. Windows uses Avalonia's default Direct3D 11 renderer through ANGLE with software fallback. If the saved preference disables hardware rendering, startup selects the software renderer and redirection-surface composition. [Avalonia Windows rendering modes](https://docs.avaloniaui.net/docs/platform-specific-guides/windows#rendering-mode)
 
@@ -68,7 +68,7 @@ Owns the application lifetime so the splash can hand off to the launcher after s
 
 ## `avalonia/LGLauncher.Desktop/Launcher.axaml`
 
-Declares the main-window visual tree shared by the feature partials. It owns the sidebar and navigation buttons, title/status chrome, game detail and artwork hosts, page heading with the Mods request action and scope note, page body and scroll viewer, search results panel, and modal host. The sidebar uses the original 32-dip game-row height for game and collection rows and buttons. Both sidebar lists can scroll when space runs out. The window styles tie frosted surfaces to the artwork state. The search panel uses the shared search frame, result row, and height transition styles.
+Declares the main-window visual tree shared by the feature partials. It owns the sidebar and navigation buttons, title/status chrome, the game detail and artwork hosts, the Web workspace host, page heading with the Mods request action and scope note, page body and scroll viewer, search results panel, and modal host. The sidebar uses the original 32-dip game-row height for game and collection rows and buttons. Both sidebar lists can scroll when space runs out. The window styles tie frosted surfaces to the artwork state. The search panel uses the shared search frame, result row, and height transition styles.
 
 On game details, a matched Steam App ID appears beside Playtime and Last Launched in the wrapping stats row. `RenderDetails` hides the whole item for unmatched games. Last Launched uses the Library date-format preference. The tooltip and other date displays keep the standard local date format.
 
@@ -83,7 +83,7 @@ The collection list wires realized rows to the shared context menu so users can 
 
 Coordinates the main window. Its constructor wires the shared shell and initializes services from the loaded profile. The window title displays the installed stable or Next preview tag. It owns startup and disposal hooks. When the usage notice is pending, startup runs the first-usage prompts before allowing automatic installation. The render dispatcher selects page content, updates the sidebar lists and their selections, builds game cards and collection member grids, and updates Discoveries and game details. It also starts folder watches, scans local executables, matches games to Steam, and records play sessions.
 
-The renderer shares the portrait grid between Library and collection members. The sidebar exposes both views and the status bar leads to Discoveries. Game details display playtime according to the saved setting and show Modded status from managed installations.
+Home hosts the complete library in a virtualised grid and collection members use the paged portrait grid. The sidebar exposes Home, Collections, Web, and RSS. The status bar leads to Discoveries. The window stops transfers and releases browser controllers when it closes. Game details display playtime according to the saved setting and show Modded status from managed installations.
 
 When the last tracked game exits, `EndSession` saves the game-return count with playtime and uses the normal tray restore path to show and activate the launcher. It then checks whether a contribution reminder is due.
 

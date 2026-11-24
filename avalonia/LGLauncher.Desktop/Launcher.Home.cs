@@ -14,8 +14,9 @@ internal sealed partial class Launcher
     {
         PageTitle.Text = "Home";
         RenderHomeRss();
-        var games = _library.Games.OrderBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase).ToArray();
-        var recent = games.Where(game => game.LastPlayedUtc.HasValue).OrderByDescending(game => game.LastPlayedUtc).Take(3).ToArray();
+        var games = SortedGames(_library.Games, _librarySort).ToArray();
+        var recent = _library.Games.Where(game => game.LastPlayedUtc.HasValue).OrderByDescending(game => game.LastPlayedUtc)
+            .ThenBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase).Take(3).ToArray();
         var collections = _library.Collections.OrderBy(collection => collection.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
 
         if (recent.Length == 0)
@@ -33,7 +34,17 @@ internal sealed partial class Launcher
         else AddHomeShelf("Collections", "HomeCollectionsRow", collections.Select(CollectionBrowseCard), 200,
             scrollbar: ScrollBarVisibility.Hidden);
 
-        PageBody.Children.Add(Heading("Library"));
+        var libraryHeading = Heading("Library");
+        libraryHeading.VerticalAlignment = VerticalAlignment.Center;
+        var libraryHeader = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), Children = { libraryHeading } };
+        if (games.Length > 0)
+        {
+            var librarySort = BuildChoicePicker("Sort library", GameSortChoices(), _librarySort,
+                index => GameSortLabels[index], index => SetLibrarySort(index, fromSidebar: false));
+            Grid.SetColumn(librarySort, 1);
+            libraryHeader.Children.Add(librarySort);
+        }
+        PageBody.Children.Add(libraryHeader);
         if (games.Length == 0)
         {
             PageBody.Children.Add(Label("Add a game or watch a folder to get started.", muted: true));

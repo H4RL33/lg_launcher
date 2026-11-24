@@ -62,6 +62,7 @@ rg -n -i -C 4 'frosted|lg-menu|lg\.icon\.refresh' docs/ui/catalog.json
 | Icon or palette colour | Search `resourceKey` for `LG.Icon.*` or filter entries with `kind == "token"`. |
 | Artwork-backed surfaces or reduced motion | `pattern.desktop.artwork-renderer`, `style.desktop.artwork-glass`, `state.desktop.motion`, `state.desktop.opaque` |
 | Mod setup, downloads, or installed-mod actions | `pattern.desktop.mods`, `style.warning-panel`, `style.progress-bar` |
+| Web navigation, tabs, downloads, or local files | `pattern.desktop.web-workspace`, `pattern.desktop.web-browser`, `pattern.desktop.web-downloads`, `pattern.desktop.web-files` |
 | About release notes | `pattern.desktop.release-notes`, `style.tabs` |
 
 ## Record format and maintenance

@@ -17,7 +17,7 @@ namespace LGLauncher;
 
 internal sealed partial class Launcher : Window
 {
-    private enum Page { Home, Library, Collections, Discoveries, Rss, RssArticle, Settings, Appearance, Widgets, Behaviour, RssSettings, LibrarySettings, Mods, About, Game }
+    private enum Page { Home, Web, Collections, Discoveries, Rss, RssArticle, Settings, Appearance, Widgets, Behaviour, RssSettings, LibrarySettings, Mods, About, Game }
 
     private readonly LibraryStore _store;
     private readonly Library _library;
@@ -103,7 +103,14 @@ internal sealed partial class Launcher : Window
         var collectionsIcon = Symbol("LG.Icon.Library", 19);
         collectionsIcon.Data = LucideIconCatalog.Find("grid-2x2")?.Geometry ?? collectionsIcon.Data;
         CollectionsNavIcon.Content = collectionsIcon;
-        Click(LibraryNav, () => Navigate(Page.Library));
+        var webIcon = Symbol("LG.Icon.ExternalLink", 19);
+        webIcon.Data = LucideIconCatalog.Find("globe")?.Geometry ?? webIcon.Data;
+        WebNavIcon.Content = webIcon;
+        Click(WebNav, () => Navigate(Page.Web));
+        DialogHost.PropertyChanged += (_, args) =>
+        {
+            if (args.Property == IsVisibleProperty) UpdateWebBrowserVisibility();
+        };
         Click(RssNav, () => Navigate(Page.Rss));
         Click(OpenReviews, () => Navigate(Page.Discoveries));
         Click(SettingsNav, () => Navigate(Page.Settings));
@@ -187,6 +194,8 @@ internal sealed partial class Launcher : Window
         {
             _closed = true;
             if (!_saveFailed) FlushPendingSteamGenres();
+            DisposeWebTransfers();
+            DisposeWebBrowser();
             DialogHost.CloseAll();
             _searchDelay.Stop();
             _rssTimer.Stop();
@@ -213,7 +222,7 @@ internal sealed partial class Launcher : Window
     private void HandleKeys(object? sender, KeyEventArgs args)
     {
         if (_updateHandoff) { args.Handled = true; return; }
-        if (DialogHost.HasModal) return;
+        if (DialogHost.HasModal || _stoppingWebTransfers) return;
         if (args.Key is Key.BrowserBack or Key.BrowserForward)
         {
             MoveInHistory(args.Key == Key.BrowserBack ? -1 : 1);
@@ -222,6 +231,11 @@ internal sealed partial class Launcher : Window
         }
         if (HandleArtworkKey(args.Key)) { args.Handled = true; return; }
         if (args.KeyModifiers == KeyModifiers.None && HandleSearchKey(args.Key)) { args.Handled = true; return; }
+        if (HandleWebKey(args))
+        {
+            args.Handled = true;
+            return;
+        }
         if (args.KeyModifiers != KeyModifiers.Control) return;
         switch (args.Key)
         {
@@ -239,15 +253,17 @@ internal sealed partial class Launcher : Window
         RefreshDiscoveryIndicators();
         HomeNav.Classes.Set("selected", _page == Page.Home);
         CollectionsNav.Classes.Set("selected", _page == Page.Collections);
-        LibraryNav.Classes.Set("selected", _page == Page.Library);
+        var webPage = _page == Page.Web;
+        WebNav.Classes.Set("selected", webPage);
+        WebWorkspaceHost.IsVisible = webPage;
         var settingsPage = _page is Page.Settings or Page.Appearance or Page.Widgets or Page.Behaviour or Page.RssSettings or Page.LibrarySettings or Page.Mods or Page.About;
         RssNav.Classes.Set("selected", _page is Page.Rss or Page.RssArticle);
         SettingsNav.Classes.Set("selected", settingsPage);
-        SearchSurface.IsVisible = !settingsPage && !_editingArtwork && _page != Page.RssArticle;
+        SearchSurface.IsVisible = !webPage && !settingsPage && !_editingArtwork && _page != Page.RssArticle;
         var returningToMods = _page == Page.Mods && Details.IsVisible;
         Details.IsVisible = _page == Page.Game;
         UpdateThemeMusic();
-        ContentScroll.IsVisible = !Details.IsVisible;
+        ContentScroll.IsVisible = !Details.IsVisible && !webPage;
         RequestModButton.IsVisible = ModRequestScope.IsVisible = _page == Page.Mods;
         ApplyArtworkAccent();
         RefreshArtworkGlass();
@@ -259,6 +275,13 @@ internal sealed partial class Launcher : Window
             return;
         }
         ClearGameLogo();
+        if (webPage)
+        {
+            _cardGrid = null;
+            PageBody.Children.Clear();
+            RenderWebWorkspace();
+            return;
+        }
         var settingsTitle = _page switch
         {
             Page.Settings => "Settings",
@@ -283,7 +306,6 @@ internal sealed partial class Launcher : Window
         switch (_page)
         {
             case Page.Home: RenderHome(); break;
-            case Page.Library: RenderWholeLibrary(); break;
             case Page.Collections: RenderCollections(); break;
             case Page.Discoveries: RenderDiscoveries(); break;
             case Page.Rss: RenderRss(); break;
@@ -555,7 +577,12 @@ internal sealed partial class Launcher : Window
 
     private async void HandleClosing(object? sender, WindowClosingEventArgs args)
     {
-        if (_allowClose || _verification) return;
+        if (_verification) return;
+        if (_allowClose)
+        {
+            DeferCloseForWebTransfers(args);
+            return;
+        }
         if (_updateHandoff) { args.Cancel = true; return; }
         if (_modFileOperation) { args.Cancel = true; Status("Wait for the mod file operation to finish."); return; }
         if (!_explicitQuit && args.CloseReason == WindowCloseReason.WindowClosing && DialogHost.HasModal)
@@ -570,7 +597,11 @@ internal sealed partial class Launcher : Window
             return;
         }
         _explicitQuit = false;
-        if (_playing.Count == 0 && !_saveFailed) return;
+        if (_playing.Count == 0 && !_saveFailed)
+        {
+            if (DeferCloseForWebTransfers(args)) _allowClose = true;
+            return;
+        }
         args.Cancel = true;
         if (_confirmingClose) return;
         _confirmingClose = true;

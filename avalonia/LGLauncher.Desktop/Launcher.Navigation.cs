@@ -106,6 +106,6 @@ internal sealed partial class Launcher
             ContentScroll.UpdateLayout();
             ContentScroll.Offset = entry.Scroll;
         }
-        if (animate) AnimateView(_page == Page.Game ? GameInfo : ContentScroll);
+        if (animate && _page != Page.Web) AnimateView(_page == Page.Game ? GameInfo : ContentScroll);
     }
 }
