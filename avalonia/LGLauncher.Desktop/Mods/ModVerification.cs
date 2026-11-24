@@ -912,10 +912,13 @@ internal static class ModVerification
         await service.InstallAsync(new(target, [new("dxgi.dll", null, "fixture ReShade"u8.ToArray(), reShade.Provider)], [reShade]), token);
         var existing = service.FindInstallations().Single();
         Require((await Preview(existing)).Missing.SequenceEqual([ModProviderId.RenoDx]), "RenoDX did not offer to download its matched add-on.");
-        await store.AcquireAsync(option.Package, token);
+        await Reject(() => store.AcquireAsync(option.Package, token));
+        var downloaded = await store.FetchRenoDxAsync(option.Package, token);
+        Require(downloaded.SequenceEqual(binary) && store.List(ModProviderId.RenoDx).Count == 0,
+            "The game-specific RenoDX download created a central cache entry.");
         var addon = Path.Combine(folder, option.File);
         File.WriteAllText(addon, "original game add-on");
-        var preview = await Preview(existing);
+        var preview = await Preview(existing, downloaded);
         var plan = preview.Plan ?? throw new InvalidOperationException(preview.Message);
         File.WriteAllText(Path.Combine(folder, "dxgi.dll"), "changed after preview");
         await Reject(() => service.InstallAsync(plan, token));
@@ -950,7 +953,8 @@ internal static class ModVerification
         Require(ModFileSnapshot.Read(addon)?.Hash == localUpdate.Packages.Single().Digest &&
             !File.Exists(Path.Combine(folder, Path.GetFileName(nextFile))), "Updating from file changed the managed add-on path.");
         existing = service.FindInstallations().Single();
-        var replacement = await planner.PreviewUpdateAsync(existing, localUpdate.Packages.Single(), option.Package, token);
+        var replacement = await planner.PreviewUpdateAsync(existing, localUpdate.Packages.Single(), option.Package, token,
+            await store.FetchRenoDxAsync(option.Package, token));
         File.WriteAllText(Path.Combine(folder, "dxgi.dll"), "changed after update preview");
         await Reject(() => service.InstallAsync(replacement, token));
         File.WriteAllText(Path.Combine(folder, "dxgi.dll"), "fixture ReShade");
@@ -958,13 +962,13 @@ internal static class ModVerification
         var updated = service.FindInstallations().Single();
         Require(updated.Packages.Contains(option.Package.Key) && updated.Files.First(file => file.Owner == ModProviderId.RenoDx).Original != null,
             "Updating the add-on did not keep its original uninstall backup.");
-        await store.DeleteAsync(option.Package.Key, token);
-        Require(ModFileSnapshot.Read(addon)?.Hash == option.Digest, "Removing an updated package from the cache changed the game file.");
+        Require(ModFileSnapshot.Read(addon)?.Hash == option.Digest && store.List(ModProviderId.RenoDx).Count == 0,
+            "The per-game RenoDX update did not deploy without creating a cache entry.");
         await service.UninstallAsync(updated.Id, false, token, ModProviderId.RenoDx);
         Require(File.ReadAllText(addon) == "original game add-on", "Uninstalling an updated add-on did not restore the original.");
 
-        Task<ModPlanPreview> Preview(ModInstallationRecord? record) =>
-            planner.PreviewAddonAsync(game, folder, exe, true, record, option.Package, option, token);
+        Task<ModPlanPreview> Preview(ModInstallationRecord? record, byte[]? payload = null) =>
+            planner.PreviewAddonAsync(game, folder, exe, true, record, option.Package, option, token, downloadedAddon: payload);
     }
 
     private static byte[] Zip(params (string Name, string Value)[] entries)

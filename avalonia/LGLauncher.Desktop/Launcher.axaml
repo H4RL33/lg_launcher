@@ -18,8 +18,14 @@
         </Style>
         <Style Selector="TextBlock.sidebar-heading">
             <Setter Property="Foreground" Value="{DynamicResource LG.Muted}"/>
-            <Setter Property="FontSize" Value="{DynamicResource LG.Font.11}"/>
+            <Setter Property="FontSize" Value="{DynamicResource LG.Font.12}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="TextBlock.sidebar-sort">
+            <Setter Property="FontSize" Value="{DynamicResource LG.Font.11}"/>
+            <Setter Property="FontWeight" Value="Light"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
         <Style Selector="Border#LibrarySurface Button.lg">
             <Setter Property="MinHeight" Value="0"/>
@@ -29,10 +35,10 @@
             <Setter Property="Background" Value="{DynamicResource LG.ArtworkGlass}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource LG.ArtworkGlassLine}"/>
         </Style>
-        <Style Selector="Window.artwork-glass TextBox.library-search /template/ Border#PART_BorderElement">
+        <Style Selector="Window.artwork-glass TextBox.library-search:not(:pointerover) /template/ Border#PART_BorderElement, Window.artwork-glass TextBox.library-search:focus /template/ Border#PART_BorderElement">
             <Setter Property="Background" Value="{DynamicResource LG.ArtworkGlass}"/>
         </Style>
-        <Style Selector="Window.artwork-glass TextBox.library-search:not(:focus) /template/ Border#PART_BorderElement">
+        <Style Selector="Window.artwork-glass TextBox.library-search:not(:pointerover):not(:focus) /template/ Border#PART_BorderElement">
             <Setter Property="BorderBrush" Value="{DynamicResource LG.ArtworkGlassLine}"/>
         </Style>
     </Window.Styles>
@@ -78,42 +84,46 @@
                     </UniformGrid>
                     <Grid Grid.Row="1" x:Name="SidebarLists" RowDefinitions="Auto,*,Auto,*">
                         <ContentControl x:Name="LibrarySectionHeader"/>
-                        <Grid Grid.Row="1" x:Name="LibrarySection" RowDefinitions="*,Auto">
-                            <ListBox x:Name="LibraryGames" Classes="lg sidebar-list" AutomationProperties.Name="Library games">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate x:CompileBindings="False">
-                                        <lg:LibraryRow Title="{Binding Title}" Icon="{Binding SidebarIcon}"/>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                            <TextBlock x:Name="LibraryEmpty" Text="No games yet" Classes="lg-muted" Margin="8,6,0,0"/>
-                            <Button Grid.Row="1" x:Name="AddGame" Classes="lg quiet nav" AutomationProperties.Name="Add new game">
-                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                    <lg:SymbolIcon Data="{DynamicResource LG.Icon.Plus}" Width="16" Height="16" VerticalAlignment="Center"/>
-                                    <TextBlock Text="Add new" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                        </Grid>
+                        <Border Grid.Row="1" x:Name="LibrarySectionClip" ClipToBounds="True">
+                            <Grid x:Name="LibrarySection" RowDefinitions="*,Auto" VerticalAlignment="Top">
+                                <ListBox x:Name="LibraryGames" Classes="lg sidebar-list" AutomationProperties.Name="Library games">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:CompileBindings="False">
+                                            <lg:LibraryRow Title="{Binding Title}" Icon="{Binding SidebarIcon}"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <TextBlock x:Name="LibraryEmpty" Text="No games yet" Classes="lg-muted" Margin="8,6,0,0"/>
+                                <Button Grid.Row="1" x:Name="AddGame" Classes="lg quiet nav" AutomationProperties.Name="Add new game">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <lg:SymbolIcon Data="{DynamicResource LG.Icon.Plus}" Width="16" Height="16" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Add new" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </Border>
                         <Border Grid.Row="2" Padding="0,12,0,0">
                             <ContentControl x:Name="CollectionsSectionHeader"/>
                         </Border>
-                        <Grid Grid.Row="3" x:Name="CollectionsSection" RowDefinitions="*,Auto">
-                            <ListBox x:Name="LibraryCollections" Classes="lg sidebar-list" AutomationProperties.Name="Library collections"
-                                     ContainerPrepared="PrepareCollectionRow">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate x:CompileBindings="False">
-                                        <lg:LibraryRow Title="{Binding Title}" IconSymbol="{Binding Icon}"/>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                            <TextBlock x:Name="CollectionsEmpty" Text="No collections yet" Classes="lg-muted" Margin="8,6,0,0"/>
-                            <Button Grid.Row="1" x:Name="AddCollection" Classes="lg quiet nav" AutomationProperties.Name="Add new collection">
-                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                    <lg:SymbolIcon Data="{DynamicResource LG.Icon.Plus}" Width="16" Height="16" VerticalAlignment="Center"/>
-                                    <TextBlock Text="Add new" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
-                        </Grid>
+                        <Border Grid.Row="3" x:Name="CollectionsSectionClip" ClipToBounds="True">
+                            <Grid x:Name="CollectionsSection" RowDefinitions="*,Auto" VerticalAlignment="Top">
+                                <ListBox x:Name="LibraryCollections" Classes="lg sidebar-list" AutomationProperties.Name="Library collections"
+                                         ContainerPrepared="PrepareCollectionRow">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate x:CompileBindings="False">
+                                            <lg:LibraryRow Title="{Binding Title}" IconSymbol="{Binding Icon}"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                <TextBlock x:Name="CollectionsEmpty" Text="No collections yet" Classes="lg-muted" Margin="8,6,0,0"/>
+                                <Button Grid.Row="1" x:Name="AddCollection" Classes="lg quiet nav" AutomationProperties.Name="Add new collection">
+                                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <lg:SymbolIcon Data="{DynamicResource LG.Icon.Plus}" Width="16" Height="16" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Add new" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </Border>
                     </Grid>
                     <StackPanel Grid.Row="2" Spacing="3" Margin="0,8,0,0">
                         <Button x:Name="SettingsNav" Classes="lg quiet nav">

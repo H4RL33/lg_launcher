@@ -136,11 +136,22 @@ internal sealed partial class Launcher
             "The library and Home preferences did not round-trip.");
         Capture(Path.Combine(Path.GetDirectoryName(preview)!, "library-settings.png"));
         var librarySize = (Width, Height);
+        var tileCaption = Setting<ToggleSwitch>("Show playtime caption");
+        var clearButton = Setting<Button>("Clear playtime data");
         foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
         {
             (Width, Height) = size;
             await Task.Delay(85);
+            Require(clearButton.Parent is Grid row && clearButton.Content is SymbolIcon icon &&
+                Math.Abs(clearButton.Bounds.Width - (icon.Bounds.Width + clearButton.Padding.Left + clearButton.Padding.Right +
+                    clearButton.BorderThickness.Left + clearButton.BorderThickness.Right)) <= 1 &&
+                Math.Abs(clearButton.Bounds.Right - row.Bounds.Width) <= 1,
+                "Clear playtime did not use the compact, right-aligned symbolic delete button.");
             Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"library-theme-music-{size.Item1}.png"));
+            tileCaption.BringIntoView();
+            UpdateLayout();
+            Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"library-game-tiles-{size.Item1}.png"));
+            ContentScroll.Offset = default;
         }
         (Width, Height) = librarySize;
         useLogos.IsChecked = true;
@@ -155,6 +166,28 @@ internal sealed partial class Launcher
         Navigate(Page.LibrarySettings);
         UpdateLayout();
         Setting<ToggleSwitch>("Track playtime").IsChecked = true;
+        var modIndicator = Setting<ToggleSwitch>("Show mod indicator");
+        var tilePlaytime = Setting<ToggleSwitch>("Show playtime caption");
+        var tileFixture = new Game { Title = "Modded portrait", IsModded = true, PlaySeconds = 120 };
+        Require(BuildGameCard(tileFixture) is { ShowPlaytime: true, IsModded: true }, "Tile preferences did not default on.");
+        modIndicator.IsChecked = tilePlaytime.IsChecked = false;
+        var tilePreferences = _store.Load().Preferences;
+        Require(tilePreferences.HideTileModIndicator && tilePreferences.HideTilePlaytime &&
+            BuildGameCard(tileFixture) is { ShowPlaytime: false, IsModded: false }, "The tile controls did not apply and save.");
+        modIndicator.IsChecked = tilePlaytime.IsChecked = true;
+
+        await ChoosePreference(Setting<Button>("Date format"), "Friendly");
+        var previousCulture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
+            var date = new DateTime(DateTime.Now.Year, 11, 22, 12, 0, 0, DateTimeKind.Local).ToUniversalTime();
+            Require(_store.Load().Preferences.FriendlyLaunchDates && FormatLastLaunched(date) == "Nov. 22" &&
+                FormatLastLaunched(date.AddYears(-1)) == $"Nov. 22, {DateTime.Now.Year - 1}" && FormatLastLaunched(null) == "Never",
+                "The friendly date format did not preserve the month, date, and older year.");
+        }
+        finally { System.Globalization.CultureInfo.CurrentCulture = previousCulture; }
+        await ChoosePreference(Setting<Button>("Date format"), "Numeric");
         var previousTimes = _library.Games.Select(entry => (Game: entry, entry.PlaySeconds)).ToArray();
         Setting<Button>("Clear playtime data").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Require(ActiveModDialog is { } clear && AutomationProperties.GetName(clear) == "Clear playtime data?",

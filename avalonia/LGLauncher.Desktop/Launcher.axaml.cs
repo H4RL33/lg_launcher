@@ -349,9 +349,8 @@ internal sealed partial class Launcher : Window
         LibraryCollections.SelectedItem = _page == Page.Collections ? _shownCollections.FirstOrDefault(entry => entry.Collection == _collection) : null;
         _updatingSidebar = false;
 
-        var rowHeight = (double)this.FindResource("LG.SidebarRowHeight")!;
-        SidebarLists.RowDefinitions[1].MaxHeight = LibrarySection.IsVisible ? (Math.Max(rows.Length, 1) + 1) * rowHeight : 0;
-        SidebarLists.RowDefinitions[3].MaxHeight = CollectionsSection.IsVisible ? (Math.Max(collections.Length, 1) + 1) * rowHeight : 0;
+        SettleSidebarSection(LibrarySectionClip, LibrarySection);
+        SettleSidebarSection(CollectionsSectionClip, CollectionsSection);
         LibraryEmpty.IsVisible = rows.Length == 0;
         CollectionsEmpty.IsVisible = collections.Length == 0;
         RefreshVisibleIcons();
@@ -435,9 +434,9 @@ internal sealed partial class Launcher : Window
         var card = new GameCard
         {
             Title = game.Title,
-            IsModded = game.IsModded,
+            IsModded = game.IsModded && !_library.Preferences.HideTileModIndicator,
             Playtime = game.PlaySeconds >= 3600 ? $"{game.PlaySeconds / 3600d:0.#} hr" : $"{game.PlaySeconds / 60} min",
-            ShowPlaytime = TrackPlaytime && showPlaytime && game.PlaySeconds >= 60,
+            ShowPlaytime = TrackPlaytime && !_library.Preferences.HideTilePlaytime && showPlaytime && game.PlaySeconds >= 60,
             OpenCommand = new LauncherCommand(() => SelectGame(game)),
             ContextMenu = BuildGameMenu(game, PlacementMode.Pointer)
         };
@@ -518,7 +517,7 @@ internal sealed partial class Launcher : Window
         AutomationProperties.SetName(SteamLabel, hasSteamMatch ? $"Steam App ID {SteamLabel.Text}" : null);
         Playtime.Text = game.PlaySeconds >= 3600 ? $"{game.PlaySeconds / 3600} hr {game.PlaySeconds % 3600 / 60} min" : $"{game.PlaySeconds / 60} min";
         PlaytimeDetail.IsVisible = TrackPlaytime;
-        LastPlayed.Text = FormatDate(game.LastPlayedUtc);
+        LastPlayed.Text = FormatLastLaunched(game.LastPlayedUtc);
         ModdedStatus.Text = game.IsModded ? "Yes" : "No";
         RenderGenres(game);
         RenderStoreTags(game);
@@ -530,6 +529,17 @@ internal sealed partial class Launcher : Window
     }
 
     private static string FormatDate(DateTime? utc) => utc?.ToLocalTime().ToString("d", CultureInfo.CurrentCulture) ?? "Never";
+
+    private string FormatLastLaunched(DateTime? utc)
+    {
+        if (!_library.Preferences.FriendlyLaunchDates || utc == null) return FormatDate(utc);
+        var date = utc.Value.ToLocalTime();
+        var culture = CultureInfo.CurrentCulture;
+        var month = date.ToString("MMM", culture);
+        if (culture.TwoLetterISOLanguageName == "en" && month != date.ToString("MMMM", culture)) month += ".";
+        var day = date.ToString("%d", culture);
+        return date.Year == DateTime.Now.Year ? $"{month} {day}" : $"{month} {day}, {date.ToString("yyyy", culture)}";
+    }
     private void Status(string message) => StatusText.Text = message;
 
     private bool Save()

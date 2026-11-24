@@ -159,6 +159,8 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
 
     internal async Task<CachedModPackage> AcquireAsync(ModPackageDescriptor descriptor, CancellationToken token, IProgress<int>? progress = null)
     {
+        if (descriptor.Key.Provider == ModProviderId.RenoDx)
+            throw new InvalidDataException("Download RenoDX from the game's Mods dialog.");
         await _operation.WaitAsync(token).ConfigureAwait(false);
         try
         {
@@ -187,6 +189,19 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
             finally { if (Directory.Exists(stage)) Directory.Delete(stage, recursive: true); }
         }
         finally { _operation.Release(); }
+    }
+
+    internal async Task<byte[]> FetchRenoDxAsync(ModPackageDescriptor descriptor, CancellationToken token, IProgress<int>? progress = null)
+    {
+        if (descriptor.Key.Provider != ModProviderId.RenoDx || descriptor.Files is not [var filename] ||
+            !ModRenoDxCatalog.IsAddonName(filename) || !descriptor.Address.IsAbsoluteUri ||
+            descriptor.Address.AbsolutePath.Split('/')[^1] != filename)
+            throw new InvalidDataException("The RenoDX add-on filename is invalid.");
+        using var download = new MemoryStream();
+        await Download(descriptor, download, token, progress).ConfigureAwait(false);
+        download.Position = 0;
+        ModArchiveReader.ValidateRenoDx(download);
+        return download.ToArray();
     }
 
     internal IReadOnlyList<CachedModPackage> List(ModProviderId provider)
