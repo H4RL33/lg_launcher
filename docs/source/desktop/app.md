@@ -70,7 +70,7 @@ Owns the application lifetime so the splash can hand off to the launcher after s
 
 Declares the main-window visual tree shared by the feature partials. It owns the sidebar and navigation buttons, title/status chrome, game detail and artwork hosts, page heading with the Mods request action and scope note, page body and scroll viewer, search results panel, and modal host. The sidebar uses the original 32-dip game-row height for game and collection rows and buttons. Both sidebar lists can scroll when space runs out. The window styles tie frosted surfaces to the artwork state. The search panel uses the shared search frame, result row, and height transition styles.
 
-On game details, a matched Steam App ID appears beside Playtime and Last Launched in the wrapping stats row. `RenderDetails` hides the whole item for unmatched games.
+On game details, a matched Steam App ID appears beside Playtime and Last Launched in the wrapping stats row. `RenderDetails` hides the whole item for unmatched games. Last Launched uses the Library date-format preference. The tooltip and other date displays keep the standard local date format.
 
 The collection list wires realized rows to the shared context menu so users can open the icon picker directly from the sidebar.
 

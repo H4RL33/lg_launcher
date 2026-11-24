@@ -14,7 +14,7 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 ## `avalonia/LGLauncher.Components/Widgets.cs`
 
-`GameCard.IsModded` toggles the unbacked wrench overlay in the portrait's top-right corner.
+`GameCard.IsModded` toggles the unbacked wrench overlay in the portrait's top-right corner. `ModIndicatorBrush` supplies its foreground, white by default. The template renders it at 70% opacity.
 
 [Source](../../avalonia/LGLauncher.Components/Widgets.cs)
 
@@ -66,8 +66,8 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 [Source](../../avalonia/LGLauncher.Components/FrostedContextMenu.cs)
 
-- **Purpose** — Owns backdrop sampling and the reveal/collapse lifecycle for the launcher menu. Captures a small image of the owning window for frosted glass, clips the presenter during motion, and releases its snapshot on close.
-- **Depends on** — Avalonia popup and bitmap APIs and the shared top-down animation in `ViewMotion.cs`. Its theme in `Inputs.axaml` supplies named template parts. Host classes `lg-motion` and `lg-opaque` control motion and translucency.
+- **Purpose** — Owns backdrop sampling and the reveal/collapse lifecycle for the launcher menu. Captures a small image of the owning window for frosted glass and releases its snapshot on close. Clips the presenter from the bottom when the popup is placed above its pointer or trigger, and from the top otherwise.
+- **Depends on** — Avalonia popup and bitmap APIs and the shared easing in `ViewMotion.cs`. Its theme in `Inputs.axaml` supplies named template parts. Host classes `lg-motion` and `lg-opaque` control motion and translucency.
 - **Used by** — `LauncherMenus.Create`, Desktop artwork pointer handling, and menu smoke checks. Hosts should construct it through the shared factory.
 
 ## `avalonia/LGLauncher.Components/ModalHost.cs`
@@ -98,9 +98,9 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 [Source](../../avalonia/LGLauncher.Components/ViewMotion.cs)
 
-- **Purpose** — Provides a reusable easing curve for revealing a new view. Supports opacity alone or opacity with a small vertical translation. Reordered tiles update their temporary transform on animation frames using the same cubic ease-out as view translation. The helper clears the transform after it reaches zero offset or when the host cancels the movement. The artwork palette uses the same duration as the fade. Context menus and the warning expander share a cubic ease-out for their 180 ms reveal and 105 ms collapse.
+- **Purpose** — Provides a reusable easing curve for revealing a new view. Supports opacity alone or opacity with a small vertical translation. Reordered tiles update their temporary transform on animation frames using the same cubic ease-out as view translation. The helper clears the transform after it reaches zero offset or when the host cancels the movement. The artwork palette uses the same duration as the fade. Context menus, the warning expander, and the sidebar sections share a cubic ease-out for their 180 ms reveal and 105 ms collapse.
 - **Depends on** — Avalonia keyframes, transforms, and cancellation. The caller owns when to animate and how to reset after a cancelled view transition.
-- **Used by** — Desktop navigation and collection sorting, dialogs, startup, artwork, context menus, and the warning expander.
+- **Used by** — Desktop navigation, sidebar sections and collection sorting, dialogs, startup, artwork, context menus, and the warning expander.
 
 ## `avalonia/LGLauncher.Components/WarningExpander.cs`
 
@@ -117,6 +117,8 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 - **Purpose** — Serves as the shared theme entrypoint. Defines widget templates, the button variants, and common panels, list styles, labels, modal surfaces, and motion. `lg-game-icon` clips Library and Managed installations icons with a radius equal to 20% of the shorter side. `lg-muted` sets regular weight for supporting text, including inside controls with heavier labels. `lg-tabs` and `lg-tab` style native Avalonia tabs with the accent selection underline and shared focus treatment. The underline fades only under `lg-motion`. `lg-warning-panel` provides the amber shell, warning icon, title and count, and a chevron with an evenly inset hover face that uses `LG.ControlRadius`. `Button.lg.destructive` shares the filled red button treatment between mod uninstall and cached-package deletion.
 - **Depends on** — `Widgets.cs`, `SymbolIcon.cs`, Fluent Theme, and the sibling `Tokens.axaml`, `Icons.axaml`, and `Inputs.axaml` resources.
 - **Used by** — Desktop and Gallery application styles. Shared style changes can affect both hosts and several features at once.
+
+Shared text boxes use the darker `LG.FieldHover` fill and a white border on pointer hover. Under `lg-motion`, both brushes transition over 150 ms. Focused fields retain their focus treatment. Desktop derives the hover fill from the canvas for each non-Classic colourway.
 
 ## `avalonia/LGLauncher.Components/Theme/Inputs.axaml`
 

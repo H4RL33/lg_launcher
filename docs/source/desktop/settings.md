@@ -29,7 +29,9 @@ Renders Appearance, Library, and About. About places release notes for the insta
 
 Library → Game Details contains the Windows **Theme music** toggle, off by default. When enabled, game details play a local custom or matched Steam soundtrack track while the launcher is active. [Theme music](steam.md)
 
-Library → General enables playtime tracking on new and existing profiles by default. Turning it off hides duration statistics and playtime sorts while keeping launch dates. The symbolic trash action uses the shared destructive confirmation and saves the cleared durations as one profile change.
+Library → General enables playtime tracking on new and existing profiles by default. Turning it off hides duration statistics and playtime sorts while keeping launch dates. The compact trash button sits at the right edge and shares the symbolic delete styling used in Mods. It opens the shared destructive confirmation and saves the cleared durations as one profile change.
+
+Library → Game Tiles controls the mod indicator and playtime caption independently. Both default to visible. Disabling playtime tracking hides the caption and temporarily disables its visibility switch. Library → Game Details → Date format defaults to Numeric and applies to Last Launched. Friendly uses the local date and an abbreviated month with the day, adding the year for earlier calendar years.
 
 Appearance uses `BuildChoicePicker` for the font family, font size, and scale. Its button displays the current value, and its scrollable menu uses the same frosted surface, spacing, and motion as context menus. The menu aligns to the button's left edge and switches to its right edge if the measured menu would extend past the launcher. Font families keep keyboard text search. The preference applies after the menu closes so changes to typography and scale leave the closing animation aligned with its trigger. Collections use the same picker for member sorting and rule matching, attributes, and operators. Mods use it for OptiScaler’s DLL name and DXGI spoofing, the ReShade graphics API, and RenoDX add-on variants.
 

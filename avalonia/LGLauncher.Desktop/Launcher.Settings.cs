@@ -165,6 +165,7 @@ internal sealed partial class Launcher
         var raised = Color.Parse(palette.Raised);
         var text = Color.Parse(palette.Text);
         SetColour("LG.Canvas", canvas);
+        SetColour("LG.FieldHover", ArtworkAccent.Mix(canvas, Colors.Black, .35));
         SetColour("LG.Sidebar", sidebar);
         SetColour("LG.Surface", surface);
         SetColour("LG.SurfaceRaised", raised);
@@ -202,6 +203,8 @@ internal sealed partial class Launcher
     private Control BuildLibrarySettings()
     {
         var prefs = _library.Preferences;
+        var clearPlaytime = ModDeleteButton("Clear playtime data", () => _ = ClearPlaytime());
+        clearPlaytime.HorizontalAlignment = HorizontalAlignment.Right;
         return new StackPanel
         {
             Spacing = 14,
@@ -214,7 +217,7 @@ internal sealed partial class Launcher
                     {
                         PreferenceToggle("Track playtime", "Record how long games run and show their playtime.",
                             TrackPlaytime, value => prefs.DisablePlaytimeTracking = !value, ApplyPlaytimeTracking),
-                        PreferenceRow("Clear playtime data", ModDeleteButton("Clear playtime data", () => _ = ClearPlaytime()))
+                        PreferenceRow("Clear playtime data", clearPlaytime)
                     }
                 }),
                 Section("Game Details", new StackPanel
@@ -228,7 +231,22 @@ internal sealed partial class Launcher
                             prefs.PlayThemeMusic, value => prefs.PlayThemeMusic = value, UpdateThemeMusic,
                             overrideReason: () => OperatingSystem.IsWindows() ? null : "Theme music playback is available on Windows."),
                         PreferenceToggle("Show Store Tags", "Show tags below genres on game details.",
-                            prefs.ShowStoreTags, value => prefs.ShowStoreTags = value)
+                            prefs.ShowStoreTags, value => prefs.ShowStoreTags = value),
+                        PreferenceRow("Date format", BuildChoicePicker("Date format", new[] { false, true }, prefs.FriendlyLaunchDates,
+                            friendly => friendly ? "Friendly" : "Numeric",
+                            friendly => SavePreference(prefs.FriendlyLaunchDates, friendly, value => prefs.FriendlyLaunchDates = value, null)))
+                    }
+                }),
+                Section("Game Tiles", new StackPanel
+                {
+                    Spacing = 9,
+                    Children =
+                    {
+                        PreferenceToggle("Show mod indicator", "Show a wrench over modded game artwork.",
+                            !prefs.HideTileModIndicator, value => prefs.HideTileModIndicator = !value),
+                        PreferenceToggle("Show playtime caption", "Show tracked time below game artwork.",
+                            !prefs.HideTilePlaytime, value => prefs.HideTilePlaytime = !value,
+                            overrideReason: () => TrackPlaytime ? null : "Turn on Track playtime to show captions.")
                     }
                 }),
                 Section("Home", PreferenceToggle("Display most-recent RSS articles on Home",

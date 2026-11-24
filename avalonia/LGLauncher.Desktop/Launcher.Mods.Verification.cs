@@ -1129,7 +1129,12 @@ internal sealed partial class Launcher
 
     private async Task VerifyModInformation(string previews)
     {
+        var legacyRenoDx = new ModPackageKey(ModProviderId.RenoDx, "renodx-fixture.addon64", "2026.11.22", new string('A', 64));
+        SeedCachedModPackage(legacyRenoDx);
+        RefreshModsSettings();
+        UpdateLayout();
         var panels = PageBody.GetVisualDescendants().OfType<HeaderedContentControl>().ToArray();
+        Require(_modPackages.List(ModProviderId.RenoDx).Any(package => package.Key == legacyRenoDx), "Missing legacy RenoDX cache fixture.");
         Require(panels.Select(panel => panel.Header).SequenceEqual(["Available mods", "Managed installations"]),
             "Mods settings did not group packages and installations into separate panels.");
         var section = panels[0];
@@ -1147,8 +1152,9 @@ internal sealed partial class Launcher
                 $"The {title} settings card did not show its information icon.");
             if (title == "RenoDX")
             {
-                Require(!section.GetVisualDescendants().OfType<Button>().Any(button => AutomationProperties.GetName(button) == "Download RenoDX"),
-                    "RenoDX offered a global download.");
+                Require(!section.GetVisualDescendants().OfType<Button>().Any(button => AutomationProperties.GetName(button) is { } name &&
+                    name.Contains("RenoDX", StringComparison.Ordinal) && !name.StartsWith("About ", StringComparison.Ordinal) &&
+                    !name.StartsWith("Check ", StringComparison.Ordinal)), "RenoDX offered a global cache action.");
                 await VerifyRenoDxInformation(info, previews);
                 continue;
             }
@@ -1164,6 +1170,7 @@ internal sealed partial class Launcher
             }
             ToolTip.SetIsOpen(info, false);
         }
+        await _modPackages.DeleteAsync(legacyRenoDx, CancellationToken.None);
     }
 
     private async Task VerifyRenoDxInformation(Button info, string previews)

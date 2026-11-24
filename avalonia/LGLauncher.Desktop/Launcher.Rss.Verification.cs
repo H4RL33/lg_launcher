@@ -49,6 +49,10 @@ internal sealed partial class Launcher
         var feedUrl = PageBody.GetVisualDescendants().OfType<TextBox>()
             .Single(box => Avalonia.Automation.AutomationProperties.GetName(box) == "Feed URL");
         Require(feedUrl.VerticalContentAlignment == VerticalAlignment.Center, "The feed URL was not vertically centered.");
+        RssNav.Focus();
+        Classes.Add("lg-motion");
+        try { await VerifyTextFieldHover(feedUrl, Path.Combine(Path.GetDirectoryName(preview)!, "rss-url-hover.png")); }
+        finally { Classes.Remove("lg-motion"); }
         var previousFont = _library.Preferences.InterfaceFont;
         try
         {

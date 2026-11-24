@@ -30,7 +30,7 @@ internal sealed class ModInstallPlanner(ModCompatibility compatibility, ModPacka
 
     internal async Task<ModPlanPreview> PreviewAddonAsync(Game game, string root, string executable, bool offline,
         ModInstallationRecord? existing, ModPackageDescriptor? descriptor, ModRenoDxOption? renoDx, CancellationToken token,
-        string? importedAddon = null)
+        string? importedAddon = null, byte[]? downloadedAddon = null)
     {
         using var lease = await store.LeaseAsync(token).ConfigureAwait(false);
         return await Task.Run(() =>
@@ -73,12 +73,20 @@ internal sealed class ModInstallPlanner(ModCompatibility compatibility, ModPacka
                 bytes = ReadRenoDxImport(importedAddon!);
                 key = new(provider, member, "Imported", ModFileSnapshot.For(bytes).Hash);
             }
+            else if (provider == ModProviderId.RenoDx)
+            {
+                if (downloadedAddon == null) return new(null, [provider], "Download the add-on before previewing the install.");
+                bytes = downloadedAddon;
+                key = descriptor.Key;
+                if (ModFileSnapshot.For(bytes).Hash != key.Digest)
+                    throw new InvalidDataException("The downloaded RenoDX add-on does not match this version.");
+            }
             else
             {
                 var package = store.List(provider).FirstOrDefault(candidate => candidate.Key == descriptor.Key);
                 if (package == null) return new(null, [provider], "Download the package before previewing the install.");
                 bytes = ReadBytes(ModPaths.Within(package.ContentDirectory, member), 256 * 1024 * 1024);
-                var expected = renoDx != null ? descriptor.Key.Digest : package.Files.GetValueOrDefault(member);
+                var expected = package.Files.GetValueOrDefault(member);
                 if (ModFileSnapshot.For(bytes).Hash != expected)
                     throw new InvalidDataException($"The cached {ModPackageStore.Name(provider)} file changed. Delete and download that package again.");
                 key = package.Key;
@@ -195,13 +203,14 @@ internal sealed class ModInstallPlanner(ModCompatibility compatibility, ModPacka
     }
 
     internal async Task<ModInstallPlan> PreviewUpdateAsync(ModInstallationRecord record, ModPackageKey installed,
-        ModPackageDescriptor update, CancellationToken token)
+        ModPackageDescriptor update, CancellationToken token, byte[]? downloadedAddon = null)
     {
         using var lease = await store.LeaseAsync(token).ConfigureAwait(false);
         return await Task.Run(() =>
         {
-            var package = store.List(installed.Provider).FirstOrDefault(candidate => candidate.Key == update.Key) ??
-                throw new InvalidDataException("Download the updated package before previewing the update.");
+            var package = installed.Provider == ModProviderId.RenoDx ? null :
+                store.List(installed.Provider).FirstOrDefault(candidate => candidate.Key == update.Key) ??
+                    throw new InvalidDataException("Download the updated package before previewing the update.");
             var renderer = Path.GetDirectoryName(record.Target.Executable) ?? "";
             var changes = new List<ModFileChange>();
             foreach (var file in record.Files.Where(file => file.Owner == installed.Provider))
@@ -217,16 +226,18 @@ internal sealed class ModInstallPlanner(ModCompatibility compatibility, ModPacka
                     ModProviderId.ReShade => ModPackageStore.ReShadeModule,
                     _ => update.Files.Single()
                 };
-                if (!package.Files.TryGetValue(member, out var digest))
-                    throw new InvalidDataException($"The updated package does not include {member}.");
-                var bytes = ReadBytes(ModPaths.Within(package.ContentDirectory, member), 256 * 1024 * 1024);
+                var digest = package == null ? update.Key.Digest : package.Files.GetValueOrDefault(member);
+                if (digest == null) throw new InvalidDataException($"The updated package does not include {member}.");
+                var bytes = package == null
+                    ? downloadedAddon ?? throw new InvalidDataException("Download the updated add-on before previewing the update.")
+                    : ReadBytes(ModPaths.Within(package.ContentDirectory, member), 256 * 1024 * 1024);
                 if (ModFileSnapshot.For(bytes).Hash != digest)
                     throw new InvalidDataException($"The cached {member} changed. Delete and download the package again.");
                 changes.Add(new(file.Relative, file.DeployedHash, bytes, installed.Provider));
             }
             if (changes.Count == 0) throw new InvalidDataException("No managed files are eligible for this update.");
             var requirements = record.KnownDependencies().Where(link => link.Dependent == installed.Provider).ToArray();
-            return new ModInstallPlan(record.Target, changes, [package.Key], Dependencies: requirements,
+            return new ModInstallPlan(record.Target, changes, [update.Key], Dependencies: requirements,
                 ExistingInstallation: record.Id, ReplacingPackage: installed);
         }, token).ConfigureAwait(false);
     }
