@@ -17,7 +17,8 @@ namespace LGLauncher;
 internal sealed partial class Launcher
 {
     private static readonly (CollectionAttribute Value, string Label)[] RuleAttributes =
-        [(CollectionAttribute.Genre, "Genre"), (CollectionAttribute.SteamTag, "Steam tag")];
+        [(CollectionAttribute.Genre, "Genre"), (CollectionAttribute.SteamTag, "Steam tag"),
+         (CollectionAttribute.Developer, "Developer"), (CollectionAttribute.Publisher, "Publisher"), (CollectionAttribute.Modded, "Modded")];
     private static readonly (CollectionOperator Value, string Label)[] RuleOperators =
         [(CollectionOperator.Is, "is"), (CollectionOperator.IsNot, "is not"), (CollectionOperator.Contains, "contains")];
 
@@ -33,7 +34,7 @@ internal sealed partial class Launcher
     private async void EditCollection(GameCollection? collection, bool dynamicCollection = false)
     {
         var creating = collection == null;
-        var entry = collection ?? new GameCollection();
+        var entry = collection ?? new GameCollection { CreatedUtc = DateTime.UtcNow };
         var dynamic = dynamicCollection || entry.IsDynamic;
         var title = dynamic ? (creating ? "New dynamic collection" : "Edit dynamic collection")
             : (creating ? "New collection" : "Rename collection");
@@ -49,8 +50,15 @@ internal sealed partial class Launcher
         Field(dialog.Body, "Collection name", name);
 
         var rows = new List<RuleFields>();
-        var genres = dynamic ? SuggestionValues(_library.Games.SelectMany(game => game.GenreNames)) : [];
-        var tags = dynamic ? SuggestionValues(_library.Games.SelectMany(game => game.SteamTagsFor())) : [];
+        var suggestions = new Dictionary<CollectionAttribute, (string Label, string[] Values)>();
+        if (dynamic)
+        {
+            suggestions[CollectionAttribute.Genre] = ("genres", SuggestionValues(_library.Games.SelectMany(game => game.GenreNames)));
+            suggestions[CollectionAttribute.SteamTag] = ("Steam tags", SuggestionValues(_library.Games.SelectMany(game => game.SteamTagsFor())));
+            suggestions[CollectionAttribute.Developer] = ("developers", SuggestionValues(_library.Games.SelectMany(game => game.DeveloperNames)));
+            suggestions[CollectionAttribute.Publisher] = ("publishers", SuggestionValues(_library.Games.SelectMany(game => game.PublisherNames)));
+            suggestions[CollectionAttribute.Modded] = ("modded values", ["Yes", "No"]);
+        }
         var rulesHost = new StackPanel { Spacing = 8 };
         Grid.SetIsSharedSizeScope(rulesHost, true);
         var matchAny = entry.MatchAnyGenre;
@@ -98,6 +106,9 @@ internal sealed partial class Launcher
                 if (rows.Count == 0) { ShowError("Add a rule to create a dynamic collection.", addRule); return; }
                 var blank = rows.Find(row => String.IsNullOrWhiteSpace(row.Value.Text));
                 if (blank != null) { ShowError("Enter a value for each rule.", blank.Value); return; }
+                var invalidModded = rows.Find(row => row.Attribute == CollectionAttribute.Modded &&
+                    !suggestions[CollectionAttribute.Modded].Values.Contains(row.Value.Text?.Trim(), StringComparer.OrdinalIgnoreCase));
+                if (invalidModded != null) { ShowError("Enter Yes or No for Modded.", invalidModded.Value); return; }
                 entry.Rules = rows.Select(row => new CollectionRule
                 {
                     Attribute = row.Attribute,
@@ -152,7 +163,8 @@ internal sealed partial class Launcher
             value.TextChanged += (_, _) => error.IsVisible = false;
             UpdateSearchLabel();
 
-            void UpdateSearchLabel() => value.PlaceholderText = row.Attribute == CollectionAttribute.Genre ? "Search genres" : "Search Steam tags";
+            void UpdateSearchLabel() => value.PlaceholderText = row.Attribute == CollectionAttribute.Modded
+                ? "Yes or No" : $"Search {suggestions[row.Attribute].Label}";
 
             var condition = Label("If", muted: true);
             condition.VerticalAlignment = VerticalAlignment.Center;
@@ -179,7 +191,7 @@ internal sealed partial class Launcher
                 Grid.SetColumn(controls[column], column);
                 line.Children.Add(controls[column]);
             }
-            line.Children.Add(RuleValueSuggestions(value, () => row.Attribute, genres, tags));
+            line.Children.Add(RuleValueSuggestions(value, () => suggestions[row.Attribute]));
             line.SizeChanged += (_, args) =>
             {
                 if (!args.WidthChanged) return;
@@ -209,7 +221,7 @@ internal sealed partial class Launcher
         .Select(value => value.Trim()).Distinct(StringComparer.OrdinalIgnoreCase)
         .OrderBy(value => value, StringComparer.CurrentCultureIgnoreCase).ToArray();
 
-    private Popup RuleValueSuggestions(TextBox field, Func<CollectionAttribute> attribute, string[] genres, string[] tags)
+    private Popup RuleValueSuggestions(TextBox field, Func<(string Label, string[] Values)> suggestions)
     {
         var results = new ListBox
         {
@@ -279,8 +291,7 @@ internal sealed partial class Launcher
 
         void ShowSuggestions()
         {
-            var isGenre = attribute() == CollectionAttribute.Genre;
-            var source = isGenre ? genres : tags;
+            var (label, source) = suggestions();
             var query = field.Text?.Trim() ?? "";
             var terms = query.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
             var matches = source.Select(candidate => (Value: candidate, Score: CollectionSearchScore(candidate, terms)))
@@ -292,9 +303,8 @@ internal sealed partial class Launcher
             results.SelectedIndex = -1;
             results.IsVisible = matches.Length > 0;
             empty.IsVisible = matches.Length == 0;
-            empty.Text = source.Length == 0 ? (isGenre ? "No genres in your library" : "No Steam tags in your library")
-                : (isGenre ? "No genres match" : "No Steam tags match");
-            AutomationProperties.SetName(results, isGenre ? "Genre suggestions" : "Steam tag suggestions");
+            empty.Text = source.Length == 0 ? $"No {label} in your library" : $"No {label} match";
+            AutomationProperties.SetName(results, $"{label} suggestions");
             dropdown.Classes.Set("lg-motion", _motion);
             PositionSuggestions();
             popup.IsOpen = true;

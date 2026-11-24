@@ -167,16 +167,14 @@ internal sealed partial class Launcher
                     row.Children.OfType<Button>().All(action => Math.Abs(action.Bounds.Center.Y - button.Bounds.Center.Y) <= 1),
                     "The ReShade delete action did not share the red icon and action row.");
                 Capture(Path.Combine(previews, $"reshade-cache-row-{size.Width}.png"));
-                var menu = await OpenCacheMenu(button);
-                Require(menu.Items.OfType<MenuItem>().Select(item => item.Header).ToHashSet()
+                var chooser = await OpenCacheChooser(button);
+                Require(chooser.Body.Children.OfType<Button>().Select(AutomationProperties.GetName).ToHashSet()
                     .SetEquals([approvedLabel, standardLabel, olderLabel]),
-                    "The ReShade cache menu did not distinguish every version and variant.");
-                var buttonEdge = button.PointToScreen(new Point(button.Bounds.Width, 0)).X;
-                var menuEdge = menu.PointToScreen(new Point(menu.Bounds.Width, 0)).X;
-                Require(Math.Abs(menuEdge - buttonEdge) < 2, "The cache menu did not align to the delete button.");
-                VerifyMenuTheme(menu, Path.Combine(previews, $"reshade-cache-menu-{size.Width}.png"));
-                menu.Close();
-                await WaitFor(() => !menu.IsOpen, "The ReShade cache menu did not close.");
+                    "The ReShade cache chooser did not distinguish every version and variant.");
+                Require(chooser.GetVisualDescendants().OfType<TextBlock>().Count(label => label.Text == "0 games use this version") == 3,
+                    "The ReShade cache chooser did not report usage per package.");
+                Capture(Path.Combine(previews, $"reshade-cache-chooser-{size.Width}.png"));
+                chooser.Close();
             }
 
             var standardConfirmation = await SelectCachedDownload(standardLabel);
@@ -205,11 +203,10 @@ internal sealed partial class Launcher
                 remainingActions.Children.OfType<Button>().All(action => Math.Abs(action.Bounds.Center.Y - remainingDelete.Bounds.Center.Y) <= 1),
                 "The ReShade download and delete actions did not fit beside each other when the approved version was missing.");
             Capture(Path.Combine(previews, "reshade-cache-remaining-730.png"));
-            var remainingMenu = await OpenCacheMenu(remainingDelete);
-            Require(remainingMenu.Items.OfType<MenuItem>().Select(item => item.Header).ToHashSet().SetEquals([standardLabel, olderLabel]),
-                "The ReShade cache menu did not refresh after deletion.");
-            remainingMenu.Close();
-            await WaitFor(() => !remainingMenu.IsOpen, "The updated ReShade cache menu did not close.");
+            var remaining = await OpenCacheChooser(remainingDelete);
+            Require(remaining.Body.Children.OfType<Button>().Select(AutomationProperties.GetName).ToHashSet().SetEquals([standardLabel, olderLabel]),
+                "The ReShade cache chooser did not refresh after deletion.");
+            remaining.Close();
         }
         finally
         {
@@ -230,20 +227,21 @@ internal sealed partial class Launcher
 
         async Task<ModalDialog> SelectCachedDownload(string label)
         {
-            var menu = await OpenCacheMenu(CacheDelete());
-            menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, label)).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            await WaitFor(() => !menu.IsOpen && ActiveModDialog is { } dialog &&
+            var chooser = await OpenCacheChooser(CacheDelete());
+            chooser.Body.Children.OfType<Button>().Single(item => AutomationProperties.GetName(item) == label)
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitFor(() => ActiveModDialog is { } dialog &&
                 AutomationProperties.GetName(dialog) == "Delete cached ReShade?", "Selecting a ReShade download did not request confirmation.");
             return ActiveModDialog!;
         }
 
-        static async Task<FrostedContextMenu> OpenCacheMenu(Button button)
+        async Task<ModalDialog> OpenCacheChooser(Button button)
         {
-            var menu = button.ContextMenu as FrostedContextMenu
-                ?? throw new InvalidOperationException("The cache action did not use the shared frosted menu.");
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await WaitFor(() => menu.IsOpen && menu.RevealProgress == 1, "The ReShade cache menu did not open.");
-            return menu;
+            await WaitFor(() => ActiveModDialog is { } dialog && AutomationProperties.GetName(dialog) == "Delete cached ReShade downloads",
+                "The ReShade cache chooser did not open.");
+            UpdateLayout();
+            return ActiveModDialog!;
         }
 
         static void ConfirmedPackage(ModalDialog confirm, string label)
@@ -610,7 +608,7 @@ internal sealed partial class Launcher
             catalogChecks++;
             return new(HttpStatusCode.ServiceUnavailable);
         }));
-        await CheckModUpdates(ModProviderId.OptiScaler, _ => Task.FromResult("up-to-date"), offline);
+        await CheckModUpdates(ModProviderId.OptiScaler, _ => Task.FromResult(new ModPackageCheck("up-to-date", null)), offline);
         UpdateLayout();
         Require(catalogChecks == 1 && _optiScalerUpdateCheck is { IsEnabled: true } action && ToolTip.GetTip(action) is string status &&
             status.Contains("Catalog 2", StringComparison.Ordinal) && status.Contains("Could not refresh compatibility", StringComparison.Ordinal),
@@ -620,6 +618,32 @@ internal sealed partial class Launcher
                 label.Text?.Contains(" · Mod: up-to-date, Compat List:", StringComparison.Ordinal) == true),
             "The combined update result was missing from the package summary.");
         Capture(Path.Combine(previews, "mods-catalog-offline.png"));
+        var reviewed = ModPackageStore.Approved(ModProviderId.ReShade);
+        var release = new ModUpstreamRelease("99.0.0", new("https://reshade.me/#download"));
+        await CheckModUpdates(ModProviderId.ReShade, _ => Task.FromResult(new ModPackageCheck("Newer release awaiting review", reviewed, release)));
+        var savedSize = (Width, Height);
+        try
+        {
+            foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
+            {
+                (Width, Height) = size;
+                await Task.Delay(40);
+                var releaseAction = PageBody.GetVisualDescendants().OfType<Button>().Single(button =>
+                    AutomationProperties.GetName(button) == "View ReShade 99.0.0 release");
+                Require(releaseAction.Content is SymbolIcon icon && Equals(icon.Data, this.FindResource("LG.Icon.ExternalLink")),
+                    "The newer ReShade release did not have a symbolic link in Settings.");
+                releaseAction.BringIntoView();
+                Capture(Path.Combine(previews, $"mods-upstream-release-{size.Item1}.png"));
+            }
+        }
+        finally
+        {
+            (Width, Height) = savedSize;
+            _checkedModReleases.Remove(ModProviderId.ReShade);
+            _checkedModDownloads.Remove(ModProviderId.ReShade);
+            _modPackageMessages.Remove(ModProviderId.ReShade);
+            RefreshModsSettings();
+        }
     }
 
     private async Task VerifyManagedMod(string previews)
@@ -956,7 +980,7 @@ internal sealed partial class Launcher
                 UpdateLayout();
                 if (size.Width == 730) ContentScroll.Offset = new Vector(0, ContentScroll.Extent.Height);
                 var gameRow = libraryRow.GetVisualAncestors().OfType<ListBoxItem>().First();
-                Require(Math.Abs(gameRow.Bounds.Height - 32) < 1 && new[] { HomeNav, CollectionsNav, DiscoveriesNav, RssNav, AddGame, SettingsNav }
+                Require(Math.Abs(gameRow.Bounds.Height - 32) < 1 && new[] { HomeNav, CollectionsNav, LibraryNav, RssNav, AddGame, SettingsNav }
                     .All(button => Math.Abs(button.Bounds.Height - gameRow.Bounds.Height) < 1),
                     "The Library game entry and sidebar buttons did not have a consistent height.");
                 Require(icon.TranslatePoint(default, managed) is { } iconOrigin && title.TranslatePoint(default, managed) is { } titleOrigin &&
@@ -971,11 +995,20 @@ internal sealed partial class Launcher
             try
             {
                 manage.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Require(ActiveModDialog is { } list && AutomationProperties.GetName(list) == "Mods",
+                    "Manage did not open the game's Mods list.");
+                var first = ActiveModDialog!.Body.Children.OfType<Button>().First();
+                Require(AutomationProperties.GetName(first) == "OptiScaler" &&
+                    ((Grid)first.Content!).Children.OfType<SymbolIcon>().Any(icon =>
+                        icon.IsVisible && Equals(icon.Data, this.FindResource("LG.Icon.Check"))),
+                    "Installed OptiScaler did not appear first with a checkmark.");
+                first.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Require(ActiveModDialog is { } dialog && AutomationProperties.GetName(dialog) == "Manage OptiScaler",
                     "The manager waited for a file inspection before opening.");
                 UpdateLayout();
                 Require(!ManagedAction(ActiveModDialog!, "View affected files").IsEnabled,
                     "The manager presented unverified findings as current.");
+                DialogHost.DismissTop();
                 DialogHost.DismissTop();
             }
             finally
@@ -1235,6 +1268,20 @@ internal sealed partial class Launcher
             await ChoosePreference(picker, "Fixture · SDR");
             DialogHost.DismissTop();
             await Task.Yield();
+            var steamId = game.SteamId;
+            game.SteamId = 1;
+            renoDx.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(ActiveModDialog?.Body.Children.OfType<MediaFileField>().Any(field => field.FileLabel == "RenoDX add-on") == true,
+                "RenoDX setup did not offer local import when the game had no automatic download.");
+            foreach (var window in new[] { (730, 510), (1230, 805), (1600, 900) })
+            {
+                (Width, Height) = window;
+                await Task.Delay(40);
+                Capture(Path.Combine(previews, $"mods-renodx-import-{Width}.png"));
+            }
+            DialogHost.DismissTop();
+            await Task.Yield();
+            game.SteamId = steamId;
             var legacyRow = list.Body.Children.OfType<StackPanel>().Single().Children.OfType<Button>().Single();
             Require(AutomationProperties.GetName(legacyRow) == "Special K" && list.Body.Children.OfType<Button>().Count() == 4,
                 "A legacy Special K installation appeared as an available mod or could not be managed.");

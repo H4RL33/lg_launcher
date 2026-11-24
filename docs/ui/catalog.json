@@ -108,12 +108,13 @@
       "kind": "component",
       "scope": "shared-avalonia",
       "source": "avalonia/LGLauncher.Components/Widgets.cs",
-      "summary": "Displays a responsive two-to-three portrait tile, accessible open action and optional playtime. The caller supplies artwork, command, and playtime.",
+      "summary": "Displays a responsive two-to-three portrait tile, accessible open action, optional playtime, and top-right wrench for managed mods.",
       "symbols": [
         "GameCard",
         "Title",
         "Playtime",
         "ShowPlaytime",
+        "IsModded",
         "Artwork",
         "ArtworkStretch",
         "ArtworkHeight",
@@ -676,9 +677,12 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Settings.cs",
-      "summary": "Composes font, base size, interface scale, translucency, default and artwork accent colours, and motion controls, and keeps runtime resources and layout in sync.",
+      "summary": "Composes font, size, scale, translucency, base colourway, accent, motion, and Widget Customisation. Applies shared corner radii and shadow strength immediately.",
       "symbols": [
         "BuildAppearance",
+        "BuildWidgetSettings",
+        "ApplyColourway",
+        "ApplyWidgetTheme",
         "BuildDefaultAccentPicker",
         "ApplyInterfaceScale",
         "ApplyTranslucency",
@@ -988,7 +992,9 @@
         "GenreChips",
         "StoreTags",
         "Playtime",
+        "PlaytimeDetail",
         "LastPlayed",
+        "ModdedStatus",
         "PlayGame",
         "EditGameButton",
         "RefreshSteamButton",
@@ -1015,7 +1021,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Mods.cs",
-      "summary": "Groups packages and managed installations in separate panels with inline update status and symbolic actions. The game list and Settings share one available-mod list and per-mod Lucide symbols. The RenoDX Settings row opens an Info dialog that explains where to find game-specific add-ons. Existing Special K installs are accessible from the game’s legacy management rows. The game list groups prerequisite and compatibility warnings in a collapsed panel with a count. Setup previews saved originals, replacements, and in-place edits. The animated picker selects OptiScaler DLL names and DXGI spoofing, graphics APIs, and RenoDX add-on variants. Managed mods share uninstall, verification, and affected-file actions.",
+      "summary": "Groups packages and managed installations with symbolic check, download, update, official release, and delete actions. Manage and the game wrench open the same installed-first list with green ticks. The cached version chooser displays usage counts. RenoDX accepts a local add-on for setup and managed updates. Installed mods share update previews, uninstall, verification, and affected-file actions.",
       "symbols": ["AvailableModProviders", "BuildMods", "RenderOptiScalerUpdateCheck", "CheckModUpdates", "RefreshRenoDxCatalog", "ModIcon", "ModPackageInfo", "ManagedModSettingsRow", "ModSettingsRow", "DownloadModPackage", "DeleteModPackage", "ModDeleteButton", "ModCacheDeleteButton", "RefreshGameModList", "RenderGameModWarnings", "RefreshModInspection", "ShowGameMods", "ShowGameManagedMod", "ShowGameOptiScaler", "ShowGameReShade", "ShowGameAddon", "ShowModSetup", "ShowModSetupPreview", "ShowModDownloads", "ShowModPlan", "ModFileRow", "ShowManagedMod", "UpgradeReShade", "ShowModVerification", "ShowAffectedModFiles", "DxgiSpoofingRow", "ConfirmModUninstall"],
       "related": ["pattern.desktop.game-details", "pattern.desktop.common-builders", "pattern.desktop.dialogs", "pattern.desktop.preference-controls", "helper.launcher-menus", "helper.lucide-icon-catalog", "style.button.settings-row", "style.button.destructive", "style.warning-panel", "style.choice-picker", "style.game-icon", "style.section", "style.tooltip", "style.progress-bar", "icon.wrench", "icon.info", "icon.check", "icon.refresh", "icon.download", "icon.delete", "icon.replace", "icon.edit", "token.modified"]
     },
@@ -1140,7 +1146,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Search.cs",
-      "summary": "The shell's search controller updates a styled results dropdown, accounts for its bounded height, and supports keyboard navigation and result activation.",
+      "summary": "The search controller matches titles, genres, or a leading metadata prefix. An empty unfocused field rotates usage examples. Results use the bounded dropdown with keyboard navigation.",
       "symbols": [
         "InitializeSearch",
         "ShowSearchResults",
@@ -1173,9 +1179,11 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Settings.cs",
-      "summary": "Groups preferences for game logos, Steam store tags, and the recent RSS shelf.",
+      "summary": "Groups playtime recording and confirmed clearing, game metadata display and music, and the recent RSS shelf.",
       "symbols": [
-        "BuildLibrarySettings"
+        "BuildLibrarySettings",
+        "ApplyPlaytimeTracking",
+        "ClearPlaytime"
       ],
       "related": [
         "pattern.desktop.preference-controls"
@@ -1342,21 +1350,22 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
-      "summary": "Shows navigation and the discovery badge, followed by the Library and Collections lists and the Add game and Settings actions. Game rows, collection rows, and buttons share the same height.",
+      "summary": "Shows top-level navigation, collapsible Library and Collections lists with independent sort buttons and plus-leading Add new actions, and Settings.",
       "symbols": [
         "LibrarySurface",
         "HomeNav",
         "CollectionsNav",
-        "DiscoveriesNav",
+        "LibraryNav",
         "RssNav",
-        "DiscoveryBadge",
-        "DiscoveryCount",
         "SidebarLists",
+        "LibrarySectionHeader",
+        "CollectionsSectionHeader",
         "LibraryGames",
         "LibraryEmpty",
         "LibraryCollections",
         "CollectionsEmpty",
         "AddGame",
+        "AddCollection",
         "SettingsNav"
       ],
       "selectors": ["ListBox.sidebar-list ListBoxItem", "TextBlock.sidebar-heading"],
@@ -2167,7 +2176,8 @@
       "targetType": "GameCard",
       "symbols": [
         "PortraitFrame",
-        "PlaytimePill"
+        "PlaytimePill",
+        "ModdedWrench"
       ]
     },
     {

@@ -27,12 +27,15 @@ internal sealed partial class Launcher
         UpdateLayout();
         Require(DialogHost.HasModal && !MainShell.IsEffectivelyEnabled, "The game editor did not block the launcher behind it.");
         var fields = DialogHost.GetVisualDescendants().OfType<TextBox>().ToArray();
-        Require(fields.Length == 5 && fields.All(field => field.VerticalContentAlignment == VerticalAlignment.Center),
-            "Expected five vertically centered Edit game fields. Found " +
+        Require(fields.Length == 6 && fields.All(field => field.VerticalContentAlignment == VerticalAlignment.Center),
+            "Expected six vertically centered Edit game text fields. Found " +
             String.Join(", ", fields.Select(field => $"{AutomationProperties.GetName(field)} ({field.VerticalContentAlignment})")) + ".");
         var title = fields.Single(field => AutomationProperties.GetName(field) == "Game title");
         var app = fields.Single(field => AutomationProperties.GetName(field) == "Steam App ID");
         var genres = fields.Single(field => AutomationProperties.GetName(field) == "Genres");
+        Require(fields.Any(field => AutomationProperties.GetName(field) == "Tags") &&
+            DialogHost.GetVisualDescendants().OfType<Button>().Any(button => Equals(button.Content, "Use Steam tags")),
+            "The game editor did not offer manual and Steam tags.");
         await WaitFor(() => title.IsFocused, "Opening Edit game did not focus the title.");
         var useSteam = DialogHost.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Use Steam genres"));
         app.Text = "invalid";

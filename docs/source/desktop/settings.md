@@ -29,9 +29,13 @@ Renders Appearance, Library, and About. About places release notes for the insta
 
 Library → Game Details contains the Windows **Theme music** toggle, off by default. When enabled, game details play a local custom or matched Steam soundtrack track while the launcher is active. [Theme music](steam.md)
 
+Library → General enables playtime tracking on new and existing profiles by default. Turning it off hides duration statistics and playtime sorts while keeping launch dates. The symbolic trash action uses the shared destructive confirmation and saves the cleared durations as one profile change.
+
 Appearance uses `BuildChoicePicker` for the font family, font size, and scale. Its button displays the current value, and its scrollable menu uses the same frosted surface, spacing, and motion as context menus. The menu aligns to the button's left edge and switches to its right edge if the measured menu would extend past the launcher. Font families keep keyboard text search. The preference applies after the menu closes so changes to typography and scale leave the closing animation aligned with its trigger. Collections use the same picker for member sorting and rule matching, attributes, and operators. Mods use it for OptiScaler’s DLL name and DXGI spoofing, the ReShade graphics API, and RenoDX add-on variants.
 
 Theme includes a Default accent colour picker for the launcher palette. Its dialog shows colour-only preset buttons and a square live preview the same height as the six-digit hex field. Apply saves the selection and updates the launcher immediately. Selecting the first purple swatch restores the built-in palette. The Artwork accent colour switch is enabled by default and uses the selected game's artwork colour on Game Details when available.
+
+Colourway maps the interface's surface and foreground roles to Classic, dark Adwaita, Catppuccin Mocha, Everforest dark medium, and Tokyo Night. Classic retains its directional background lighting. The other colourways use solid canvas and placeholder colours. Accent resources are applied afterward and keep the existing default and artwork controls. The Widget Customisation subpage overrides the shared control, panel, and artwork radii and scales the opacity of existing small, popup, and dialog shadows. Defaults use each original radius and full shadow strength. [Adwaita CSS variables](https://github.com/GNOME/libadwaita/blob/main/doc/css-variables.md) · [Catppuccin Mocha palette](https://catppuccin.com/palette/) · [Everforest palette](https://github.com/sainnhe/everforest/blob/master/palette.md) · [Tokyo Night palette](https://github.com/folke/tokyonight.nvim/blob/main/lua/tokyonight/colors/night.lua)
 
 `BindPreferenceAvailability` gives disabled preference rows the same muted treatment and exposes the reason on hover and through accessibility metadata. Interactive Artwork Shift and Reset first-usage prompts use it.
 
@@ -56,6 +60,8 @@ Loads installed release notes when their About section attaches. It reuses succe
 Centralises modal opening and field layout, font selection and popup font resources, first-run usage acknowledgement, confirmation and notice dialogs, native pickers, folder and game editing, and shared game menu actions. Editing and asynchronous Steam lookups stay inside the modal until the user saves or cancels.
 
 When a game save fails, Add game and Edit game keep the draft open and show a retry message in the form. The previous library and ignored paths are restored, and the discovery list and Steam retry state change only after a successful save.
+
+The Tags field saves a manual override or uses Steam tags scoped to the App ID shown in the form. The Scale picker saves an optional library classification.
 
 **Manage metadata** opens from the game context menu and the left side of the **Edit game** footer. Opening it from Edit game preserves the parent form and returns focus there when the child dialog closes. [Game media](steam.md)
 

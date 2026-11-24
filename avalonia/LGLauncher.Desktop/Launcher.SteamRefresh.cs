@@ -15,12 +15,13 @@ internal sealed partial class Launcher
         {
             var genres = Fetch(() => _steam.GetGenres(id, token));
             var tags = Fetch(() => _steam.GetStoreTags(id, token));
+            var details = Fetch(() => _steam.GetGameDetails(id, token));
             var hero = Fetch(() => _steam.GetBackdrop(id, token, refresh: true));
             var header = Fetch(() => _steam.DownloadArtwork(id, token, refresh: true));
             var portrait = Fetch(() => _steam.GetPortrait(id, token, refresh: true));
             var icon = Fetch(() => _steam.GetIcon(id, token, refresh: true));
             var logo = Fetch(() => _steam.GetLogo(id, token, refresh: true));
-            await Task.WhenAll(genres, tags, hero, header, portrait, icon, logo);
+            await Task.WhenAll(genres, tags, details, hero, header, portrait, icon, logo);
 
             if (_closed || token.IsCancellationRequested || game.SteamId != id || !_library.Games.Contains(game)) return;
             var logoPath = logo.Result;
@@ -42,17 +43,18 @@ internal sealed partial class Launcher
             var tagsSaved = tags.Result == null ||
                 SaveStoreTags(_library.Games.Where(entry => entry.SteamId == id).ToArray(), id, tags.Result);
             var genresSaved = genres.Result == null || game.ManualGenres || SaveSteamGenres([game], id, genres.Result);
+            var detailsSaved = details.Result == null || SaveGameDetails(id, details.Result, refresh: true);
             if (icon.Result != null)
             {
                 foreach (var entry in _library.Games.Where(entry => entry.SteamId == id))
                     InvalidateEntry(entry);
             }
-            var updated = genres.Result != null || tags.Result != null || hero.Result != null || header.Result != null ||
+            var updated = genres.Result != null || tags.Result != null || details.Result != null || hero.Result != null || header.Result != null ||
                 portrait.Result != null || icon.Result != null || logoUpdated;
-            if (updated && (icon.Result != null || _page is Page.Home or Page.Collections or Page.Game)) Render();
+            if (updated && (icon.Result != null || _page is Page.Home or Page.Collections or Page.Library or Page.Game)) Render();
             if ((hero.Result != null || header.Result != null) && _page == Page.Game && _game is { } selected && selected.SteamId == id && !_editingArtwork)
                 LoadDetailsArtwork(selected, reload: true);
-            if (tagsSaved && genresSaved)
+            if (tagsSaved && genresSaved && detailsSaved)
                 Status(!updated ? $"Steam could not refresh {game.Title}."
                     : !logoUpdated && _library.Preferences.UseGameLogos
                         ? $"Refreshed {game.Title}. Steam did not return a new game logo."

@@ -352,6 +352,8 @@ internal sealed partial class Launcher
             {
                 Resources.Remove(key);
             }
+            if (ActiveColourway != Colourways[0])
+                Resources["LG.Selection"] = new SolidColorBrush(Color.Parse(ActiveColourway.Selection));
             return;
         }
 
