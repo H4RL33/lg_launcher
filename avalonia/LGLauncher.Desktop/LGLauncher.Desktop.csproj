@@ -4,7 +4,7 @@
     <AssemblyName>LG Launcher</AssemblyName>
     <RootNamespace>LGLauncher</RootNamespace>
     <Nullable>annotations</Nullable>
-    <Version>0.1.18</Version>
+    <Version>0.1.19</Version>
     <SkiaSharpVersion>3.119.4</SkiaSharpVersion>
     <ApplicationIcon>../../assets/launcher.ico</ApplicationIcon>
     <ApplicationManifest>../../src/app.manifest</ApplicationManifest>
