@@ -22,7 +22,21 @@ internal sealed partial class Launcher
     private const int MaximumInterfaceScale = 200;
     private static readonly int[] FontSizes = [11, 12, 13, 14, 15, 16, 17, 18];
     private static readonly int[] InterfaceScales = [MinimumInterfaceScale, 100, 125, 150, 175, MaximumInterfaceScale];
+    private sealed record Colourway(string Name, string Canvas, string Sidebar, string Surface, string Raised, string Line,
+        string Text, string Muted, string Selection);
+
+    private static readonly Colourway[] Colourways =
+    [
+        new("Classic", "#0E111C", "#121624", "#191D2E", "#252A40", "#323950", "#F1F2FC", "#A9AEC7", "#3C365D"),
+        new("Adwaita", "#222226", "#2E2E32", "#343438", "#39393D", "#4C4C51", "#FFFFFF", "#C0C0C6", "#45454A"),
+        new("Catppuccin Mocha", "#1E1E2E", "#181825", "#242438", "#313244", "#45475A", "#CDD6F4", "#BAC2DE", "#45475A"),
+        new("Everforest", "#2D353B", "#232A2E", "#343F44", "#3D484D", "#4F585E", "#D3C6AA", "#B7BDA8", "#4F585E"),
+        new("Tokyo Night", "#1A1B26", "#16161E", "#222436", "#292E42", "#3B4261", "#C0CAF5", "#A9B1D6", "#394B70")
+    ];
+
+    private Colourway ActiveColourway => Colourways.FirstOrDefault(palette => palette.Name == _library.Preferences.Colourway) ?? Colourways[0];
     private event Action? PreferencesChanged;
+    private bool TrackPlaytime => !_library.Preferences.DisablePlaytimeTracking;
 
     private int EffectiveFontSize => Math.Clamp(_library.Preferences.InterfaceFontSize is 0
         ? (int)Math.Round(_defaultFontSize) : _library.Preferences.InterfaceFontSize, 11, 18);
@@ -44,6 +58,11 @@ internal sealed partial class Launcher
     {
         var prefs = _library.Preferences;
         bool SaveScale(int percent) => SavePreference(prefs.InterfaceScalePercent, percent, value => prefs.InterfaceScalePercent = value, ApplyInterfaceScale);
+        var colourway = BuildChoicePicker("Colourway", Colourways, ActiveColourway, palette => palette.Name,
+            palette => SavePreference(prefs.Colourway, palette == Colourways[0] ? null : palette.Name,
+                value => prefs.Colourway = value, ApplyColourway));
+        colourway.HorizontalAlignment = HorizontalAlignment.Right;
+        colourway.MinWidth = 154;
         return new StackPanel
         {
             Spacing = 14,
@@ -66,11 +85,13 @@ internal sealed partial class Launcher
                     Spacing = 9,
                     Children =
                     {
+                        PreferenceRow("Colourway", colourway),
                         PreferenceToggle("Translucency", "Use frosted glass in the launcher.",
                             !prefs.DisableTranslucency, value => prefs.DisableTranslucency = !value, ApplyTranslucency),
                         PreferenceRow("Default accent colour", BuildDefaultAccentPicker()),
                         PreferenceToggle("Artwork accent colour", "Match the accent colour to the artwork on game details.",
-                            !prefs.DisableArtworkAccent, value => prefs.DisableArtworkAccent = !value, ApplyArtworkAccent)
+                            !prefs.DisableArtworkAccent, value => prefs.DisableArtworkAccent = !value, ApplyArtworkAccent),
+                        SettingsRow("Widget Customisation", "LG.Icon.Controls", Page.Widgets)
                     }
                 }),
                 Section("Motion", new StackPanel
@@ -90,6 +111,94 @@ internal sealed partial class Launcher
         };
     }
 
+    private Control BuildWidgetSettings()
+    {
+        var prefs = _library.Preferences;
+        var radius = BuildChoicePicker("Corner radius", new[] { -1, 0, 4, 8, 12, 16, 20 }, prefs.WidgetRadius ?? -1,
+            value => value < 0 ? "Default" : $"{value} px",
+            value => SavePreference(prefs.WidgetRadius, value < 0 ? (int?)null : value,
+                radius => prefs.WidgetRadius = radius, ApplyWidgetTheme));
+        var shadows = BuildChoicePicker("Shadow strength", new[] { 0, 25, 50, 75, 100 }, prefs.WidgetShadowStrength ?? 100,
+            value => value == 0 ? "Off" : $"{value}%",
+            value => SavePreference(prefs.WidgetShadowStrength, value == 100 ? (int?)null : value,
+                strength => prefs.WidgetShadowStrength = strength, ApplyWidgetTheme));
+        foreach (var picker in new[] { radius, shadows })
+        {
+            picker.HorizontalAlignment = HorizontalAlignment.Right;
+            picker.MinWidth = 100;
+        }
+        return Section("Shape and shadows", new StackPanel
+        {
+            Spacing = 9,
+            Children = { PreferenceRow("Corner radius", radius), PreferenceRow("Shadow strength", shadows) }
+        });
+    }
+
+    private void ApplyWidgetTheme()
+    {
+        var prefs = _library.Preferences;
+        foreach (var key in new[] { "LG.ControlRadius", "LG.PanelRadius", "LG.ArtworkInsetRadius" })
+        {
+            if (prefs.WidgetRadius is { } radius) Resources[key] = new CornerRadius(Math.Clamp(radius, 0, 20));
+            else Resources.Remove(key);
+        }
+
+        var strength = Math.Clamp(prefs.WidgetShadowStrength ?? 100, 0, 100);
+        SetShadow("LG.SmallShadow", "0 2 8", 0x55);
+        SetShadow("LG.PopupShadow", "0 7 20", 0x55);
+        SetShadow("LG.ModalShadow", "0 14 48", 0x90);
+
+        void SetShadow(string key, string geometry, int opacity)
+        {
+            Resources[key] = strength == 0 ? default(BoxShadows)
+                : BoxShadows.Parse($"{geometry} #{opacity * strength / 100:X2}000000");
+        }
+    }
+
+    private void ApplyColourway()
+    {
+        var palette = ActiveColourway;
+        var classic = palette == Colourways[0];
+        var canvas = Color.Parse(palette.Canvas);
+        var sidebar = Color.Parse(palette.Sidebar);
+        var surface = Color.Parse(palette.Surface);
+        var raised = Color.Parse(palette.Raised);
+        var text = Color.Parse(palette.Text);
+        SetColour("LG.Canvas", canvas);
+        SetColour("LG.Sidebar", sidebar);
+        SetColour("LG.Surface", surface);
+        SetColour("LG.SurfaceRaised", raised);
+        SetColour("LG.Line", Color.Parse(palette.Line));
+        SetColour("LG.Text", text);
+        SetColour("LG.Muted", Color.Parse(palette.Muted));
+        SetColour("LG.ArtworkGlass", WithAlpha(sidebar, 0xB3));
+        SetColour("LG.ArtworkGlassLine", WithAlpha(text, 0x38));
+        if (classic)
+        {
+            foreach (var key in new[] { "LG.MainBackground", "LG.DetailShade", "LG.ArtworkFallback" }) Resources.Remove(key);
+        }
+        else
+        {
+            Resources["LG.MainBackground"] = new SolidColorBrush(canvas);
+            Resources["LG.DetailShade"] = new LinearGradientBrush
+            {
+                StartPoint = RelativePoint.Parse("0%,100%"),
+                EndPoint = RelativePoint.Parse("23%,0%"),
+                GradientStops = { new(canvas, 0), new(WithAlpha(canvas, 0xC0), .32), new(WithAlpha(canvas, 0x4D), .7), new(WithAlpha(canvas, 3), 1) }
+            };
+            Resources["LG.ArtworkFallback"] = new SolidColorBrush(raised);
+        }
+        ApplyArtworkAccent();
+
+        void SetColour(string key, Color colour)
+        {
+            if (classic) Resources.Remove(key);
+            else Resources[key] = new SolidColorBrush(colour);
+        }
+
+        static Color WithAlpha(Color colour, byte alpha) => Color.FromArgb(alpha, colour.R, colour.G, colour.B);
+    }
+
     private Control BuildLibrarySettings()
     {
         var prefs = _library.Preferences;
@@ -98,6 +207,16 @@ internal sealed partial class Launcher
             Spacing = 14,
             Children =
             {
+                Section("General", new StackPanel
+                {
+                    Spacing = 9,
+                    Children =
+                    {
+                        PreferenceToggle("Track playtime", "Record how long games run and show their playtime.",
+                            TrackPlaytime, value => prefs.DisablePlaytimeTracking = !value, ApplyPlaytimeTracking),
+                        PreferenceRow("Clear playtime data", ModDeleteButton("Clear playtime data", () => _ = ClearPlaytime()))
+                    }
+                }),
                 Section("Game Details", new StackPanel
                 {
                     Spacing = 9,
@@ -108,7 +227,7 @@ internal sealed partial class Launcher
                         PreferenceToggle("Theme music", "Play a custom track or a matched, installed Steam theme when viewing a game.",
                             prefs.PlayThemeMusic, value => prefs.PlayThemeMusic = value, UpdateThemeMusic,
                             overrideReason: () => OperatingSystem.IsWindows() ? null : "Theme music playback is available on Windows."),
-                        PreferenceToggle("Show Store Tags", "Show Steam store tags below genres on game details.",
+                        PreferenceToggle("Show Store Tags", "Show tags below genres on game details.",
                             prefs.ShowStoreTags, value => prefs.ShowStoreTags = value)
                     }
                 }),
@@ -116,6 +235,34 @@ internal sealed partial class Launcher
                     "Show a row of recent articles from enabled feeds.", prefs.ShowRecentRss, value => prefs.ShowRecentRss = value))
             }
         };
+    }
+
+    private void ApplyPlaytimeTracking()
+    {
+        if (TrackPlaytime) return;
+        _sessions.StopTrackingPlaytime();
+        if (_sort == 2) _sort = 0;
+        if (_librarySort == 2) _librarySort = 0;
+        if (_collectionsSort == 2) _collectionsSort = 0;
+        RenderSidebar();
+    }
+
+    private async Task ClearPlaytime()
+    {
+        if (!await Confirm("Clear playtime data?", "Remove the recorded playtime for every game in your library.",
+            "Clear playtime", destructive: true)) return;
+        var previous = _library.Games.Where(game => game.PlaySeconds != 0).Select(game => (Game: game, game.PlaySeconds)).ToArray();
+        var previouslyUnsaved = _saveFailed;
+        foreach (var entry in previous) entry.Game.PlaySeconds = 0;
+        if (!Save())
+        {
+            foreach (var entry in previous) entry.Game.PlaySeconds = entry.PlaySeconds;
+            _saveFailed = previouslyUnsaved;
+            return;
+        }
+        _sessions.ResetPlaytime();
+        RenderSidebar();
+        Status("Cleared playtime data.");
     }
 
     private Control BuildAbout()
@@ -273,7 +420,8 @@ internal sealed partial class Launcher
     }
 
     private Button BuildChoicePicker<T>(string title, IEnumerable<T> choices, T current, Func<T, string> format, Func<T, bool> select,
-        bool textSearch = false, bool wrapLabel = false, Action<T, Action<T>>? editCustom = null)
+        bool textSearch = false, bool wrapLabel = false, Action<T, Action<T>>? editCustom = null, bool textOnly = false,
+        Func<T, string>? currentLabel = null)
     {
         var value = Label("");
         value.VerticalAlignment = VerticalAlignment.Center;
@@ -305,9 +453,15 @@ internal sealed partial class Launcher
         var picker = new Button
         {
             HorizontalAlignment = HorizontalAlignment.Stretch, Classes = { "lg", "choice-picker" },
-            Content = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 8, Children = { value, chevron } },
+            Content = textOnly ? value : new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 8, Children = { value, chevron } },
             ContextMenu = menu
         };
+        if (textOnly)
+        {
+            picker.Classes.Remove("choice-picker");
+            picker.Classes.Add("quiet");
+            picker.Padding = new Thickness(7, 0);
+        }
         AutomationProperties.SetName(picker, title);
         MenuItem? customItem = null;
         Action? commit = null;
@@ -377,8 +531,8 @@ internal sealed partial class Launcher
 
         void UpdateChoice()
         {
-            value.Text = format(current);
-            AutomationProperties.SetHelpText(picker, $"Current value {value.Text}");
+            value.Text = currentLabel?.Invoke(current) ?? format(current);
+            AutomationProperties.SetHelpText(picker, $"Current value {format(current)}");
             var items = menu.Items.OfType<MenuItem>();
             var selected = items.FirstOrDefault(item => item != customItem && Equals(item.Tag, current)) ?? customItem;
             foreach (var item in items) item.IsChecked = item == selected;

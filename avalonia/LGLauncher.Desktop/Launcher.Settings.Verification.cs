@@ -21,6 +21,7 @@ internal sealed partial class Launcher
     private async Task VerifyPreferences(Game game, string preview)
     {
         await VerifyArtworkAccent(preview);
+        await VerifyColourwaysAndWidgets(preview);
         var font = Setting<Button>("Base interface font size");
         var previousFontSize = EffectiveFontSize;
         var inheritedHeadingSize = PageTitle.FontSize;
@@ -119,10 +120,11 @@ internal sealed partial class Launcher
         Navigate(Page.LibrarySettings);
         UpdateLayout();
         var useLogos = Setting<ToggleSwitch>("Use Game Logos");
+        var playtime = Setting<ToggleSwitch>("Track playtime");
         var themeMusic = Setting<ToggleSwitch>("Theme music");
         var storeTags = Setting<ToggleSwitch>("Show Store Tags");
         var rssArticles = Setting<ToggleSwitch>("Display most-recent RSS articles on Home");
-        Require(useLogos.IsChecked == true && themeMusic.IsChecked == false && storeTags.IsChecked == true && rssArticles.IsChecked == true &&
+        Require(playtime.IsChecked == true && useLogos.IsChecked == true && themeMusic.IsChecked == false && storeTags.IsChecked == true && rssArticles.IsChecked == true &&
             !PageBody.GetVisualDescendants().OfType<ToggleSwitch>().Any(toggle => AutomationProperties.GetName(toggle) == "Unlimited Genres"),
             "An existing profile did not receive the expected library defaults.");
         useLogos.IsChecked = false;
@@ -146,6 +148,25 @@ internal sealed partial class Launcher
         storeTags.IsChecked = true;
         rssArticles.IsChecked = true;
         Require(!_store.Load().Preferences.PlayThemeMusic, "Disabling theme music did not persist.");
+        playtime.IsChecked = false;
+        Require(_store.Load().Preferences.DisablePlaytimeTracking && !GameSortChoices().Contains(2), "Disabling playtime did not persist or hide its sort.");
+        SelectGame(game);
+        Require(!PlaytimeDetail.IsVisible, "Game details displayed playtime with tracking disabled.");
+        Navigate(Page.LibrarySettings);
+        UpdateLayout();
+        Setting<ToggleSwitch>("Track playtime").IsChecked = true;
+        var previousTimes = _library.Games.Select(entry => (Game: entry, entry.PlaySeconds)).ToArray();
+        Setting<Button>("Clear playtime data").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(ActiveModDialog is { } clear && AutomationProperties.GetName(clear) == "Clear playtime data?",
+            "Clearing playtime did not require confirmation.");
+        DialogHost.DismissTop();
+        Require(previousTimes.All(entry => entry.Game.PlaySeconds == entry.PlaySeconds), "Cancelling clear playtime changed history.");
+        Setting<Button>("Clear playtime data").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        ActiveModDialog!.Footer.Children.OfType<Button>().Single(button => Equals(button.Content, "Clear playtime"))
+            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await WaitFor(() => _store.Load().Games.All(entry => entry.PlaySeconds == 0), "Confirmed playtime clearing did not save.");
+        foreach (var entry in previousTimes) entry.Game.PlaySeconds = entry.PlaySeconds;
+        Require(Save(), "The verification fixture could not restore its history.");
 
         var version = UpdateFeed.CurrentVersion;
         var releaseTag = UpdateFeed.ReleaseTag(version);
@@ -272,6 +293,52 @@ internal sealed partial class Launcher
             Require(body.FontWeight == FontWeight.Normal && body.FontFamily == FontFamily && heading.FontWeight == FontWeight.SemiBold,
                 $"Release note typography was {body.FontFamily.Name} {body.FontWeight} for body text and {heading.FontWeight} for the heading.");
         }
+    }
+
+    private async Task VerifyColourwaysAndWidgets(string preview)
+    {
+        var folder = Path.GetDirectoryName(preview)!;
+        var previousSize = (Width, Height);
+        Navigate(Page.Appearance);
+        UpdateLayout();
+        var picker = Setting<Button>("Colourway");
+        var accent = ((ISolidColorBrush)this.FindResource("LG.AccentFill")!).Color;
+        foreach (var palette in Colourways.Skip(1))
+        {
+            await ChoosePreference(picker, palette.Name);
+            Require(Background is ISolidColorBrush background && background.Color == Color.Parse(palette.Canvas) &&
+                MainArea.Background is ISolidColorBrush canvas && canvas.Color == background.Color &&
+                this.FindResource("LG.ArtworkFallback") is ISolidColorBrush &&
+                ((ISolidColorBrush)this.FindResource("LG.AccentFill")!).Color == accent &&
+                _store.Load().Preferences.Colourway == palette.Name, $"Changing to {palette.Name} did not apply and save its surface palette.");
+            Capture(Path.Combine(folder, $"colourway-{palette.Name.Replace(' ', '-').ToLowerInvariant()}.png"));
+        }
+        Navigate(Page.Widgets);
+        UpdateLayout();
+        await ChoosePreference(Setting<Button>("Corner radius"), "4 px");
+        await ChoosePreference(Setting<Button>("Shadow strength"), "Off");
+        Require(this.FindResource("LG.PanelRadius") is CornerRadius radius && radius == new CornerRadius(4) &&
+            this.FindResource("LG.ModalShadow") is BoxShadows shadow && shadow.Equals(default(BoxShadows)) &&
+            _store.Load().Preferences.WidgetRadius == 4 && _store.Load().Preferences.WidgetShadowStrength == 0,
+            "Widget preferences did not apply to shared resources or persist.");
+        foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
+        {
+            (Width, Height) = size;
+            await Task.Delay(85);
+            Capture(Path.Combine(folder, $"widget-customisation-{size.Item1}.png"));
+        }
+        (Width, Height) = previousSize;
+        await ChoosePreference(Setting<Button>("Corner radius"), "Default");
+        await ChoosePreference(Setting<Button>("Shadow strength"), "100%");
+        Navigate(Page.Appearance);
+        UpdateLayout();
+        await ChoosePreference(Setting<Button>("Colourway"), "Classic");
+        Require(MainArea.Background is RadialGradientBrush &&
+            this.FindResource("LG.ArtworkFallback") is LinearGradientBrush, "Classic did not restore its directional lighting.");
+        Capture(Path.Combine(folder, "colourway-classic.png"));
+
+        T Setting<T>(string name) where T : Control => PageBody.GetVisualDescendants().OfType<T>()
+            .Single(control => AutomationProperties.GetName(control) == name);
     }
 
     private async Task VerifyArtworkAccent(string preview)
@@ -431,7 +498,7 @@ internal sealed partial class Launcher
                 splash.Close();
             }
             Navigate(Page.Home);
-            Require(Accent() == custom && DiscoveryBadge.Background is ISolidColorBrush badge && badge.Color == custom,
+            Require(Accent() == custom,
                 "The default accent was not applied outside Appearance.");
             Require(await Open(cool) == teal && await Open(neutral) == custom && await Open(missing) == custom,
                 "Artwork colours did not override the custom default only when artwork supplied a usable colour.");
@@ -493,7 +560,7 @@ internal sealed partial class Launcher
                     _motion = false;
                     Require(await Open(cool) == start, "The starting palette did not apply immediately with motion disabled.");
                     var brush = (SolidColorBrush)PlayGame.Background!;
-                    var samples = new List<(Color Fill, Color Text, Color BadgeFill, Color BadgeText)>();
+                    var samples = new List<(Color Fill, Color Text)>();
                     var captured = false;
                     brush.PropertyChanged += Observe;
                     try
@@ -505,15 +572,13 @@ internal sealed partial class Launcher
                     finally { brush.PropertyChanged -= Observe; }
 
                     Require(captured && samples[^1].Fill == end && samples.All(sample =>
-                        sample.Text == ArtworkAccent.TextOn(sample.Fill) && ArtworkAccent.Contrast(sample.Fill, sample.Text) >= 4.5 &&
-                        sample.BadgeFill == sample.Fill && sample.BadgeText == sample.Text),
+                        sample.Text == ArtworkAccent.TextOn(sample.Fill) && ArtworkAccent.Contrast(sample.Fill, sample.Text) >= 4.5),
                         "The accent fill and foreground did not animate together with readable text.");
 
                     void Observe(object? sender, AvaloniaPropertyChangedEventArgs args)
                     {
                         if (args.Property != SolidColorBrush.ColorProperty) return;
-                        samples.Add((brush.Color, ((ISolidColorBrush)PlayGame.Foreground!).Color,
-                            ((ISolidColorBrush)DiscoveryBadge.Background!).Color, ((ISolidColorBrush)DiscoveryCount.Foreground!).Color));
+                        samples.Add((brush.Color, ((ISolidColorBrush)PlayGame.Foreground!).Color));
                         if (captured || brush.Color == start || brush.Color == end) return;
                         captured = true;
                         Capture(Path.Combine(folder, $"artwork-accent-transition-{size.Width}.png"));

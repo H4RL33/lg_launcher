@@ -87,7 +87,7 @@ Coordinates automatic Steam genre backfill, parses commas in genre entry fields,
 
 ## `avalonia/LGLauncher.Desktop/Launcher.SteamTags.cs`
 
-Starts the genre and tag queues together, prioritises the selected game's missing tags, and persists tags against their Steam App ID. Tag changes trigger updates when dynamic collection membership changes. The display preference hides the detail labels while saved tags remain available for collection rules.
+Starts the genre, tag, and Steam details queues together. It prioritises the selected game's missing tags and persists tags, developer, publisher, and release date against their Steam App ID. Changes refresh affected views and dynamic collections. The display preference hides tag labels while saved tags remain searchable. Manual tags take precedence for display.
 
 - **Depends on** `SteamCatalog.GetStoreTags`, the profile tag fields and rule evaluation, the genre queue, launcher save/cancellation state, and the `StoreTags` layout host.
 - **Used by** the main window after startup or a game session, Edit game after saving, manual Steam refresh, game detail rendering, and the metadata smoke tests.
@@ -96,7 +96,7 @@ Starts the genre and tag queues together, prioritises the selected game's missin
 
 ## `avalonia/LGLauncher.Desktop/Launcher.SteamRefresh.cs`
 
-Implements the explicit refresh action for a matched game. It fetches genre, tag, hero, header, portrait, icon, and logo data concurrently, then updates the corresponding caches and affected views. It guards duplicate refreshes for the same ID and leaves manual genres, artwork selection, and framing intact.
+Implements the explicit refresh action for a matched game. It fetches genres, tags, Steam details, hero, header, portrait, icon, and logo data concurrently, then updates the corresponding caches and affected views. It guards duplicate refreshes for the same ID and preserves manual genres, manual tags, artwork selection, and framing.
 
 - **Depends on** `SteamCatalog`, the genre and tag save helpers, artwork and logo cache methods, and the current window, selection, and game session state.
 - **Used by** the game details refresh button, the game context menu, and the metadata verification that checks action availability.

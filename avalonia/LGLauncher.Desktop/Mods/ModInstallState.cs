@@ -73,7 +73,8 @@ internal sealed record ModDependencyLink(ModProviderId Dependent, ModProviderId 
 internal sealed record ModReShadeChain(string Configuration, string PreviousValue, string ExpectedHash);
 internal sealed record ModInstallPlan(GameInstallTarget Target, IReadOnlyList<ModFileChange> Changes, IReadOnlyList<ModPackageKey> Packages,
     string? RecipeId = null, ModDxgiSpoofing? DxgiSpoofing = null, ModDependencyLink[]? Dependencies = null,
-    Guid? ExistingInstallation = null, ModReShadeChain? ReShadeChain = null, ModReShadeVulkanInstall? ReShadeVulkan = null);
+    Guid? ExistingInstallation = null, ModReShadeChain? ReShadeChain = null, ModReShadeVulkanInstall? ReShadeVulkan = null,
+    ModPackageKey? ReplacingPackage = null);
 internal sealed record ModOwnedFile(string Relative, string DeployedHash, ModProviderId Owner, ModFileSnapshot? Original, string? OriginalBackup);
 internal sealed record ModInstallationRecord(Guid Id, GameInstallTarget Target, ModPackageKey[] Packages, ModOwnedFile[] Files, string[] CreatedDirectories,
     string? RecipeId = null, ModDependencyLink[]? Dependencies = null, ModReShadeChain? ReShadeChain = null, bool ReShadeVulkan = false)
