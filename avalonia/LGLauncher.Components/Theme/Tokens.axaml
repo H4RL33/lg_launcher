@@ -22,6 +22,20 @@
     <SolidColorBrush x:Key="LG.Error">#FFA0AA</SolidColorBrush>
     <SolidColorBrush x:Key="LG.DestructiveFill">#842D43</SolidColorBrush>
     <SolidColorBrush x:Key="LG.Neutral">#8991AD</SolidColorBrush>
+    <RadialGradientBrush x:Key="LG.MainBackground" Center="85%,0%" GradientOrigin="85%,0%" RadiusX="84%" RadiusY="95%">
+        <GradientStop Color="#21243B" Offset="0"/>
+        <GradientStop Color="#151929" Offset=".55"/>
+        <GradientStop Color="#0E111C" Offset="1"/>
+    </RadialGradientBrush>
+    <LinearGradientBrush x:Key="LG.DetailShade" StartPoint="0%,100%" EndPoint="23%,0%">
+        <GradientStop Color="#FF0E111C" Offset="0"/>
+        <GradientStop Color="#C00E111C" Offset=".32"/>
+        <GradientStop Color="#4D0E111C" Offset=".70"/>
+        <GradientStop Color="#030E111C" Offset="1"/>
+    </LinearGradientBrush>
+    <BoxShadows x:Key="LG.SmallShadow">0 2 8 #55000000</BoxShadows>
+    <BoxShadows x:Key="LG.PopupShadow">0 7 20 #55000000</BoxShadows>
+    <BoxShadows x:Key="LG.ModalShadow">0 14 48 #90000000</BoxShadows>
     <LinearGradientBrush x:Key="LG.ArtworkFallback" StartPoint="0%,0%" EndPoint="100%,100%">
         <GradientStop Color="#332653" Offset="0"/>
         <GradientStop Color="#181B30" Offset="1"/>

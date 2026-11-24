@@ -14,6 +14,8 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 ## `avalonia/LGLauncher.Components/Widgets.cs`
 
+`GameCard.IsModded` toggles the unbacked wrench overlay in the portrait's top-right corner.
+
 [Source](../../avalonia/LGLauncher.Components/Widgets.cs)
 
 - **Purpose** — Defines the bindable contracts for `StatusIndicator`, `LibraryRow`, `GameCard`, `CollectionCard`, and `ArtworkToolbar`. Library rows accept a bitmap or a symbolic icon in the same rounded icon slot. The widgets derive portrait height from arranged width and the icon radius from its bounds. Feature actions belong to the host.
@@ -125,6 +127,8 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 - **Used by** — Both theme hosts through `Components.axaml`. Consumer views opt in via control classes or the shared factories. When changing a Fluent template selector, verify it against the configured Avalonia version.
 
 ## `avalonia/LGLauncher.Components/Theme/Tokens.axaml`
+
+Classic provides the directional gradient through `LG.MainBackground`. Other Desktop colourways replace that brush and the artwork fallback with solid palette colours. The game detail shade remains a gradient over artwork. The shared small, popup, and modal shadow resources and corner-radius tokens support live overrides from Desktop Appearance settings.
 
 [Source](../../avalonia/LGLauncher.Components/Theme/Tokens.axaml)
 

@@ -257,7 +257,7 @@ internal sealed partial class Launcher
             "The scan lost the saved ignored path.");
         var desktop = (Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)Application.Current!.ApplicationLifetime!;
         Require(_startupComplete && desktop.MainWindow == this && !desktop.Windows.OfType<StartupWindow>().Any() &&
-            ReviewCount.Text == "1 item for review" &&
+            AutomationProperties.GetName(OpenReviews) == "1 item for review" &&
             Grid.GetColumn(ManageFolder) < Grid.GetColumn(OpenReviews) && Grid.GetColumn(OpenReviews) < Grid.GetColumn(GameCount),
             "Startup did not complete or the status line is out of order.");
 
@@ -802,7 +802,8 @@ internal sealed partial class Launcher
         {
             Navigate(Page.Collections);
             UpdateLayout();
-            var tiles = PageBody.Children.OfType<UniformGrid>().Single().Children.OfType<CollectionCard>().ToArray();
+            var tiles = PageBody.Children.OfType<UniformGrid>().Single().Children.OfType<Border>()
+                .Select(host => host.Child).OfType<CollectionCard>().ToArray();
             var manualTile = tiles.Single(tile => tile.Title == manual.Name);
             var dynamicTile = tiles.Single(tile => tile.Title == dynamicCollection.Name);
             var mosaic = (Grid)manualTile.Content!;
@@ -949,6 +950,36 @@ internal sealed partial class Launcher
         try
         {
             _sort = 0;
+            LibraryNav.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(_page == Page.Library && _cardGrid?.Children.Count == _library.Games.Count,
+                "The Library button did not open the whole library grid.");
+            foreach (var button in new[] { AddGame, AddCollection })
+                Require(button.Content is StackPanel { Children: [SymbolIcon plus, TextBlock { Text: "Add new" }] } &&
+                    Equals(plus.Data, this.FindResource("LG.Icon.Plus")), "The Add new action did not put the plus before its text.");
+            var libraryHeader = (Grid)LibrarySectionHeader.Content!;
+            var collapse = libraryHeader.Children.OfType<Button>().First();
+            collapse.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(!LibrarySection.IsVisible && CollectionsSection.IsVisible, "Collapsing Library hid the wrong sidebar section.");
+            collapse.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(LibrarySection.IsVisible, "The Library sidebar section could not be expanded again.");
+            AddCollection.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(ActiveModDialog is { } collectionType &&
+                collectionType.Body.Children.OfType<Button>().Select(AutomationProperties.GetName)
+                    .SequenceEqual(["Manual collection", "Dynamic collection"]), "Add new did not offer manual and dynamic collections.");
+            DialogHost.DismissTop();
+            var librarySort = PageBody.GetVisualDescendants().OfType<Button>().Single(button =>
+                AutomationProperties.GetName(button) == "Sort library");
+            await ChoosePreference(librarySort, "Title Z–A");
+            Require(_shownEntries[0].Game == played && _cardGrid?.Children[0].Tag == played,
+                "The Library sort did not reorder the grid and sidebar together.");
+            await ChoosePreference(PageBody.GetVisualDescendants().OfType<Button>().Single(button =>
+                AutomationProperties.GetName(button) == "Sort library"), "Title A–Z");
+            foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
+            {
+                (Width, Height) = size;
+                await Task.Delay(40);
+                Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"whole-library-{size.Item1}.png"));
+            }
             Navigate(Page.Collections);
             LibraryCollections.SelectedItem = _shownCollections.Single(item => item.Collection == manual);
             Require(_collection == manual && PageTitle.Text == manual.Name && LibraryGames.SelectedItem == null,
@@ -1018,10 +1049,10 @@ internal sealed partial class Launcher
 
                 void RecordTravel() => remainingTravel.Add(new Vector(translation.X, translation.Y).Length);
             };
-            await SelectPreferenceOption(sortPicker, "Most played");
+            await SelectPreferenceOption(sortPicker, "Playtime");
             await WaitFor(() => _sort == 2, "Selecting a sort option did not update the collection.");
             var mostPlayed = MemberCards()[0];
-            Require(AutomationProperties.GetHelpText(SortPicker()) == "Current value Most played" &&
+            Require(AutomationProperties.GetHelpText(SortPicker()) == "Current value Playtime" &&
                 mostPlayed.Title == played.Title,
                 "The shared sort picker did not apply or display the chosen collection order.");
             await WaitFor(() => PositionsBetween(Position(mostPlayed), originalPosition, firstSlot),

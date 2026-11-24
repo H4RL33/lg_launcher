@@ -192,7 +192,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
-        <Setter Property="BoxShadow" Value="0 7 20 #55000000"/>
+        <Setter Property="BoxShadow" Value="{DynamicResource LG.PopupShadow}"/>
         <Setter Property="Padding" Value="4"/>
     </Style>
     <Style Selector="ListBox.lg-search-results ListBoxItem">

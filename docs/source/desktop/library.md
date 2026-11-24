@@ -31,7 +31,7 @@ Home and the collection browser draw up to four mosaic tiles from the collection
 
 [Collection view source](../../../avalonia/LGLauncher.Desktop/Launcher.Collections.cs) · [Preferences and dialogs](settings.md) · [Steam and artwork](steam.md)
 
-The main window lists collections by name below the sidebar's Library section. Their rows share the game row's sizing and icon slot. Selecting a collection opens its member view through normal navigation. The member view uses the shared choice picker for Title A–Z, Last launched, and Most played.
+The collapsible Library and Collections lists have separate sort controls and Add new actions. The top Library icon opens the full-library grid. Library, Collections, and collection members use the shared choice picker. Games support title in either direction, playtime, last launched, newest added, and newest released. Collections support name in either direction, cumulative playtime, newest created, and quantity of games. Unknown dates sort after known dates. The library and collection browser share their sort choices with the corresponding sidebar list. Discoveries remains available through the status bar.
 
 With motion enabled, games on the destination page that were also visible on the previous page move from their former positions. Changing the sort order still returns to page one. Reduce Motion applies the new order immediately.
 
@@ -48,7 +48,7 @@ The modal searches the bundled names, aliases, and keywords. Its virtualized row
 
 ## `avalonia/LGLauncher.Desktop/Launcher.CollectionRules.cs`
 
-Builds the create and edit dialog for static or dynamic collections and displays readable rule descriptions. Dynamic rules select a genre or Steam tag, a comparison operator, and a value, with match-all or match-any behaviour. The editor converts legacy genre filters into rule rows and restores the original model if the save fails.
+Builds the create and edit dialog for manual or dynamic collections and displays readable rule descriptions. Dynamic rules select a genre, Steam tag, developer, publisher, or Modded status, a comparison operator, and a value, with match-all or match-any behaviour. Modded values are Yes and No. The editor converts legacy genre filters into rule rows and restores the original model if the save fails.
 
 - **Depends on** `GameCollection`, `CollectionRule`, the shared modal and select controls, compact row layout, the common dialog field helpers, and the main window's save and navigation methods.
 - **Used by** the main collection page, Home's collection actions, collection card menus and tooltips, and `Launcher.Verification.CollectionRules.cs`.
@@ -57,11 +57,11 @@ Builds the create and edit dialog for static or dynamic collections and displays
 
 The editor uses the shared choice picker for matching, rule attributes, and operators. Attribute and operator columns fit their content and align across rows. The value field moves below the pickers in a compact dialog.
 
-Rule values offer searchable suggestions from the library's genres or current Steam tags. The list deduplicates casing variants, reuses the collection picker's fuzzy matcher, and uses the game search dropdown's frame, row sizing, and height animation. Picking a result fills the field with its stored spelling. Typed partials and previously saved values remain usable.
+Rule values offer searchable suggestions from the library or the Yes and No options. The list deduplicates casing variants, reuses the collection picker's fuzzy matcher, and uses the game search dropdown's frame, row sizing, and height animation. Picking a result fills the field with its stored spelling. Text attributes accept typed partials and previously saved values.
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Search.cs`
 
-Implements the main window's library search dropdown. It debounces typing and parses the query once per results refresh before matching titles and genres. It maintains selection on refresh, handles keyboard or pointer activation, and closes the dropdown on outside clicks, focus loss, or page changes. The editor also uses its result height calculation for rule suggestions.
+Implements the main window's library search dropdown. It debounces typing and parses a query once per refresh. Plain text matches titles and genres. A leading `genre:`, `tag:`, `developer:`, or `publisher:` filters by a partial name. `year:` and `scale:` use exact values. The placeholder rotates every 30 seconds while the search box is empty and outside focus. The dropdown preserves selection on refresh and closes on outside clicks, focus loss, or page changes.
 
 - **Depends on** named search controls in `Launcher.axaml`, Avalonia's dispatcher and input events, the title/genre matcher, `LibraryEntry` sidebar artwork, and `SelectGame` history navigation.
 - **Used by** the main window constructor and render dispatcher, genre chips, navigation and artwork editing, and the search results and animation smoke checks.

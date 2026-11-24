@@ -16,6 +16,7 @@ internal static class ModVerification
         try
         {
             VerifyPackages(root).GetAwaiter().GetResult();
+            VerifyPackageUpdate(root).GetAwaiter().GetResult();
             VerifyTransactions(root).GetAwaiter().GetResult();
             VerifyProviderUninstall(root).GetAwaiter().GetResult();
             Reject(() => Task.FromResult(ModDxgiConfiguration.Read("[Spoofing]\nDxgi=true ; note"u8.ToArray()))).GetAwaiter().GetResult();
@@ -33,6 +34,38 @@ internal static class ModVerification
             File.WriteAllText(report, error.ToString());
             return 1;
         }
+    }
+
+    private static async Task VerifyPackageUpdate(string root)
+    {
+        var profile = Path.Combine(root, "release-update-fixture");
+        var package = Zip(("dinput8.dll", "new release fixture"));
+        var digest = Convert.ToHexString(SHA256.HashData(package));
+        const string tag = "nightly-99999-fixture";
+        const string archive = "https://github.com/praydog/REFramework-nightly/releases/download/" + tag + "/REFramework.zip";
+        var metadata = JsonSerializer.Serialize(new
+        {
+            tag_name = tag,
+            assets = new[] { new { name = "REFramework.zip", browser_download_url = archive, size = package.Length, digest = "sha256:" + digest } }
+        });
+        using var http = new HttpClient(new ResponseHandler(request => request.RequestUri?.AbsoluteUri == archive
+            ? new(HttpStatusCode.OK) { Content = new ByteArrayContent(package) }
+            : new(HttpStatusCode.OK) { Content = new StringContent(metadata) }));
+        var store = new ModPackageStore(profile, http);
+        var checkedPackage = await store.CheckAsync(ModProviderId.ReFramework, CancellationToken.None);
+        Require(checkedPackage.Download is { Key.Version: "nightly-99999" }, "The new release with official asset metadata was not offered.");
+        await store.AcquireAsync(checkedPackage.Download!, CancellationToken.None);
+        Require(new ModPackageStore(profile).Preferred(ModProviderId.ReFramework).Key.Version == "nightly-99999",
+            "Reopening the cache lost the new release for offline setup.");
+
+        using var reShadeHttp = new HttpClient(new ResponseHandler(_ => new(HttpStatusCode.OK)
+        {
+            Content = new StringContent("""[{"name":"v99.0.0"},{"name":"v98.0.0"}]""")
+        }));
+        var reShade = await new ModPackageStore(profile, reShadeHttp).CheckAsync(ModProviderId.ReShade, CancellationToken.None);
+        Require(reShade.Release is { Version: "99.0.0", Page.AbsoluteUri: "https://reshade.me/#download" } &&
+            reShade.Download?.Key == ModPackageStore.Approved(ModProviderId.ReShade).Key,
+            "A new ReShade tag did not expose the official page while retaining the reviewed download.");
     }
 
     private static async Task VerifyCompatibilityCatalog(string root)
@@ -894,6 +927,41 @@ internal static class ModVerification
         await service.UninstallAsync(existing.Id, false, token, ModProviderId.RenoDx);
         Require(File.ReadAllText(addon) == "original game add-on" && service.FindInstallations().Single().Files.Single().Owner == ModProviderId.ReShade,
             "Removing RenoDX did not restore its original and preserve the ReShade installation.");
+
+        var local = Path.Combine(profile, option.File);
+        File.WriteAllText(local, "invalid add-on");
+        await Reject(() => planner.PreviewAddonAsync(game, folder, exe, true, service.FindInstallations().Single(),
+            null, null, token, local));
+        File.WriteAllBytes(local, [.. binary, 0x2A]);
+        var imported = await planner.PreviewAddonAsync(game, folder, exe, true, service.FindInstallations().Single(),
+            null, null, token, local);
+        Require(imported.Plan?.Packages.Single().Version == "Imported" && imported.Plan.Dependencies?.Length == 1,
+            "The local add-on did not retain its identity and ReShade requirement.");
+        await service.InstallAsync(imported.Plan!, token);
+        existing = service.FindInstallations().Single();
+        Require(ModFileSnapshot.Read(addon)?.Hash == imported.Plan!.Packages.Single().Digest &&
+            imported.Plan.Packages.Single().Digest != option.Digest, "The local add-on did not deploy the original imported bytes.");
+        var importedKey = imported.Plan!.Packages.Single();
+        await Reject(() => planner.PreviewRenoDxReplacementAsync(existing, importedKey, local, token));
+        var nextFile = Path.Combine(profile, "renamed.addon64");
+        File.WriteAllBytes(nextFile, [.. binary, 0x2B]);
+        var localUpdate = await planner.PreviewRenoDxReplacementAsync(existing, importedKey, nextFile, token);
+        await service.InstallAsync(localUpdate, token);
+        Require(ModFileSnapshot.Read(addon)?.Hash == localUpdate.Packages.Single().Digest &&
+            !File.Exists(Path.Combine(folder, Path.GetFileName(nextFile))), "Updating from file changed the managed add-on path.");
+        existing = service.FindInstallations().Single();
+        var replacement = await planner.PreviewUpdateAsync(existing, localUpdate.Packages.Single(), option.Package, token);
+        File.WriteAllText(Path.Combine(folder, "dxgi.dll"), "changed after update preview");
+        await Reject(() => service.InstallAsync(replacement, token));
+        File.WriteAllText(Path.Combine(folder, "dxgi.dll"), "fixture ReShade");
+        await service.InstallAsync(replacement, token);
+        var updated = service.FindInstallations().Single();
+        Require(updated.Packages.Contains(option.Package.Key) && updated.Files.First(file => file.Owner == ModProviderId.RenoDx).Original != null,
+            "Updating the add-on did not keep its original uninstall backup.");
+        await store.DeleteAsync(option.Package.Key, token);
+        Require(ModFileSnapshot.Read(addon)?.Hash == option.Digest, "Removing an updated package from the cache changed the game file.");
+        await service.UninstallAsync(updated.Id, false, token, ModProviderId.RenoDx);
+        Require(File.ReadAllText(addon) == "original game add-on", "Uninstalling an updated add-on did not restore the original.");
 
         Task<ModPlanPreview> Preview(ModInstallationRecord? record) =>
             planner.PreviewAddonAsync(game, folder, exe, true, record, option.Package, option, token);

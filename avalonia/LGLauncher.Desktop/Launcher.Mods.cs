@@ -47,11 +47,18 @@ internal sealed partial class Launcher
     private readonly ModTransactions _modTransactions = new(Program.DataDirectory);
     private readonly CancellationTokenSource _modLifetime = new();
     private readonly Dictionary<ModProviderId, string> _modPackageMessages = [];
+    private readonly Dictionary<ModProviderId, ModPackageDescriptor> _checkedModDownloads = [];
+    private readonly Dictionary<ModProviderId, ModUpstreamRelease> _checkedModReleases = [];
+    private static readonly FilePickerFileType RenoDxAddonFile = new("RenoDX add-on") { Patterns = ["*.addon64"] };
     private readonly Dictionary<ModProviderId, ModPackageTransfer?> _modPackageOperations = [];
     private readonly Dictionary<Guid, ModInstallInspection> _modInspections = [];
     private readonly Dictionary<Guid, Task<ModInstallInspection>> _modInspectionTasks = [];
     private StackPanel? _modsSettings;
     private bool _modFileOperation;
+    private Game? _modListGame;
+    private Guid? _modListOrphan;
+    private StackPanel? _gameModRows;
+    private readonly Dictionary<ModProviderId, (Button Row, SymbolIcon Tick)> _gameModEntries = [];
     private ModAssessment? _selectedModAssessment;
     private Dictionary<ModProviderId, TextBlock>? _gameModStatuses;
     private StackPanel? _legacyGameModRows;
@@ -149,18 +156,28 @@ internal sealed partial class Launcher
         _optiScalerUpdateCheck.IsEnabled = !_modCatalogBusy && !_modPackageOperations.ContainsKey(ModProviderId.OptiScaler);
     }
 
-    private Task<bool> CheckModUpdates(ModProviderId provider, Func<CancellationToken, Task<string>>? checkPackage = null,
+    private Task<bool> CheckModUpdates(ModProviderId provider, Func<CancellationToken, Task<ModPackageCheck>>? checkPackage = null,
         HttpClient? catalogClient = null) => ChangeModPackage(provider, "Checking for updates…", async token =>
     {
-        var check = checkPackage ?? (async cancellation => (await _modPackages.CheckAsync(provider, cancellation)).Status);
-        if (provider != ModProviderId.OptiScaler) return $"Mod: {await check(token)}";
+        if (provider == ModProviderId.RenoDx)
+            return await RefreshRenoDxCatalog(force: true) ? "Game catalog refreshed." : "Could not refresh the game catalog.";
+        if (provider != ModProviderId.OptiScaler) return $"Mod: {await CheckPackage()}";
 
         var catalog = RefreshModCatalog(force: true, catalogClient);
         string packageStatus;
-        try { packageStatus = await check(token); }
+        try { packageStatus = await CheckPackage(); }
         catch (OperationCanceledException) when (!token.IsCancellationRequested) { packageStatus = "The package check timed out."; }
         catch (Exception error) when (ModUiFailure(error)) { packageStatus = $"Could not check the package. {error.Message}"; }
         return $"Mod: {packageStatus}, Compat List: {await catalog ?? "not checked"}";
+
+        async Task<string> CheckPackage()
+        {
+            var result = await (checkPackage == null ? _modPackages.CheckAsync(provider, token) : checkPackage(token));
+            if (result.Download is { } download) _checkedModDownloads[provider] = download;
+            if (result.Release is { } release) _checkedModReleases[provider] = release;
+            else _checkedModReleases.Remove(provider);
+            return result.Status;
+        }
     });
 
     private void RefreshModsSettings()
@@ -171,26 +188,41 @@ internal sealed partial class Launcher
         try
         {
             var available = new StackPanel { Spacing = 12 };
+            var records = _modTransactions.FindInstallations();
             foreach (var provider in AvailableModProviders)
             {
                 var packages = _modPackages.List(provider);
                 var gameSpecific = provider == ModProviderId.RenoDx;
-                var cached = gameSpecific ? null : packages.FirstOrDefault(package => package.Key == ModPackageStore.Approved(provider).Key);
+                var checkedDownload = _checkedModDownloads.GetValueOrDefault(provider);
+                var preferred = gameSpecific ? null : _modPackages.Preferred(provider, checkedDownload, packages);
+                var cached = preferred == null ? null : packages.FirstOrDefault(package => package.Key == preferred.Key);
                 var busy = _modPackageOperations.TryGetValue(provider, out var transfer);
                 var check = ModSymbolButton($"Check {ModPackageStore.Name(provider)} for updates", "LG.Icon.Refresh",
-                    () => _ = gameSpecific ? ChangeModPackage(provider, "Refreshing the game catalog…", async _ =>
-                        await RefreshRenoDxCatalog(force: true) ? "Game catalog refreshed." : "Could not refresh the game catalog.")
-                        : CheckModUpdates(provider));
+                    () => _ = CheckModUpdates(provider));
                 check.IsEnabled = !busy;
                 var info = ModPackageInfo(provider);
                 var actions = gameSpecific ? Actions(check, info) : Actions(info, check);
-                if (!gameSpecific && cached == null)
+                var renoUpdates = gameSpecific ? RenoDxUpdates(records, packages).ToArray() : [];
+                if (renoUpdates.Length > 0)
                 {
-                    var download = ModSymbolButton($"Download {ModPackageStore.Name(provider)}", "LG.Icon.Download",
-                        () => _ = DownloadModPackage(provider), "primary");
+                    var update = ModUpdateButton("Update cached RenoDX add-ons", () => _ = UpdateRenoDxCache(renoUpdates));
+                    update.IsEnabled = !busy;
+                    actions.Children.Add(update);
+                }
+                if (preferred != null && cached == null)
+                {
+                    var updating = checkedDownload != null && (packages.Count > 0 || preferred.Key != ModPackageStore.Approved(provider).Key);
+                    var modName = ModPackageStore.Name(provider);
+                    void Download() => _ = DownloadModPackage(provider, (progress, token) => _modPackages.AcquireAsync(preferred, token, progress));
+                    var download = updating ? ModUpdateButton($"Update {modName}", Download) :
+                        ModSymbolButton($"Download {modName}", "LG.Icon.Download", Download, "primary");
                     download.IsEnabled = !busy;
                     actions.Children.Add(download);
                 }
+                if (preferred != null && _checkedModReleases.GetValueOrDefault(provider) is { } release &&
+                    ModPackageStore.IsNewer(provider, release.Version, preferred.Key.Version))
+                    actions.Children.Add(ModSymbolButton($"View {ModPackageStore.Name(provider)} {release.Version} release",
+                        "LG.Icon.ExternalLink", () => OpenModNotes(release.Page)));
                 if (packages.Count > 0)
                 {
                     var delete = ModCacheDeleteButton(provider, packages);
@@ -202,8 +234,9 @@ internal sealed partial class Launcher
                     _optiScalerUpdateCheck = check;
                     RenderOptiScalerUpdateCheck();
                 }
-                var availability = gameSpecific ? "Game-specific add-ons"
+                var availability = gameSpecific ? (renoUpdates.Length > 0 ? "Add-on updates available" : "Game-specific add-ons")
                     : cached != null ? $"Cached {cached.Key.Version} · {cached.Key.Variant}"
+                    : checkedDownload != null && packages.Count > 0 ? "An earlier package is cached."
                     : provider == ModProviderId.ReShade ? "Full add-on package is not downloaded."
                     : "Approved package is not downloaded.";
                 if (_modPackageMessages.TryGetValue(provider, out var message)) availability += $" · {message}";
@@ -225,7 +258,6 @@ internal sealed partial class Launcher
                 AddModSettingsRow(available, row);
             }
             body.Children.Add(Section("Available mods", available));
-            var records = _modTransactions.FindInstallations();
             var management = new StackPanel { Spacing = 12 };
             foreach (var record in records) AddModSettingsRow(management, ManagedModSettingsRow(record));
             if (_modTransactions.HasAnyPending())
@@ -238,6 +270,25 @@ internal sealed partial class Launcher
             body.Children.Add(Section("Managed installations", management));
         }
         catch (Exception error) when (ModUiFailure(error)) { body.Children.Add(Label(error.Message, muted: true)); }
+    }
+
+    private IEnumerable<ModPackageDescriptor> RenoDxUpdates(IReadOnlyList<ModInstallationRecord> records, IReadOnlyList<CachedModPackage> cached)
+    {
+        var installed = records.SelectMany(record => record.Packages.Where(package => package.Provider == ModProviderId.RenoDx)
+            .Select(package => UpdateFor(record, package))).OfType<ModPackageDescriptor>();
+        var available = _library.Games.SelectMany(game => _renoDxCatalog.Find(game)?.Options ?? [])
+            .Where(option => cached.Any(package => RenoDxReplaces(option, package.Key))).Select(option => option.Package);
+        return installed.Concat(available).DistinctBy(package => package.Key)
+            .Where(update => cached.All(package => package.Key != update.Key));
+    }
+
+    private async Task UpdateRenoDxCache(ModPackageDescriptor[] updates)
+    {
+        foreach (var update in updates)
+        {
+            if (!await DownloadModPackage(ModProviderId.RenoDx, (progress, token) => _modPackages.AcquireAsync(update, token, progress)))
+                break;
+        }
     }
 
     private static Grid ModSettingsRow(Control details, Control actions)
@@ -309,10 +360,9 @@ internal sealed partial class Launcher
             Child = icon
         };
         var details = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("Auto,*"), ColumnSpacing = 10, Children = { iconFrame, labels } };
-        var provider = record.Packages.FirstOrDefault(package => package.Provider == ModProviderId.OptiScaler &&
-            record.Files.Any(file => file.Owner == package.Provider))?.Provider ?? record.Files[0].Owner;
-        var manage = ActionButton("Manage", () => _ = ShowManagedMod(record, provider));
-        AutomationProperties.SetName(manage, $"Manage {ModPackageStore.Name(provider)} in {title}");
+        var manage = ActionButton("Manage", () => _ = ShowGameMods(game ?? new Game { Title = title, Path = executable },
+            game == null ? record.Id : null));
+        AutomationProperties.SetName(manage, $"Manage mods in {title}");
         return ModSettingsRow(details, manage);
     }
 
@@ -371,6 +421,14 @@ internal sealed partial class Launcher
         return button;
     }
 
+    private Button ModUpdateButton(string name, Action action)
+    {
+        var button = ModSymbolButton(name, "LG.Icon.Download", action, "primary");
+        if (button.Content is SymbolIcon icon && LucideIconCatalog.Find("circle-arrow-up") is { } update)
+            icon.Data = update.Geometry;
+        return button;
+    }
+
     private Button ModDeleteButton(string name, Action action)
     {
         var button = ModSymbolButton(name, "LG.Icon.Delete", action);
@@ -387,31 +445,38 @@ internal sealed partial class Launcher
             return ModDeleteButton($"Delete cached {name} {package.Key.Version}", () => _ = DeleteModPackage(package));
         }
 
-        var menu = LauncherMenus.Create(PlacementMode.BottomEdgeAlignedRight);
-        menu.VerticalOffset = 4;
-        menu.MaxHeight = 320 * EffectiveInterfaceScale;
+        var delete = ModDeleteButton($"Delete cached {name} download…", () => _ = ChooseCachedModPackage(provider));
+        AutomationProperties.SetHelpText(delete, "Choose a cached version and variant to delete.");
+        return delete;
+    }
+
+    private async Task ChooseCachedModPackage(ModProviderId provider)
+    {
+        var name = ModPackageStore.Name(provider);
+        var dialog = new ModalDialog($"Delete cached {name} downloads", 480);
+        dialog.Body.Children.Add(Label("Deleting a cached copy leaves installed mods in their game folders.", muted: true));
+        var installed = _modTransactions.FindInstallations();
+        var downloads = _modPackages.List(provider);
+        var duplicateLabels = downloads.GroupBy(ModCachePackageLabel, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1).Select(group => group.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
         CachedModPackage? selected = null;
-        foreach (var package in packages.OrderByDescending(package => package.Key.Version, StringComparer.OrdinalIgnoreCase)
+        string? selectedLabel = null;
+        foreach (var package in downloads.OrderByDescending(package => package.Key.Version, StringComparer.OrdinalIgnoreCase)
             .ThenBy(package => package.Key.Variant, StringComparer.OrdinalIgnoreCase))
         {
-            menu.AddAction(ModCachePackageLabel(package), () =>
+            var label = ModCachePackageLabel(package);
+            if (duplicateLabels.Contains(label)) label += $" · {package.Key.Digest[..Math.Min(8, package.Key.Digest.Length)]}";
+            var count = installed.Count(record => record.Packages.Contains(package.Key) && record.Files.Any(file => file.Owner == provider));
+            var usage = count == 1 ? "1 game uses this version" : $"{count} games use this version";
+            dialog.Body.Children.Add(SettingsRow(label, "LG.Icon.Download", () =>
             {
-                if (!menu.IsOpen || selected != null) return;
                 selected = package;
-                menu.Close();
-            });
+                selectedLabel = label;
+                dialog.Close(true);
+            }, Label(usage, muted: true)));
         }
-        menu.Closed += (_, _) =>
-        {
-            if (selected is not { } package) return;
-            selected = null;
-            _ = DeleteModPackage(package);
-        };
-
-        var delete = ModDeleteButton($"Delete cached {name} download…", menu.Open);
-        AutomationProperties.SetHelpText(delete, "Choose a cached version and variant to delete.");
-        delete.ContextMenu = menu;
-        return delete;
+        AddModClose(dialog);
+        if (await ShowModal(dialog) && selected != null) await DeleteModPackage(selected, selectedLabel);
     }
 
     private static string ModCachePackageLabel(CachedModPackage package) => $"{package.Key.Version} · {package.Key.Variant}";
@@ -429,13 +494,13 @@ internal sealed partial class Launcher
         internal ProgressBar? Bar { get; set; }
     }
 
-    private async Task DeleteModPackage(CachedModPackage package)
+    private async Task DeleteModPackage(CachedModPackage package, string? selectedLabel = null)
     {
         var provider = package.Key.Provider;
         if (_closed || _modPackageOperations.ContainsKey(provider)) return;
         var name = ModPackageStore.Name(provider);
         var message = $"Games that already have {name} installed will keep it. " +
-            $"This deletes the cached download ({ModCachePackageLabel(package)}) used to set up {name} in other games. " +
+            $"This deletes the cached download ({selectedLabel ?? ModCachePackageLabel(package)}) used to set up {name} in other games. " +
             "You can download the approved package from Mods.";
         if (!await Confirm($"Delete cached {name}?", message, "Delete cached copy", destructive: true)) return;
         await ChangeModPackage(provider, "Deleting cached copy…", async token =>
@@ -465,6 +530,7 @@ internal sealed partial class Launcher
         {
             _modPackageOperations.Remove(provider);
             RefreshModsSettings();
+            if (_modListGame is { } game) RefreshGameModList(game);
         }
         if (!_closed) Status($"{name} · {_modPackageMessages[provider]}");
         return false;
@@ -486,13 +552,14 @@ internal sealed partial class Launcher
 
     private void RefreshGameModList(Game game)
     {
-        if (_gameModStatuses is not { } statuses || _legacyGameModRows is not { } legacyRows) return;
+        if (_modListGame != game || _gameModStatuses is not { } statuses || _legacyGameModRows is not { } legacyRows ||
+            _gameModRows is not { } rows) return;
         var advisory = _selectedModAssessment ?? _modsCompatibility.Advisory(game);
         var status = DisplayCompatibility(advisory.Status, _modCatalog.Find(game));
         ModInstallationRecord? record = null;
         try
         {
-            record = _modTransactions.FindForGame(game.Path).FirstOrDefault();
+            record = ModListRecord(game);
             if (_modTransactions.HasPending(game.Path)) status = "Recovery needed";
             else if (record?.Files.Any(file => file.Owner == ModProviderId.OptiScaler) == true)
                 status = !_modInspections.TryGetValue(record.Id, out var inspection) ? "Managed installation"
@@ -504,6 +571,27 @@ internal sealed partial class Launcher
         statuses[ModProviderId.OptiScaler].Text = status;
 
         var inspected = record == null ? null : _modInspections.GetValueOrDefault(record.Id);
+        if (record?.Packages.FirstOrDefault(package => package.Provider == ModProviderId.OptiScaler) is { } opti &&
+            status is not ("Recovery needed" or "Review changes"))
+        {
+            if (UpdateFor(record, opti) != null) statuses[ModProviderId.OptiScaler].Text = $"Installed {opti.Version} · Update available";
+            else if (NewerModRelease(opti) != null) statuses[ModProviderId.OptiScaler].Text = $"Installed {opti.Version} · Newer release upstream";
+        }
+        bool Installed(ModProviderId provider) => record?.Files.Any(file => file.Owner == provider) == true;
+        var ordered = AvailableModProviders.Where(Installed).Select(provider => (Control)_gameModEntries[provider].Row)
+            .Append(legacyRows).Concat(AvailableModProviders.Where(provider => !Installed(provider))
+                .Select(provider => _gameModEntries[provider].Row)).ToArray();
+        foreach (var (provider, entry) in _gameModEntries)
+        {
+            entry.Tick.IsVisible = Installed(provider);
+            entry.Row.IsEnabled = _modListOrphan == null || Installed(provider);
+        }
+        for (var index = 0; index < ordered.Length; index++)
+        {
+            var current = rows.Children.IndexOf(ordered[index]);
+            if (current < 0) rows.Children.Insert(index, ordered[index]);
+            else if (current != index) rows.Children.Move(current, index);
+        }
         var renoDx = _renoDxCatalog.Find(game);
         statuses[ModProviderId.ReShade].Text = InstalledStatus(ModProviderId.ReShade, "Set up ReShade");
         statuses[ModProviderId.ReFramework].Text = InstalledStatus(ModProviderId.ReFramework, "Check game support and set up");
@@ -511,7 +599,7 @@ internal sealed partial class Launcher
         {
             { Options.Length: > 0 } => "Game add-on available",
             not null => "See game add-ons",
-            _ => _renoDxCatalog.Available ? "No matching game add-on" : "Game catalog unavailable"
+            _ => "Import a downloaded add-on"
         });
         var legacyMods = record?.Packages.Where(package => !AvailableModProviders.Contains(package.Provider) &&
                 record.Files.Any(file => file.Owner == package.Provider))
@@ -545,16 +633,70 @@ internal sealed partial class Launcher
         {
             var description = Label($"Installed {package.Version}", muted: true);
             var row = SettingsRow(ModPackageStore.Name(package.Provider), ModIcon(package.Provider),
-                () => _ = ShowGameManagedMod(game, installation, package.Provider), description);
+                () => _ = ShowGameManagedMod(game, installation, package.Provider), description, InstalledModTick());
             legacyRows.Children.Add(row);
         }
 
         string InstalledStatus(ModProviderId provider, string available)
         {
             var package = record?.Packages.FirstOrDefault(package => package.Provider == provider);
-            return package == null ? available : inspected != null && NeedsReview(InspectionFor(inspected, provider))
-                ? "Review changes" : $"Installed {package.Version}";
+            if (package == null) return available;
+            if (inspected != null && NeedsReview(InspectionFor(inspected, provider))) return "Review changes";
+            if (UpdateFor(record!, package) != null) return $"Installed {package.Version} · Update available";
+            return NewerModRelease(package) != null ? $"Installed {package.Version} · Newer release upstream" : $"Installed {package.Version}";
         }
+    }
+
+    private ModUpstreamRelease? NewerModRelease(ModPackageKey installed) =>
+        _checkedModReleases.GetValueOrDefault(installed.Provider) is { } release &&
+        ModPackageStore.IsNewer(installed.Provider, release.Version, installed.Version) ? release : null;
+
+    private SymbolIcon InstalledModTick()
+    {
+        var tick = Symbol("LG.Icon.Check", 16);
+        tick.Bind(SymbolIcon.ForegroundProperty, this.GetResourceObservable("LG.Success"));
+        tick.VerticalAlignment = VerticalAlignment.Center;
+        return tick;
+    }
+
+    private ModPackageDescriptor? UpdateFor(ModInstallationRecord record, ModPackageKey installed)
+    {
+        var provider = installed.Provider;
+        if (provider == ModProviderId.RenoDx)
+        {
+            var game = _library.Games.FirstOrDefault(game => ModTransactions.Contains(record.Target.Root, game.Path));
+            if (game == null) return null;
+            if (_modInspections.TryGetValue(record.Id, out var inspection) &&
+                !record.HasDependency(ModRenoDxOption.ReShadeRequirement, inspection)) return null;
+            return _renoDxCatalog.Find(game)?.Options.FirstOrDefault(option =>
+                RenoDxReplaces(option, installed) && option.Supports(record))?.Package;
+        }
+        if (provider == ModProviderId.SpecialK || provider == ModProviderId.ReShade && record.ReShadeVulkan ||
+            record.RecipeId != null && provider is ModProviderId.ReFramework or ModProviderId.OptiScaler) return null;
+        var preferred = _modPackages.Preferred(provider, _checkedModDownloads.GetValueOrDefault(provider));
+        return preferred.Key.Variant == installed.Variant && ModPackageStore.IsNewer(provider, preferred.Key.Version, installed.Version)
+            ? preferred : null;
+    }
+
+    private static bool RenoDxReplaces(ModRenoDxOption option, ModPackageKey current) =>
+        option.File.Equals(current.Variant, StringComparison.OrdinalIgnoreCase) &&
+        !option.Digest.Equals(current.Digest, StringComparison.OrdinalIgnoreCase) &&
+        (current.Version == "Imported" || String.CompareOrdinal(option.Version, current.Version) >= 0);
+
+    private ModInstallationRecord? ModListRecord(Game game) => _modListOrphan is { } id
+        ? _modTransactions.FindInstallations().FirstOrDefault(record => record.Id == id)
+        : _modTransactions.FindForGame(game.Path).FirstOrDefault();
+
+    private void RefreshManagedGameStatus()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            var records = _modTransactions.FindInstallations();
+            foreach (var game in _library.Games)
+                game.IsModded = records.Any(record => record.Files.Length > 0 && ModTransactions.Contains(record.Target.Root, game.Path));
+        }
+        catch (Exception error) when (ModUiFailure(error)) { Status("Could not read managed mods. " + error.Message); }
     }
 
     private void RenderGameModWarnings(string[] warnings)
@@ -598,24 +740,25 @@ internal sealed partial class Launcher
         }
     }
 
-    private async Task ShowGameMods(Game game)
+    private async Task ShowGameMods(Game game, Guid? orphan = null)
     {
+        if (_modListGame != null || _closed) return;
         var list = new ModalDialog("Mods", 440);
         var opening = false;
-        Button? firstRow = null;
+        var rows = list.Body;
         var statuses = new Dictionary<ModProviderId, TextBlock>();
         foreach (var provider in AvailableModProviders)
         {
             var status = Label("", muted: true);
             statuses.Add(provider, status);
+            var tick = InstalledModTick();
             var row = SettingsRow(ModPackageStore.Name(provider), ModIcon(provider), () => _ = OpenMod(() => provider switch
             {
                 ModProviderId.OptiScaler => ShowGameOptiScaler(game, list),
                 ModProviderId.ReShade => ShowGameReShade(game, list),
                 _ => ShowGameAddon(game, list, provider)
-            }), status);
-            list.Body.Children.Add(row);
-            firstRow ??= row;
+            }), status, tick);
+            _gameModEntries.Add(provider, (row, tick));
         }
         var warningTitle = Label("Warnings");
         var count = Label("");
@@ -633,21 +776,44 @@ internal sealed partial class Launcher
         var legacyRows = new StackPanel { Spacing = 12, IsVisible = false };
         list.Body.Children.Add(legacyRows);
         AddModClose(list);
-        list.InitialFocus = firstRow ?? list.InitialFocus;
+        _modListGame = game;
+        _modListOrphan = orphan;
+        _gameModRows = rows;
         _gameModStatuses = statuses;
         _legacyGameModRows = legacyRows;
         _gameModWarnings = (warnings, count, messages);
         list.Closed += (_, _) =>
         {
             _gameModStatuses = null;
+            _modListGame = null;
+            _modListOrphan = null;
+            _gameModRows = null;
+            _gameModEntries.Clear();
             _legacyGameModRows = null;
             _gameModWarnings = null;
             _visibleLegacyGameMods = [];
         };
         RefreshGameModList(game);
+        list.InitialFocus = rows.Children.SelectMany(row => row == legacyRows ? legacyRows.Children : [row])
+            .OfType<Button>().FirstOrDefault(row => row.IsEnabled) ?? list.InitialFocus;
         var closed = ShowModal(list);
-        _ = RefreshSelectedModStatus();
+        if (_page == Page.Game) _ = RefreshSelectedModStatus();
+        else _ = InspectManagedList();
         await closed;
+
+        async Task InspectManagedList()
+        {
+            try
+            {
+                if (ModListRecord(game) is { } record) await RefreshModInspection(record.Id);
+                if (_modListGame == game) RefreshGameModList(game);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error) when (ModUiFailure(error))
+            {
+                if (_modListGame == game) Status(error.Message);
+            }
+        }
 
         async Task OpenMod(Func<Task> open)
         {
@@ -668,7 +834,7 @@ internal sealed partial class Launcher
                     await RecoverModChanges();
                 return;
             }
-            var existing = _modTransactions.FindForGame(game.Path).FirstOrDefault();
+            var existing = ModListRecord(game);
             if (existing?.Files.Any(file => file.Owner == ModProviderId.ReShade) == true)
             {
                 await ShowManagedMod(existing, ModProviderId.ReShade);
@@ -743,7 +909,7 @@ internal sealed partial class Launcher
                     await RecoverModChanges();
                 return;
             }
-            var existing = _modTransactions.FindForGame(game.Path).FirstOrDefault();
+            var existing = ModListRecord(game);
             if (existing?.Files.Any(file => file.Owner == provider) == true)
             {
                 await ShowManagedMod(existing, provider);
@@ -756,39 +922,39 @@ internal sealed partial class Launcher
             var root = existing?.Target.Root ?? Path.GetDirectoryName(snapshot.Path) ?? "";
             var executable = existing?.Target.ExePath ?? snapshot.Path;
             ModRenoDxOption? option = null;
+            MediaFileField? importedAddon = null;
             if (provider == ModProviderId.RenoDx)
             {
                 if (!_renoDxCatalog.Available && !_verification) await RefreshRenoDxCatalog();
                 if (!DialogHost.Children.Contains(list) || !StillSelected(game, snapshot)) return;
                 var match = _renoDxCatalog.Find(snapshot);
-                if (match is not { Options.Length: > 0 } || existing?.HasDependency(ModRenoDxOption.ReShadeRequirement) != true)
+                var options = match?.Options.Where(choice => choice.Supports(existing)).ToArray() ?? [];
+                if (match is not { Options.Length: > 0 } || options.Length == 0 &&
+                    existing?.HasDependency(ModRenoDxOption.ReShadeRequirement) == true)
                 {
-                    setup.Body.Children.Add(Label(match switch
-                    {
-                        { Options.Length: > 0 } => "Install ReShade with full add-on support for this game first. A standard managed install can be upgraded from Manage ReShade.",
-                        not null => "RenoDX lists this game. Check its mod page for downloads and setup instructions.",
-                        _ => _renoDxCatalog.Available ? "The RenoDX catalog has no matching game add-on." : "The RenoDX game catalog is currently unavailable."
-                    }, muted: true));
+                    setup.Body.Children.Add(Label("Download the .addon64 file for this game from its RenoDX mod page, then browse for it here.", muted: true));
+                    importedAddon = new MediaFileField("RenoDX add-on", "No file selected", false, null, null,
+                        () => PickFile(this, "Choose a RenoDX add-on", RenoDxAddonFile, null));
+                    setup.Body.Children.Add(importedAddon);
+                }
+                if (existing?.HasDependency(ModRenoDxOption.ReShadeRequirement) != true)
+                {
+                    setup.Body.Children.Add(Label("Install ReShade with full add-on support for this game first. A standard managed install can be upgraded from Manage ReShade.", muted: true));
                     AddModClose(setup);
                     await ShowModal(setup);
                     return;
                 }
-                var options = match.Options.Where(choice => choice.Supports(existing)).ToArray();
-                if (options.Length == 0)
+                if (options.Length > 0)
                 {
-                    setup.Body.Children.Add(Label("The listed add-ons use a different rendering executable or ReShade graphics API. Check the RenoDX setup instructions.", muted: true));
-                    AddModClose(setup);
-                    await ShowModal(setup);
-                    return;
+                    option = options[0];
+                    var choiceControl = options.Length == 1 ? (Control)Label(option.Label) :
+                        BuildChoicePicker("RenoDX add-on", options, options[0], choice => choice.Label, choice =>
+                        {
+                            option = choice;
+                            return true;
+                        });
+                    Field(setup.Body, "RenoDX add-on", choiceControl);
                 }
-                option = options[0];
-                var choiceControl = options.Length == 1 ? (Control)Label(option.Label) :
-                    BuildChoicePicker("RenoDX add-on", options, options[0], choice => choice.Label, choice =>
-                    {
-                        option = choice;
-                        return true;
-                    });
-                Field(setup.Body, "RenoDX add-on", choiceControl);
             }
 
             var folderText = Label(root, muted: true);
@@ -805,11 +971,13 @@ internal sealed partial class Launcher
             var offline = ModToggle($"I will use {name} only for offline play", out var offlineRow);
             setup.Body.Children.Add(offlineRow);
             var planner = new ModInstallPlanner(_modsCompatibility, _modPackages, _modTransactions.Vulkan);
+            var addonPackage = provider == ModProviderId.ReFramework
+                ? _modPackages.Preferred(provider, _checkedModDownloads.GetValueOrDefault(provider)) : null;
             await ShowModSetupPreview(setup, list, game, snapshot, offline, $"{name} setup",
                 token => planner.PreviewAddonAsync(snapshot, root, executable, offline.IsChecked == true, existing,
-                    option?.Package ?? ModPackageStore.Approved(provider), option, token),
-                (id, bar) => option is { } selected
-                    ? DownloadModPackage(id, (progress, token) => _modPackages.AcquireAsync(selected.Package, token, progress), bar)
+                    option?.Package ?? addonPackage, option, token, importedAddon?.SelectedPath),
+                (id, bar) => (option?.Package ?? addonPackage) is { } selected
+                    ? DownloadModPackage(id, (progress, token) => _modPackages.AcquireAsync(selected, token, progress), bar)
                     : DownloadModPackage(id, bar));
 
             bool CanChoose() => DialogHost.Children.Contains(setup) && StillSelected(game, snapshot) && setup.Body.IsEnabled;
@@ -876,7 +1044,7 @@ internal sealed partial class Launcher
                     await RecoverModChanges();
                 return;
             }
-            var record = _modTransactions.FindForGame(game.Path).FirstOrDefault();
+            var record = ModListRecord(game);
             if (record?.Files.Any(file => file.Owner == ModProviderId.OptiScaler) == true)
             {
                 await ShowManagedMod(record, ModProviderId.OptiScaler);
@@ -968,9 +1136,14 @@ internal sealed partial class Launcher
         if (spoofing is { } mode) setup.Body.Children.Add(DxgiSpoofingRow(mode, value => spoofing = value));
         setup.Body.Children.Add(Label("Local checks can miss anti-cheat. Follow the OptiScaler guidance for your game.", muted: true));
         setup.Body.Children.Add(offlineRow);
+        var optiScalerPackage = verified ? ModPackageStore.Approved(ModProviderId.OptiScaler)
+            : _modPackages.Preferred(ModProviderId.OptiScaler, _checkedModDownloads.GetValueOrDefault(ModProviderId.OptiScaler));
         await ShowModSetupPreview(setup, list, game, snapshot, offline, "OptiScaler setup", token =>
             buildPreview(new(snapshot, root, executable, loader, verified,
-                offline.IsChecked == true, spoofing, existing, report), token));
+                offline.IsChecked == true, spoofing, existing, report, optiScalerPackage), token),
+            (provider, bar) => provider == ModProviderId.OptiScaler
+                ? DownloadModPackage(provider, (progress, token) => _modPackages.AcquireAsync(optiScalerPackage, token, progress), bar)
+                : DownloadModPackage(provider, bar));
 
         bool CanChoose() => DialogHost.Children.Contains(setup) && StillSelected(game, snapshot) && setup.Body.IsEnabled;
 
@@ -1098,7 +1271,8 @@ internal sealed partial class Launcher
         Func<IProgress<int>, CancellationToken, Task<ModOperationResult>> install)
     {
         var title = ModPackageStore.Name(plan.Packages.FirstOrDefault()?.Provider ?? ModProviderId.OptiScaler);
-        var dialog = new ModalDialog($"Install {title}", 500);
+        var updating = plan.ReplacingPackage != null;
+        var dialog = new ModalDialog($"{(updating ? "Update" : "Install")} {title}", 500);
         Field(dialog.Body, "Rendering executable", Label(plan.Target.ExePath));
         Field(dialog.Body, "Packages", Label(String.Join('\n', plan.Packages.Select(package => package.Provider == ModProviderId.ReShade
             ? $"ReShade {package.Version} · {package.Variant}"
@@ -1114,7 +1288,8 @@ internal sealed partial class Launcher
             }, muted: true));
         AddModUsage(dialog.Body, plan.Packages.Select(package => package.Provider));
         var changes = new StackPanel { Spacing = 5 };
-        changes.Children.Add(Label("Existing files changed by this install will be backed up for uninstall.", muted: true));
+        changes.Children.Add(Label(updating ? "Your existing settings and uninstall backups are kept."
+            : "Existing files changed by this install will be backed up for uninstall.", muted: true));
         foreach (var change in plan.Changes)
         {
             if (change.ExpectedHash == null)
@@ -1130,7 +1305,7 @@ internal sealed partial class Launcher
         {
             if (installing && args.Key == Key.Escape) args.Handled = true;
         }, RoutingStrategies.Tunnel);
-        DialogActions(dialog, "Install", () => _ = Install(), defaultAction: false);
+        DialogActions(dialog, updating ? "Update" : "Install", () => _ = Install(), defaultAction: false);
         await ShowModal(dialog);
 
         async Task Install()
@@ -1138,7 +1313,7 @@ internal sealed partial class Launcher
             if (installing) return;
             if (!current()) { dialog.Close(); return; }
             installing = true;
-            var status = Label("Backing up originals and installing mod files…");
+            var status = Label(updating ? "Updating mod files…" : "Backing up originals and installing mod files…");
             var bar = ShowModProgress(dialog, "Mod installation progress", status);
             ModOperationResult? completed = null;
             var progress = new Progress<int>(percent => bar.Value = percent);
@@ -1158,6 +1333,27 @@ internal sealed partial class Launcher
             AddModClose(dialog);
             dialog.InitialFocus?.Focus();
         }
+    }
+
+    private async Task UpdateInstalledMod(ModInstallationRecord record, ModPackageKey installed, string? replacementPath = null)
+    {
+        bool Current() => !_closed && _modListGame != null && ModListRecord(_modListGame)?.Id == record.Id;
+        if (!Current()) return;
+        var planner = new ModInstallPlanner(_modsCompatibility, _modPackages, _modTransactions.Vulkan);
+        ModInstallPlan plan;
+        if (replacementPath != null)
+            plan = await planner.PreviewRenoDxReplacementAsync(record, installed, replacementPath, _modLifetime.Token);
+        else
+        {
+            if (UpdateFor(record, installed) is not { } update) return;
+            if (!_modPackages.List(installed.Provider).Any(package => package.Key == update.Key) &&
+                !await ShowModDownloads([installed.Provider], Current,
+                    (provider, bar) => DownloadModPackage(provider, (progress, token) => _modPackages.AcquireAsync(update, token, progress), bar)))
+                return;
+            if (!Current()) return;
+            plan = await planner.PreviewUpdateAsync(record, installed, update, _modLifetime.Token);
+        }
+        if (Current()) await ShowModPlan(plan, Current, (progress, token) => _modTransactions.InstallAsync(plan, token, progress));
     }
 
     private static ProgressBar ShowModProgress(ModalDialog dialog, string name, TextBlock status)
@@ -1242,8 +1438,22 @@ internal sealed partial class Launcher
             var relink = ActionButton("Relink game folder", () => SelectAction("relink"));
             var recover = ActionButton("Retry recovery", () => SelectAction("recover"));
             var upgrade = ActionButton("Enable full add-on support", () => SelectAction("upgrade"));
+            var update = ActionButton("Update mod", () => SelectAction("update"));
+            string? replacementPath = null;
+            var replace = new Button { Content = "Update from file", Classes = { "lg" } };
+            var check = new Button { Content = "Check for updates", Classes = { "lg", "quiet" } };
+            var viewRelease = IconButton("View release", "LG.Icon.ExternalLink", () =>
+            {
+                if (NewerModRelease(package) is { } release) OpenModNotes(release.Page);
+            }, "quiet");
+            var updateInfo = Label("", muted: true);
+            string? updateStatus = null;
+            dialog.Body.Children.Add(updateInfo);
+            Click(replace, () => _ = PickReplacement());
+            Click(check, () => _ = CheckInstalledUpdate());
             var verify = ModSymbolButton($"Verify {name} installation", "LG.Icon.Refresh", () => _ = Verify());
-            foreach (var button in new[] { uninstall, verify, affected, relink, recover, upgrade }) actions.Children.Add(button);
+            foreach (var button in new[] { uninstall, verify, affected, relink, recover, upgrade, update, replace, check, viewRelease })
+                actions.Children.Add(button);
             RenderInspection();
             AddModClose(dialog);
             var completion = ShowModal(dialog);
@@ -1262,6 +1472,8 @@ internal sealed partial class Launcher
                     break;
                 case "recover": await RecoverModChanges(); break;
                 case "upgrade": await UpgradeReShade(record); break;
+                case "update": await UpdateInstalledMod(record, package); break;
+                case "replace": await UpdateInstalledMod(record, package, replacementPath); break;
                 case "relink":
                     if (record.Files.Any(file => file.Owner != provider) && !await Confirm("Relink managed mods?",
                         "This folder is shared with other managed mods for this game. Relinking updates their folder too.", "Relink")) break;
@@ -1301,7 +1513,46 @@ internal sealed partial class Launcher
                 upgrade.IsVisible = provider == ModProviderId.ReShade && hasInspection && exists &&
                     !inspection.RecoveryNeeded && !inspection.BuildChanged && inspection.Missing.Length == 0 && inspection.Changed.Length == 0 &&
                     (limitedLocalReShade || inspection.VulkanCanUpgrade);
+                var target = UpdateFor(record, package);
+                var canUpdate = hasInspection && exists && !inspection.BuildChanged && !inspection.RecoveryNeeded &&
+                    inspection.Missing.Length == 0 && inspection.Changed.All(file => file.EndsWith(".ini", StringComparison.OrdinalIgnoreCase));
+                update.IsVisible = canUpdate && target != null;
+                update.Content = target == null ? "Update mod" : $"Update to {target.Key.Version}";
+                replace.IsVisible = canUpdate && provider == ModProviderId.RenoDx && target == null &&
+                    record.HasDependency(ModRenoDxOption.ReShadeRequirement, _modInspections.GetValueOrDefault(record.Id));
+                var upstream = NewerModRelease(package);
+                viewRelease.IsVisible = upstream != null && target == null;
+                check.IsVisible = provider != ModProviderId.SpecialK;
+                updateInfo.Text = viewRelease.IsVisible && upstream != null
+                    ? $"{upstream.Version} is available upstream. This managed setup still uses its reviewed package."
+                    : updateStatus;
+                updateInfo.IsVisible = !String.IsNullOrWhiteSpace(updateInfo.Text);
                 if (inspection.BuildChanged || inspection.RecoveryNeeded || !exists) spoofing.IsVisible = false;
+            }
+
+            async Task CheckInstalledUpdate()
+            {
+                check.IsEnabled = false;
+                updateInfo.Text = "Checking for updates…";
+                updateInfo.IsVisible = true;
+                await CheckModUpdates(provider);
+                if (!Open()) return;
+                updateStatus = _modPackageMessages.GetValueOrDefault(provider);
+                check.IsEnabled = true;
+                RenderInspection();
+            }
+
+            async Task PickReplacement()
+            {
+                replace.IsEnabled = false;
+                try
+                {
+                    var path = await PickFile(this, "Choose the updated RenoDX add-on", RenoDxAddonFile, null);
+                    if (path == null || !Open()) return;
+                    replacementPath = path;
+                    SelectAction("replace");
+                }
+                finally { replace.IsEnabled = true; }
             }
 
             void ApplyInspection(ModInstallInspection result)
@@ -1586,6 +1837,8 @@ internal sealed partial class Launcher
             _modFileOperation = false;
             _modInspectionTasks.Clear();
             _modInspections.Clear();
+            RefreshManagedGameStatus();
+            if (_page is Page.Home or Page.Library or Page.Collections) Render();
             RefreshGameMods();
             _ = RefreshSelectedModStatus();
             RefreshModsSettings();
@@ -1603,11 +1856,12 @@ internal sealed partial class Launcher
     private void RefreshGameMods()
     {
         if (!_closed && _page == Page.Game && _game is { } game) RenderDetails(game);
+        else if (!_closed && _modListGame is { } managed) RefreshGameModList(managed);
     }
 
     private bool StillSelected(Game game, string launch) => !_closed && _page == Page.Game && _game == game && game.Path == launch;
 
-    private bool StillSelected(Game game, Game snapshot) => StillSelected(game, snapshot.Path) &&
+    private bool StillSelected(Game game, Game snapshot) => !_closed && _modListGame == game && game.Path == snapshot.Path &&
         game.SteamId == snapshot.SteamId && game.Title == snapshot.Title;
 
     private async Task<string?> PickModRoot(string? directory)

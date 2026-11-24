@@ -14,6 +14,8 @@ The navigation check verifies eviction of the oldest route at the 64-entry limit
 
 The collection sidebar check opens a collection from its row, compares the game and collection row sizes, checks the miniature symbols, and verifies the sort picker's frosted menu. At 730, 1230, and 1600 dips wide it captures the sidebar, popup, and sorted tile during and after movement. It tracks the remaining translation through animation cleanup to catch any jump toward the original slot. The same widths exercise and capture the immediate reorder with motion disabled.
 
+The Library fixture opens the whole-library grid from its icon, collapses and reopens its sidebar list, checks the plus signs and collection type chooser, and verifies that reverse sorting updates the list and grid together.
+
 The Home fixture checks that Collections hides its scrollbar and retains animated shelf arrows and horizontal wheel input. It captures the overflowing shelves across narrow, typical, and wide windows.
 
 The App Behaviour fixture checks the rendering restart prompt in both directions, deferred restart, restart blocked during gameplay, the saved preference after reopening, and the software compositor. It checks that the Set process priority switch starts off and saves immediately in both directions, and captures Performance at three widths. It also verifies that the reset row dims while both prompts are pending and exercises the same prompt sequence used at startup.
@@ -33,9 +35,11 @@ Exercises the wrench in Settings and game details, the package info and refresh 
 
 The Settings fixture checks the combined inline update result, the separate package and managed-installation panels, and shared sidebar row heights. The game fixture checks that the management dialog opens while an inspection is pending, that each installed mod can be inspected separately, and that removing a dependency requires confirmation.
 
+A simulated newer ReShade tag verifies the official upstream link in Settings at all three widths. The mod fixtures update a RenoDX installation from a second local x64 file and through the verified package path, checking the deployed filename and uninstall backup.
+
 The Mods fixture verifies the warning count, intermediate clipping during reveal and collapse, and immediate changes with Reduced Motion enabled. It checks the chevron hover scope, insets, and radius, and captures collapsed, hovered, and expanded states at three widths. It also checks that the symbolic package download and cache-delete buttons fit with the other actions. It checks the deletion confirmation and that removing the cached package preserves the game installation.
 
-The ReShade cache fixture seeds three downloads, including two variants of the same version. It checks and captures the single trash action and its shared version menu at 730, 1230, and 1600 pixels wide. It also checks confirmation, cancellation, and that deleting one download keeps the other versions and variants.
+The ReShade cache fixture seeds three downloads, including two variants of the same version. It checks and captures the single trash action and its version chooser with per-package game counts at 730, 1230, and 1600 pixels wide. It also checks confirmation, cancellation, and that deleting one download keeps the other versions and variants. The managed Settings fixture opens the shared list, checks the installed tick and ordering, then opens the selected mod's manager while verification is pending.
 
 The Mods fixture checks standalone REFramework setup, OptiScaler and RenoDX prerequisite warnings, and RenoDX’s full add-on ReShade requirement. It compares the available-mod names and order in Settings and the game list and checks that legacy Special K still opens its manager. It verifies that RenoDX’s Settings action opens the game-specific Info dialog and that the row has no global download action. It checks the per-mod Lucide symbols and captures both lists, the Info dialog, the warning panel, and the animated OptiScaler DLL and RenoDX add-on pickers at 730, 1230, and 1600 pixels wide. It verifies that the selected DLL reaches the install preview and that the add-on picker applies a selected variant.
 
@@ -53,9 +57,11 @@ The About fixture switches from Stable to Next preview and back. It checks that 
 
 The Library settings fixture checks that Theme music starts off and saves both switch states. It captures the enabled setting at 730, 1230, and 1600 pixels wide.
 
+The Appearance fixture switches among all five colourways, checks palette changes independently of the accent, and captures the alternatives. It checks the shared widget radius and shadow resources and captures Widget Customisation at 730, 1230, and 1600 pixels wide. The Library fixture also checks that disabling playtime persists and hides the details statistic and playtime sort.
+
 The artwork accent fixture checks the default-on switch, saved opt-out, distinct dominant colours, light and dark foreground contrast, and the purple fallback on Home and for games with no usable artwork colour. It checks that switching games holds the previous accent while artwork loads and that leaving game details restores purple immediately. It captures Appearance and Game Details at three widths and verifies the selected Library row keeps its red tint and text contrast with either translucent or solid chrome.
 
-The fixture samples intermediate palette frames at three widths and checks that the Play button and discovery badge use the same fill and contrast foreground on each frame.
+The fixture samples intermediate palette frames at three widths and checks that the Play button uses a readable foreground on each frame.
 
 The default accent fixture captures the colour picker at three widths and exercises invalid hex, cancellation, saving a custom colour, and restoring the original purple palette. It checks the splash, switch, and text selection colours, then verifies that Home and artwork fallbacks use the saved custom colour, that artwork can override it, and that disabling artwork accents restores it on Game Details.
 
