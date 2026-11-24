@@ -677,17 +677,18 @@ internal sealed partial class Launcher
             await WaitFor(() => library.Items.Cast<Game[]>().SelectMany(row => row).Count() == _library.Games.Count &&
                 library.GetVisualDescendants().OfType<GameCard>().Any(card => card.Bounds.Width > 0),
                 "The narrow Home layout clipped rows or omitted library games.");
-            var recentCard = shelves[0].GetVisualDescendants().OfType<GameCard>().First();
-            var narrowCardWidth = recentCard.Bounds.Width;
-            Require(narrowCardWidth >= GameTileMinimumWidth && ((Game[])library.Items[0]!).Length == 3,
-                "Home did not reduce the default six columns to fit the narrow window.");
+            var recentShelf = shelves[0];
+            var recentCard = recentShelf.GetVisualDescendants().OfType<GameCard>().First();
+            await WaitFor(() => TilesFitViewport(library, recentShelf, recentCard),
+                "Home did not fit its game tiles to the narrow viewport.");
             Capture(Path.Combine(reports, "home-sections.png"));
             foreach (var width in new[] { 1230, 1600 })
             {
                 Width = width;
                 await Task.Delay(85);
-                Require(((Game[])library.Items[0]!).Length == 6 && (width != 1600 || recentCard.Bounds.Width > narrowCardWidth),
-                    "Home did not restore six columns and resize its game tiles as space returned.");
+                UpdateLayout();
+                await WaitFor(() => TilesFitViewport(library, recentShelf, recentCard),
+                    $"Home did not fit its game tiles to the viewport at the requested {width}px window width.");
                 Capture(Path.Combine(reports, $"home-sections-{width}.png"));
             }
             Width = originalWidth;
@@ -747,6 +748,18 @@ internal sealed partial class Launcher
 
         Button HomeSortPicker() => PageBody.GetVisualDescendants().OfType<Button>()
             .Single(button => AutomationProperties.GetName(button) == "Sort library");
+
+        bool TilesFitViewport(ItemsControl library, ScrollViewer recentShelf, GameCard recentCard)
+        {
+            if (library.Bounds.Width <= 0 || recentShelf.Bounds.Width <= 0 || library.Items[0] is not Game[] firstRow) return false;
+            var recentColumns = ExpectedColumns(recentShelf.Bounds.Width);
+            var tileWidth = (recentShelf.Bounds.Width - (recentColumns - 1) * GameTileColumnSpacing) / recentColumns;
+            return firstRow.Length == ExpectedColumns(library.Bounds.Width) &&
+                Math.Abs(recentCard.Bounds.Width - tileWidth) <= 1;
+
+            int ExpectedColumns(double availableWidth) => Enumerable.Range(1, GameTileColumns).Last(columns =>
+                columns == 1 || columns * GameTileMinimumWidth + (columns - 1) * GameTileColumnSpacing <= availableWidth);
+        }
     }
 
     private async Task VerifySmoothHomeScrolling(ScrollViewer[] shelves, string preview)
