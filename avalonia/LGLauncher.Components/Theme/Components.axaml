@@ -192,9 +192,14 @@
                                             <lg:SymbolIcon Data="{DynamicResource LG.Icon.Game}" Foreground="{DynamicResource LG.Accent}"
                                                       Width="25" Height="25" Opacity=".72" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             <Image Source="{TemplateBinding Artwork}" Stretch="{TemplateBinding ArtworkStretch}"/>
-                                            <lg:SymbolIcon Name="ModdedWrench" Data="{DynamicResource LG.Icon.Wrench}" Foreground="{TemplateBinding ModIndicatorBrush}" Opacity=".7"
-                                                           Width="18" Height="18" Margin="8" HorizontalAlignment="Right" VerticalAlignment="Top"
-                                                           IsVisible="{TemplateBinding IsModded}" IsHitTestVisible="False"/>
+                                            <Border Name="ModdedBadge" Width="26" Height="26" Margin="7" HorizontalAlignment="Right"
+                                                    VerticalAlignment="Top" Background="{DynamicResource LG.SurfaceRaised}"
+                                                    BorderBrush="{DynamicResource LG.Line}" BorderThickness="1"
+                                                    CornerRadius="{DynamicResource LG.ControlRadius}"
+                                                    IsVisible="{TemplateBinding IsModded}" IsHitTestVisible="False">
+                                                <lg:SymbolIcon Name="ModdedWrench" Data="{DynamicResource LG.Icon.Wrench}" Foreground="White"
+                                                               Width="15" Height="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
                                         </Grid>
                                     </Button>
                                 </Border>
@@ -202,16 +207,30 @@
                             </Grid>
                             <Border Grid.Row="1" Height="13" IsVisible="{TemplateBinding ShowPlaytime}"/>
                             <Border Name="PlaytimePill" Grid.RowSpan="2" Height="26" MinWidth="56" Padding="10,0"
+                                    MaxWidth="{Binding Bounds.Width, RelativeSource={RelativeSource TemplatedParent}}"
                                     IsVisible="{TemplateBinding ShowPlaytime}"
                                     HorizontalAlignment="Center" VerticalAlignment="Bottom" CornerRadius="{DynamicResource LG.ControlRadius}"
                                     Background="{DynamicResource LG.SurfaceRaised}" BorderBrush="{DynamicResource LG.Line}"
                                     BorderThickness="1" BoxShadow="{DynamicResource LG.SmallShadow}" IsHitTestVisible="False">
-                                <TextBlock Text="{TemplateBinding Playtime}" Foreground="{DynamicResource LG.Text}"
+                                <TextBlock Text="{TemplateBinding Playtime}" Foreground="{DynamicResource LG.Text}" TextTrimming="CharacterEllipsis"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{DynamicResource LG.Font.12}" FontWeight="Light"/>
                             </Border>
                         </Grid>
                     </ControlTemplate>
                 </Setter>
+                <Style Selector="^:compact /template/ Border#PlaytimePill">
+                    <Setter Property="MinWidth" Value="0"/>
+                    <Setter Property="Padding" Value="4,0"/>
+                </Style>
+                <Style Selector="^:compact /template/ Border#ModdedBadge">
+                    <Setter Property="Width" Value="22"/>
+                    <Setter Property="Height" Value="22"/>
+                    <Setter Property="Margin" Value="4"/>
+                </Style>
+                <Style Selector="^:compact /template/ lg|SymbolIcon#ModdedWrench">
+                    <Setter Property="Width" Value="13"/>
+                    <Setter Property="Height" Value="13"/>
+                </Style>
             </ControlTheme>
 
             <ControlTheme x:Key="{x:Type lg:CollectionCard}" TargetType="lg:CollectionCard">
