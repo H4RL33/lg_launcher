@@ -192,6 +192,9 @@
                                             <lg:SymbolIcon Data="{DynamicResource LG.Icon.Game}" Foreground="{DynamicResource LG.Accent}"
                                                       Width="25" Height="25" Opacity=".72" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             <Image Source="{TemplateBinding Artwork}" Stretch="{TemplateBinding ArtworkStretch}"/>
+                                            <lg:SymbolIcon Name="ModdedWrench" Data="{DynamicResource LG.Icon.Wrench}" Foreground="White"
+                                                           Width="18" Height="18" Margin="8" HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                           IsVisible="{TemplateBinding IsModded}" IsHitTestVisible="False"/>
                                         </Grid>
                                     </Button>
                                 </Border>
@@ -202,7 +205,7 @@
                                     IsVisible="{TemplateBinding ShowPlaytime}"
                                     HorizontalAlignment="Center" VerticalAlignment="Bottom" CornerRadius="{DynamicResource LG.ControlRadius}"
                                     Background="{DynamicResource LG.SurfaceRaised}" BorderBrush="{DynamicResource LG.Line}"
-                                    BorderThickness="1" BoxShadow="0 2 8 #55000000" IsHitTestVisible="False">
+                                    BorderThickness="1" BoxShadow="{DynamicResource LG.SmallShadow}" IsHitTestVisible="False">
                                 <TextBlock Text="{TemplateBinding Playtime}" Foreground="{DynamicResource LG.Text}"
                                            HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{DynamicResource LG.Font.12}" FontWeight="Light"/>
                             </Border>
@@ -426,7 +429,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="{DynamicResource LG.PanelRadius}"/>
-        <Setter Property="BoxShadow" Value="0 14 48 #90000000"/>
+        <Setter Property="BoxShadow" Value="{DynamicResource LG.ModalShadow}"/>
     </Style>
     <Style Selector="TextBox.lg-modal-field">
         <Setter Property="Padding" Value="10,0"/>

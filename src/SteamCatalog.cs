@@ -29,6 +29,8 @@ namespace LGLauncher
         }
     }
 
+    internal sealed record SteamGameDetails(List<string> Developers, List<string> Publishers, DateTime? ReleaseDate);
+
     internal sealed class SteamCatalog
     {
         private const string Store = "https://store.steampowered.com";
@@ -243,6 +245,37 @@ namespace LGLauncher
             }
             var legacy = Path.Combine(cache, key + "_logo.png");
             if (File.Exists(legacy)) yield return legacy;
+        }
+
+        internal async Task<SteamGameDetails> GetGameDetails(int id, CancellationToken token)
+        {
+            if (id <= 0) return null;
+            var key = id.ToString(CultureInfo.InvariantCulture);
+            await requests.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                var json = await GetText(Store + "/api/appdetails?l=english&appids=" + key, token).ConfigureAwait(false);
+                return ParseGameDetails(id, json);
+            }
+            finally { requests.Release(); }
+        }
+
+        internal static SteamGameDetails ParseGameDetails(int id, string json)
+        {
+            var app = Get(ParseMetadata(json), id.ToString(CultureInfo.InvariantCulture)) as Dictionary<string, object>;
+            if (!Object.Equals(Get(app, "success"), true) || Get(app, "data") is not Dictionary<string, object> data)
+                return null;
+            var release = Get(data, "release_date") as Dictionary<string, object>;
+            DateTime? releaseDate = null;
+            if (!Object.Equals(Get(release, "coming_soon"), true) &&
+                Get(release, "date") is string date && Regex.IsMatch(date, @"\b\d{4}\b") &&
+                DateTime.TryParseExact(date, new[] { "d MMM, yyyy", "MMM d, yyyy", "d MMM yyyy", "MMM d yyyy" },
+                    CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out var parsed))
+                releaseDate = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            return new SteamGameDetails(Names("developers"), Names("publishers"), releaseDate);
+
+            List<string> Names(string key) => (Get(data, key) as object[] ?? Array.Empty<object>()).OfType<string>()
+                .Select(value => value.Trim()).Where(value => value.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
 
         public async Task<List<string>> GetGenres(int id, CancellationToken token)

@@ -20,7 +20,6 @@
             <Setter Property="Foreground" Value="{DynamicResource LG.Muted}"/>
             <Setter Property="FontSize" Value="{DynamicResource LG.Font.11}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Margin" Value="8,0,0,8"/>
         </Style>
         <Style Selector="Border#LibrarySurface Button.lg">
             <Setter Property="MinHeight" Value="0"/>
@@ -68,71 +67,66 @@
                             <lg:SymbolIcon Data="{DynamicResource LG.Icon.Home}" Width="19" Height="19"/>
                         </Button>
                         <Button x:Name="CollectionsNav" Classes="lg quiet" HorizontalAlignment="Stretch" ToolTip.Tip="Collections" AutomationProperties.Name="Collections">
-                            <lg:SymbolIcon Data="{DynamicResource LG.Icon.Library}" Width="19" Height="19"/>
+                            <ContentControl x:Name="CollectionsNavIcon"/>
                         </Button>
-                        <Button x:Name="DiscoveriesNav" Classes="lg quiet" HorizontalAlignment="Stretch" ToolTip.Tip="Discoveries" AutomationProperties.Name="Discoveries">
-                            <Grid>
-                                <lg:SymbolIcon Data="{DynamicResource LG.Icon.Folder}" Width="19" Height="19"/>
-                                <Border x:Name="DiscoveryBadge" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-5,-10,0"
-                                        Background="{DynamicResource LG.AccentFill}" Padding="4,0" CornerRadius="8" IsVisible="False">
-                                    <TextBlock x:Name="DiscoveryCount" FontSize="{DynamicResource LG.Font.10}" Foreground="{DynamicResource LG.OnAccent}"/>
-                                </Border>
-                            </Grid>
+                        <Button x:Name="LibraryNav" Classes="lg quiet" HorizontalAlignment="Stretch" ToolTip.Tip="Library" AutomationProperties.Name="Library">
+                            <lg:SymbolIcon Data="{DynamicResource LG.Icon.Library}" Width="19" Height="19"/>
                         </Button>
                         <Button x:Name="RssNav" Classes="lg quiet" HorizontalAlignment="Stretch" ToolTip.Tip="RSS" AutomationProperties.Name="RSS">
                             <lg:SymbolIcon Data="{DynamicResource LG.Icon.Rss}" Width="19" Height="19"/>
                         </Button>
                     </UniformGrid>
                     <Grid Grid.Row="1" x:Name="SidebarLists" RowDefinitions="Auto,*,Auto,*">
-                        <TextBlock Text="LIBRARY" Classes="sidebar-heading"/>
-                        <ListBox Grid.Row="1" x:Name="LibraryGames" Classes="lg sidebar-list" AutomationProperties.Name="Library games">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:CompileBindings="False">
-                                    <lg:LibraryRow Title="{Binding Title}" Icon="{Binding SidebarIcon}"/>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <TextBlock Grid.Row="1" x:Name="LibraryEmpty" Text="No games yet" Classes="lg-muted" Margin="8,6,0,0"/>
+                        <ContentControl x:Name="LibrarySectionHeader"/>
+                        <Grid Grid.Row="1" x:Name="LibrarySection" RowDefinitions="*,Auto">
+                            <ListBox x:Name="LibraryGames" Classes="lg sidebar-list" AutomationProperties.Name="Library games">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:CompileBindings="False">
+                                        <lg:LibraryRow Title="{Binding Title}" Icon="{Binding SidebarIcon}"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock x:Name="LibraryEmpty" Text="No games yet" Classes="lg-muted" Margin="8,6,0,0"/>
+                            <Button Grid.Row="1" x:Name="AddGame" Classes="lg quiet nav" AutomationProperties.Name="Add new game">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <lg:SymbolIcon Data="{DynamicResource LG.Icon.Plus}" Width="16" Height="16" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Add new" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
                         <Border Grid.Row="2" Padding="0,12,0,0">
-                            <TextBlock Text="COLLECTIONS" Classes="sidebar-heading"/>
+                            <ContentControl x:Name="CollectionsSectionHeader"/>
                         </Border>
-                        <ListBox Grid.Row="3" x:Name="LibraryCollections" Classes="lg sidebar-list" AutomationProperties.Name="Library collections"
-                                 ContainerPrepared="PrepareCollectionRow">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate x:CompileBindings="False">
-                                    <lg:LibraryRow Title="{Binding Title}" IconSymbol="{Binding Icon}"/>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                        <TextBlock Grid.Row="3" x:Name="CollectionsEmpty" Text="No collections yet" Classes="lg-muted" Margin="8,6,0,0"/>
+                        <Grid Grid.Row="3" x:Name="CollectionsSection" RowDefinitions="*,Auto">
+                            <ListBox x:Name="LibraryCollections" Classes="lg sidebar-list" AutomationProperties.Name="Library collections"
+                                     ContainerPrepared="PrepareCollectionRow">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate x:CompileBindings="False">
+                                        <lg:LibraryRow Title="{Binding Title}" IconSymbol="{Binding Icon}"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock x:Name="CollectionsEmpty" Text="No collections yet" Classes="lg-muted" Margin="8,6,0,0"/>
+                            <Button Grid.Row="1" x:Name="AddCollection" Classes="lg quiet nav" AutomationProperties.Name="Add new collection">
+                                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                    <lg:SymbolIcon Data="{DynamicResource LG.Icon.Plus}" Width="16" Height="16" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Add new" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
                     </Grid>
                     <StackPanel Grid.Row="2" Spacing="3" Margin="0,8,0,0">
-                        <Button x:Name="AddGame" Classes="lg quiet nav">
-                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"><lg:SymbolIcon Data="{DynamicResource LG.Icon.Plus}" Width="16" Height="16" VerticalAlignment="Center"/><TextBlock Text="Add game" VerticalAlignment="Center"/></StackPanel>
-                        </Button>
                         <Button x:Name="SettingsNav" Classes="lg quiet nav">
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"><lg:SymbolIcon Data="{DynamicResource LG.Icon.Settings}" Width="16" Height="16" VerticalAlignment="Center"/><TextBlock Text="Settings" VerticalAlignment="Center"/></StackPanel>
                         </Button>
                     </StackPanel>
                 </Grid>
             </Border>
-            <Grid Grid.Column="1" x:Name="MainArea" ClipToBounds="True">
-                <Grid.Background>
-                    <RadialGradientBrush Center="85%,0%" GradientOrigin="85%,0%" RadiusX="84%" RadiusY="95%">
-                        <GradientStop Color="#21243B" Offset="0"/><GradientStop Color="#151929" Offset=".55"/><GradientStop Color="#0E111C" Offset="1"/>
-                    </RadialGradientBrush>
-                </Grid.Background>
+            <Grid Grid.Column="1" x:Name="MainArea" ClipToBounds="True" Background="{DynamicResource LG.MainBackground}">
                 <Grid x:Name="Details" IsVisible="False" Background="Transparent" ClipToBounds="True">
                     <ContentControl x:Name="ArtworkHost" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                                     RenderTransformOrigin="50%,50%" IsHitTestVisible="False"/>
-                    <Border IsHitTestVisible="False">
-                        <Border.Background>
-                            <LinearGradientBrush StartPoint="0%,100%" EndPoint="23%,0%">
-                                <GradientStop Offset="0" Color="#FF0E111C"/><GradientStop Offset=".32" Color="#C00E111C"/>
-                                <GradientStop Offset=".70" Color="#4D0E111C"/><GradientStop Offset="1" Color="#030E111C"/>
-                            </LinearGradientBrush>
-                        </Border.Background>
-                    </Border>
+                    <Border IsHitTestVisible="False" Background="{DynamicResource LG.DetailShade}"/>
                     <StackPanel x:Name="GameInfo" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                                 MaxWidth="510" Margin="32,70,32,36" Spacing="11">
                         <Image x:Name="GameLogo" IsVisible="False" MaxHeight="96" MaxWidth="360" Stretch="Uniform"
@@ -142,11 +136,15 @@
                         <WrapPanel x:Name="StoreTags" ItemSpacing="12" LineSpacing="5" IsVisible="False"
                                    AutomationProperties.Name="Steam store tags"/>
                         <WrapPanel ItemSpacing="23" LineSpacing="5" Margin="0,3,0,6">
-                            <StackPanel Spacing="4"><TextBlock Text="PLAYTIME" Classes="lg-muted" FontSize="{DynamicResource LG.Font.10}" FontWeight="Bold"/><TextBlock x:Name="Playtime" FontWeight="SemiBold"/></StackPanel>
+                            <StackPanel x:Name="PlaytimeDetail" Spacing="4"><TextBlock Text="PLAYTIME" Classes="lg-muted" FontSize="{DynamicResource LG.Font.10}" FontWeight="Bold"/><TextBlock x:Name="Playtime" FontWeight="SemiBold"/></StackPanel>
                             <StackPanel Spacing="4"><TextBlock Text="LAST LAUNCHED" Classes="lg-muted" FontSize="{DynamicResource LG.Font.10}" FontWeight="Bold"/><TextBlock x:Name="LastPlayed" FontWeight="SemiBold"/></StackPanel>
                             <StackPanel x:Name="SteamAppId" Spacing="4" IsVisible="False" IsHitTestVisible="False">
                                 <TextBlock Text="STEAM APP ID" Classes="lg-muted" FontSize="{DynamicResource LG.Font.10}" FontWeight="Bold"/>
                                 <TextBlock x:Name="SteamLabel" FontWeight="SemiBold"/>
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="MODDED" Classes="lg-muted" FontSize="{DynamicResource LG.Font.10}" FontWeight="Bold"/>
+                                <TextBlock x:Name="ModdedStatus" FontWeight="SemiBold"/>
                             </StackPanel>
                         </WrapPanel>
                         <WrapPanel ItemSpacing="8" LineSpacing="6">

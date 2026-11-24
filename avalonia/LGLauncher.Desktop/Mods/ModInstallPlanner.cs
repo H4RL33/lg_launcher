@@ -3,7 +3,8 @@ using System.Diagnostics;
 namespace LGLauncher;
 
 internal sealed record ModSetupRequest(Game Game, string Root, string Executable, string Loader, bool Verified, bool Offline,
-    ModDxgiSpoofing? DxgiSpoofing = null, ModInstallationRecord? Existing = null, ModCatalogReport? Report = null);
+    ModDxgiSpoofing? DxgiSpoofing = null, ModInstallationRecord? Existing = null, ModCatalogReport? Report = null,
+    ModPackageDescriptor? OptiScalerPackage = null);
 internal sealed record ModPlanPreview(ModInstallPlan? Plan, ModProviderId[] Missing, string Message);
 internal enum ModReShadeApi { Dxgi, Direct3D9, OpenGl, Vulkan }
 
@@ -28,7 +29,8 @@ internal sealed class ModInstallPlanner(ModCompatibility compatibility, ModPacka
     }
 
     internal async Task<ModPlanPreview> PreviewAddonAsync(Game game, string root, string executable, bool offline,
-        ModInstallationRecord? existing, ModPackageDescriptor descriptor, ModRenoDxOption? renoDx, CancellationToken token)
+        ModInstallationRecord? existing, ModPackageDescriptor? descriptor, ModRenoDxOption? renoDx, CancellationToken token,
+        string? importedAddon = null)
     {
         using var lease = await store.LeaseAsync(token).ConfigureAwait(false);
         return await Task.Run(() =>
@@ -43,32 +45,46 @@ internal sealed class ModInstallPlanner(ModCompatibility compatibility, ModPacka
             if (target.Root.Equals(windows, StringComparison.OrdinalIgnoreCase) || ModTransactions.Contains(windows, target.Root))
                 return new(null, [], "Choose a game folder outside the Windows system folder.");
             if (ModCompatibility.HasAntiCheat(target)) return new(null, [], "Anti-cheat files were detected in the selected game folder.");
-            var provider = descriptor.Key.Provider;
+            var provider = descriptor?.Key.Provider ?? ModProviderId.RenoDx;
             if (existing != null && (!existing.Target.Matches(target) || existing.Packages.Any(package => package.Provider == provider)))
                 return new(null, [], "Review the existing managed mods before continuing.");
             ModDependencyLink[] dependencies = [];
-            if (renoDx != null)
+            if (provider == ModProviderId.RenoDx)
             {
-                if (!renoDx.Supports(existing))
-                    return new(null, [], renoDx.ReShadeHelp);
+                if (existing?.HasDependency(ModRenoDxOption.ReShadeRequirement) != true || renoDx?.Supports(existing) == false)
+                    return new(null, [], renoDx?.ReShadeHelp ?? "Install ReShade with full add-on support first.");
                 dependencies = [ModRenoDxOption.ReShadeRequirement];
             }
             else if (!ModCompatibility.SupportsReFramework(target.Executable))
                 return new(null, [], "Choose a rendering executable supported by the reviewed REFramework release.");
 
-            var member = descriptor.Files.Single();
+            if (descriptor == null && importedAddon == null)
+                return new(null, [], "Choose a RenoDX .addon64 file first.");
+            var member = descriptor?.Files.Single() ?? Path.GetFileName(importedAddon)!;
+            if (descriptor == null && !Path.GetExtension(member).Equals(".addon64", StringComparison.OrdinalIgnoreCase))
+                return new(null, [], "Choose a RenoDX .addon64 file.");
             var destination = ModPaths.Relative(Path.Combine(Path.GetDirectoryName(target.Executable) ?? "", member));
             if (existing?.Files.Any(file => file.Relative.Equals(destination, StringComparison.OrdinalIgnoreCase)) == true)
                 return new(null, [], $"Another managed mod owns {destination}.");
-            var package = store.List(provider).FirstOrDefault(candidate => candidate.Key == descriptor.Key);
-            if (package == null) return new(null, [provider], "Download the package before previewing the install.");
-            var source = ModPaths.Within(package.ContentDirectory, member);
-            var bytes = ReadBytes(source, 256 * 1024 * 1024);
-            var expected = renoDx != null ? descriptor.Key.Digest : package.Files.GetValueOrDefault(member);
-            if (ModFileSnapshot.For(bytes).Hash != expected)
-                throw new InvalidDataException($"The cached {ModPackageStore.Name(provider)} file changed. Delete and download that package again.");
+            byte[] bytes;
+            ModPackageKey key;
+            if (descriptor == null)
+            {
+                bytes = ReadRenoDxImport(importedAddon!);
+                key = new(provider, member, "Imported", ModFileSnapshot.For(bytes).Hash);
+            }
+            else
+            {
+                var package = store.List(provider).FirstOrDefault(candidate => candidate.Key == descriptor.Key);
+                if (package == null) return new(null, [provider], "Download the package before previewing the install.");
+                bytes = ReadBytes(ModPaths.Within(package.ContentDirectory, member), 256 * 1024 * 1024);
+                var expected = renoDx != null ? descriptor.Key.Digest : package.Files.GetValueOrDefault(member);
+                if (ModFileSnapshot.For(bytes).Hash != expected)
+                    throw new InvalidDataException($"The cached {ModPackageStore.Name(provider)} file changed. Delete and download that package again.");
+                key = package.Key;
+            }
             var current = ModFileSnapshot.Read(ModPaths.Within(target.Root, destination));
-            return new(new(target, [new(destination, current?.Hash, bytes, provider)], [package.Key], Dependencies: dependencies,
+            return new(new(target, [new(destination, current?.Hash, bytes, provider)], [key], Dependencies: dependencies,
                 ExistingInstallation: existing?.Id), [], "Review the files and versions below.");
         }, token).ConfigureAwait(false);
     }
@@ -178,10 +194,72 @@ internal sealed class ModInstallPlanner(ModCompatibility compatibility, ModPacka
         return bytes;
     }
 
+    internal async Task<ModInstallPlan> PreviewUpdateAsync(ModInstallationRecord record, ModPackageKey installed,
+        ModPackageDescriptor update, CancellationToken token)
+    {
+        using var lease = await store.LeaseAsync(token).ConfigureAwait(false);
+        return await Task.Run(() =>
+        {
+            var package = store.List(installed.Provider).FirstOrDefault(candidate => candidate.Key == update.Key) ??
+                throw new InvalidDataException("Download the updated package before previewing the update.");
+            var renderer = Path.GetDirectoryName(record.Target.Executable) ?? "";
+            var changes = new List<ModFileChange>();
+            foreach (var file in record.Files.Where(file => file.Owner == installed.Provider))
+            {
+                token.ThrowIfCancellationRequested();
+                var relative = Path.GetRelativePath(Path.Combine(record.Target.Root, renderer),
+                    ModPaths.Within(record.Target.Root, file.Relative));
+                if (relative.EndsWith(".ini", StringComparison.OrdinalIgnoreCase)) continue;
+                var member = installed.Provider switch
+                {
+                    ModProviderId.OptiScaler when Loaders.Contains(relative, StringComparer.OrdinalIgnoreCase) => "OptiScaler.dll",
+                    ModProviderId.OptiScaler => relative.Replace('\\', '/'),
+                    ModProviderId.ReShade => ModPackageStore.ReShadeModule,
+                    _ => update.Files.Single()
+                };
+                if (!package.Files.TryGetValue(member, out var digest))
+                    throw new InvalidDataException($"The updated package does not include {member}.");
+                var bytes = ReadBytes(ModPaths.Within(package.ContentDirectory, member), 256 * 1024 * 1024);
+                if (ModFileSnapshot.For(bytes).Hash != digest)
+                    throw new InvalidDataException($"The cached {member} changed. Delete and download the package again.");
+                changes.Add(new(file.Relative, file.DeployedHash, bytes, installed.Provider));
+            }
+            if (changes.Count == 0) throw new InvalidDataException("No managed files are eligible for this update.");
+            var requirements = record.KnownDependencies().Where(link => link.Dependent == installed.Provider).ToArray();
+            return new ModInstallPlan(record.Target, changes, [package.Key], Dependencies: requirements,
+                ExistingInstallation: record.Id, ReplacingPackage: installed);
+        }, token).ConfigureAwait(false);
+    }
+
+    internal Task<ModInstallPlan> PreviewRenoDxReplacementAsync(ModInstallationRecord record, ModPackageKey installed,
+        string path, CancellationToken token) => Task.Run(() =>
+    {
+        var file = record.Files.SingleOrDefault(file => file.Owner == ModProviderId.RenoDx);
+        if (installed.Provider != ModProviderId.RenoDx || file == null || !record.Packages.Contains(installed) ||
+            !record.HasDependency(ModRenoDxOption.ReShadeRequirement))
+            throw new InvalidDataException("Review the managed RenoDX and ReShade installations before replacing the add-on.");
+        var bytes = ReadRenoDxImport(path);
+        var digest = ModFileSnapshot.For(bytes).Hash;
+        if (digest == file.DeployedHash)
+            throw new InvalidDataException("This file matches the installed add-on. Choose a different version.");
+        var replacement = installed with { Version = "Imported", Digest = digest };
+        return new ModInstallPlan(record.Target, [new(file.Relative, file.DeployedHash, bytes, installed.Provider)], [replacement],
+            Dependencies: [ModRenoDxOption.ReShadeRequirement], ExistingInstallation: record.Id, ReplacingPackage: installed);
+    }, token);
+
+    private static byte[] ReadRenoDxImport(string path)
+    {
+        if (!Path.GetExtension(path).Equals(".addon64", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Choose a RenoDX .addon64 file.");
+        var bytes = ReadBytes(path, 256 * 1024 * 1024);
+        ModArchiveReader.ValidateRenoDx(new MemoryStream(bytes, writable: false));
+        return bytes;
+    }
+
     internal static (string Relative, byte[] Bytes) ReadChainingConfiguration(ModInstallationRecord record)
     {
-        if (!record.Packages.Contains(ModPackageStore.Approved(ModProviderId.OptiScaler).Key))
-            throw new InvalidDataException("ReShade needs the reviewed managed OptiScaler version to load alongside it.");
+        if (!record.Packages.Any(package => package.Provider == ModProviderId.OptiScaler && package.Variant == "stable"))
+            throw new InvalidDataException("ReShade needs a managed OptiScaler stable package to load alongside it.");
         var folder = Path.GetDirectoryName(record.Target.Executable) ?? "";
         var owned = record.Files.Where(file => file.Owner == ModProviderId.OptiScaler).ToArray();
         var loaders = owned.Where(file => Loaders.Any(name =>
@@ -235,9 +313,11 @@ internal sealed class ModInstallPlanner(ModCompatibility compatibility, ModPacka
         var providers = extra.Select(dependency => dependency.Provider).Prepend(ModProviderId.OptiScaler).Distinct().ToArray();
         var packages = new Dictionary<ModProviderId, CachedModPackage>();
         var missing = new List<ModProviderId>();
+        var optiScalerPackage = recipe == null ? request.OptiScalerPackage ?? store.Preferred(ModProviderId.OptiScaler)
+            : ModPackageStore.Approved(ModProviderId.OptiScaler);
         foreach (var provider in providers)
         {
-            var approved = ModPackageStore.Approved(provider);
+            var approved = provider == ModProviderId.OptiScaler ? optiScalerPackage : ModPackageStore.Approved(provider);
             var dependency = extra.FirstOrDefault(item => item.Provider == provider);
             var version = provider == ModProviderId.OptiScaler ? recipe?.OptiScalerVersion : dependency?.Version;
             var digest = provider == ModProviderId.OptiScaler ? recipe?.OptiScalerDigest : dependency?.Digest;
@@ -263,7 +343,7 @@ internal sealed class ModInstallPlanner(ModCompatibility compatibility, ModPacka
         var opti = packages[ModProviderId.OptiScaler];
         ModDxgiSpoofing? dxgiSpoofing = recipe?.Omit.Contains("OptiScaler.ini", StringComparer.OrdinalIgnoreCase) == true
             ? null : request.DxgiSpoofing ?? DefaultDxgiSpoofing(recipe, assessment.Entry);
-        foreach (var member in ModPackageStore.Approved(ModProviderId.OptiScaler).Files)
+        foreach (var member in optiScalerPackage.Files)
         {
             if (recipe?.Omit.Contains(member, StringComparer.OrdinalIgnoreCase) == true) continue;
             var destination = member == "OptiScaler.dll" ? loader : member;
