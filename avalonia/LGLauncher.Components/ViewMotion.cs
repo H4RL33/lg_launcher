@@ -64,7 +64,7 @@ public static class ViewMotion
         }
     }
 
-    internal static Task RevealFromTop(Animatable target, StyledProperty<double> property, double from, double to,
+    public static Task RevealFromTop(Animatable target, StyledProperty<double> property, double from, double to,
         CancellationToken cancellationToken)
     {
         var animation = new Animation

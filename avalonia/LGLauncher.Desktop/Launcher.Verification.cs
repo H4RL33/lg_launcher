@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -336,6 +337,17 @@ internal sealed partial class Launcher
         Require(collapseFrames.Any(progress => progress is > 0 and < 1) && collapseFrames[^1] == 0 &&
             collapseFrames.Zip(collapseFrames.Skip(1)).All(pair => pair.First >= pair.Second),
             "The menu did not collapse smoothly to the top before closing.");
+        var upwardMenu = (FrostedContextMenu)BuildGameMenu(game, PlacementMode.Top);
+        GameOptions.ContextMenu = upwardMenu;
+        upwardMenu.Open(GameOptions);
+        var upwardSurface = upwardMenu.GetVisualDescendants().OfType<Panel>().Single(panel => panel.Name == "RevealSurface");
+        await WaitFor(() => upwardSurface.Clip is RectangleGeometry { Rect.Height: > 0, Rect.Y: > 0 },
+            "The menu placed above the options button did not reveal from its bottom edge.");
+        CaptureControl(upwardMenu, Path.Combine(Path.GetDirectoryName(preview)!, "game-menu-reveal-upwards.png"));
+        await WaitFor(() => upwardMenu.RevealProgress == 1, "The upward menu did not finish opening.");
+        upwardMenu.Close();
+        await WaitFor(() => !upwardMenu.IsOpen, "The upward menu did not finish closing.");
+        await VerifyTextFieldHover(SearchBox, Path.Combine(Path.GetDirectoryName(preview)!, "library-search-hover.png"));
         _motion = false;
         ResetArtworkParallax(immediate: true);
         Classes.Remove("lg-motion");
@@ -945,11 +957,12 @@ internal sealed partial class Launcher
         var motion = Classes.Contains("lg-motion");
         var motionEnabled = _motion;
         var sortMode = _sort;
-        var played = new Game { Title = "ZZ Sidebar sample", PlaySeconds = 1000000, CollectionIds = [manual.Id] };
+        var played = new Game { Title = "ZZ Sidebar sample", PlaySeconds = 1000000, CollectionIds = [manual.Id], IsModded = true };
         _library.Games.Add(played);
         try
         {
             _sort = 0;
+            _motion = false;
             LibraryNav.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(_page == Page.Library && _cardGrid?.Children.Count == _library.Games.Count,
                 "The Library button did not open the whole library grid.");
@@ -978,7 +991,20 @@ internal sealed partial class Launcher
             {
                 (Width, Height) = size;
                 await Task.Delay(40);
+                var tile = _cardGrid!.Children.OfType<Border>().Single(host => host.Tag == played).Child as GameCard;
+                Require(tile is { IsModded: true }, "The modded portrait did not show its indicator.");
+                var icon = tile!.GetVisualDescendants().OfType<SymbolIcon>().Single(symbol => symbol.Name == "ModdedWrench");
+                using var bright = MakePortrait(Brushes.White);
+                using var dark = MakePortrait(Brushes.Black);
+                UpdateModIndicatorContrast(tile, dark);
+                Require(icon.Foreground is ISolidColorBrush { Color: var light } && light == Colors.White && icon.Opacity == .7,
+                    "The dark portrait did not use a 70% white wrench.");
+                tile.Artwork = bright;
+                UpdateModIndicatorContrast(tile, bright);
+                Require(icon.Foreground is ISolidColorBrush { Color: var ink } && ink == Colors.Black,
+                    "The bright portrait did not use a black wrench.");
                 Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"whole-library-{size.Item1}.png"));
+                tile.Artwork = null;
             }
             Navigate(Page.Collections);
             LibraryCollections.SelectedItem = _shownCollections.Single(item => item.Collection == manual);
@@ -992,6 +1018,8 @@ internal sealed partial class Launcher
                 (Width, Height) = (size.Width, size.Height);
                 await Task.Delay(40);
                 UpdateLayout();
+                await VerifySidebarReveal(LibrarySectionHeader, LibrarySectionClip, LibrarySection, "library");
+                await VerifySidebarReveal(CollectionsSectionHeader, CollectionsSectionClip, CollectionsSection, "collections");
                 var gameRow = LibraryGames.GetVisualDescendants().OfType<ListBoxItem>().First();
                 var collectionRows = LibraryCollections.GetVisualDescendants().OfType<ListBoxItem>().ToArray();
                 Require(collectionRows.Length == _library.Collections.Count && collectionRows.Count(row => row.IsSelected) == 1 &&
@@ -1032,6 +1060,36 @@ internal sealed partial class Launcher
             Navigate(Page.Collections, dynamicCollection);
         }
 
+        static RenderTargetBitmap MakePortrait(IBrush background)
+        {
+            var bitmap = new RenderTargetBitmap(new PixelSize(40, 60));
+            using var drawing = bitmap.CreateDrawingContext();
+            drawing.FillRectangle(background, new Rect(0, 0, 40, 60));
+            return bitmap;
+        }
+
+        async Task VerifySidebarReveal(ContentControl header, Border clip, Grid section, string name)
+        {
+            var buttons = ((Grid)header.Content!).Children.OfType<Button>().ToArray();
+            var heading = ((StackPanel)buttons[0].Content!).Children.OfType<TextBlock>().Single();
+            var sort = (TextBlock)buttons[1].Content!;
+            Require(heading.FontSize == (double)this.FindResource("LG.Font.12")! && heading.FontWeight == FontWeight.SemiBold &&
+                sort.FontSize == (double)this.FindResource("LG.Font.11")! && sort.FontWeight == FontWeight.Light &&
+                Math.Abs(heading.TranslatePoint(new Point(0, heading.Bounds.Height / 2), header)!.Value.Y -
+                    sort.TranslatePoint(new Point(0, sort.Bounds.Height / 2), header)!.Value.Y) <= 1,
+                "The sidebar section and sort labels did not share the prescribed sizing and centre alignment.");
+            var expanded = clip.Bounds.Height;
+            buttons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitFor(() => clip.Bounds.Height > 0 && clip.Bounds.Height < expanded,
+                $"The {name} sidebar did not animate its collapse.");
+            Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"sidebar-{name}-collapse-{Width:0}.png"));
+            await WaitFor(() => !section.IsVisible && clip.Bounds.Height == 0, $"The {name} sidebar did not finish collapsing.");
+            buttons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitFor(() => clip.Bounds.Height > 0 && clip.Bounds.Height < expanded,
+                $"The {name} sidebar did not animate its reveal.");
+            await WaitFor(() => clip.Bounds.Height >= expanded && Double.IsNaN(section.Height),
+                $"The {name} sidebar did not finish opening.");
+        }
         async Task VerifySortMotion(string previews, double width)
         {
             var beforeSort = MemberCards();
@@ -1325,6 +1383,28 @@ internal sealed partial class Launcher
         }
         Require(await prompts && _store.Load().UsageNoticeAccepted && !_store.Load().Preferences.AutomaticUpdates,
             "The first-usage prompts did not save the new choices.");
+    }
+
+    private async Task VerifyTextFieldHover(TextBox field, string preview)
+    {
+        var frame = field.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "PART_BorderElement");
+        var startingFill = frame.Background;
+        var startingBorder = frame.BorderBrush;
+        var hoverFill = this.FindResource("LG.FieldHover");
+        var pseudoClasses = (IPseudoClasses)field.Classes;
+        Require(frame.Transitions?.OfType<BrushTransition>().Count() == 2 && !field.IsFocused,
+            "The text field was missing its hover transitions or was already focused.");
+        pseudoClasses.Add(":pointerover");
+        try
+        {
+            await WaitFor(() => Equals(frame.Background, hoverFill) &&
+                frame.BorderBrush is ISolidColorBrush { Color: var borderColour } && borderColour == Colors.White,
+                "The text field did not settle into its dark hover surface and white border.");
+            Capture(preview);
+        }
+        finally { pseudoClasses.Remove(":pointerover"); }
+        await WaitFor(() => Equals(frame.Background, startingFill) && Equals(frame.BorderBrush, startingBorder),
+            "The text field hover colours did not fade out.");
     }
 
     private static async Task WaitFor(Func<bool> condition, string error)

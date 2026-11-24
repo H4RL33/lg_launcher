@@ -14,6 +14,8 @@ internal sealed partial class Launcher
     private static readonly string[] CollectionSortLabels = ["A–Z", "Z–A", "Cumulative playtime", "Created date", "Qty. games"];
     private static readonly string[] SidebarGameSortLabels = ["A–Z", "Last played", "Playtime", "Z–A", "Added", "Released"];
     private static readonly string[] SidebarCollectionSortLabels = ["A–Z", "Z–A", "Playtime", "Created", "Games"];
+    private readonly HashSet<Border> _collapsedSidebarSections = [];
+    private readonly Dictionary<Border, object> _sidebarReveals = [];
 
     private IEnumerable<int> GameSortChoices() => Enumerable.Range(0, GameSortLabels.Length).Where(index => TrackPlaytime || index != 2);
 
@@ -21,43 +23,104 @@ internal sealed partial class Launcher
 
     private void InitializeSidebarSections()
     {
+        SidebarLists.RowDefinitions[1].Bind(RowDefinition.MaxHeightProperty, LibrarySectionClip.GetObservable(MaxHeightProperty));
+        SidebarLists.RowDefinitions[3].Bind(RowDefinition.MaxHeightProperty, CollectionsSectionClip.GetObservable(MaxHeightProperty));
         UpdateHeaders();
         PreferencesChanged += UpdateHeaders;
 
         void UpdateHeaders()
         {
-            LibrarySectionHeader.Content = SidebarSectionHeader("Library", LibrarySection, GameSortChoices(), _librarySort,
+            LibrarySectionHeader.Content = SidebarSectionHeader("Library", LibrarySectionClip, LibrarySection, GameSortChoices(), _librarySort,
                 GameSortLabels, SidebarGameSortLabels, index => SetLibrarySort(index, fromSidebar: true));
-            CollectionsSectionHeader.Content = SidebarSectionHeader("Collections", CollectionsSection, CollectionSortChoices(), _collectionsSort,
+            CollectionsSectionHeader.Content = SidebarSectionHeader("Collections", CollectionsSectionClip, CollectionsSection, CollectionSortChoices(), _collectionsSort,
                 CollectionSortLabels, SidebarCollectionSortLabels, index => SetCollectionsSort(index, fromSidebar: true));
         }
     }
 
-    private Grid SidebarSectionHeader(string title, Control section, IEnumerable<int> choices, int current,
+    private Grid SidebarSectionHeader(string title, Border clip, Grid section, IEnumerable<int> choices, int current,
         string[] labels, string[] shortLabels, Func<int, bool> select)
     {
-        var arrow = Symbol(section.IsVisible ? "LG.Icon.ChevronDown" : "LG.Icon.Chevron", 12);
+        var arrow = Symbol(Expanded() ? "LG.Icon.ChevronDown" : "LG.Icon.Chevron", 12);
+        arrow.VerticalAlignment = VerticalAlignment.Center;
         var label = Label(title.ToUpperInvariant());
         label.Classes.Add("sidebar-heading");
         label.VerticalAlignment = VerticalAlignment.Center;
         var toggle = new Button { Classes = { "lg", "quiet" } };
         Click(toggle, () =>
         {
-            section.IsVisible = !section.IsVisible;
-            arrow.Data = (Geometry?)this.FindResource(section.IsVisible ? "LG.Icon.ChevronDown" : "LG.Icon.Chevron");
+            if (Expanded()) _collapsedSidebarSections.Add(clip);
+            else _collapsedSidebarSections.Remove(clip);
+            arrow.Data = (Geometry?)this.FindResource(Expanded() ? "LG.Icon.ChevronDown" : "LG.Icon.Chevron");
             UpdateToggleName();
-            RenderSidebar();
+            RevealSidebarSection(clip, section, Expanded());
         });
         toggle.Padding = new Thickness(4, 0);
         toggle.HorizontalAlignment = HorizontalAlignment.Left;
-        toggle.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 5, Children = { arrow, label } };
+        toggle.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 5, VerticalAlignment = VerticalAlignment.Center, Children = { arrow, label }
+        };
         UpdateToggleName();
         var sort = BuildChoicePicker($"Sort {title.ToLowerInvariant()}", choices, current, index => labels[index], select,
             textOnly: true, currentLabel: index => shortLabels[index]);
+        if (sort.Content is TextBlock sortLabel) sortLabel.Classes.Add("sidebar-sort");
         Grid.SetColumn(sort, 1);
         return new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), Children = { toggle, sort } };
 
-        void UpdateToggleName() => AutomationProperties.SetName(toggle, section.IsVisible ? $"Collapse {title}" : $"Expand {title}");
+        bool Expanded() => !_collapsedSidebarSections.Contains(clip);
+        void UpdateToggleName() => AutomationProperties.SetName(toggle, Expanded() ? $"Collapse {title}" : $"Expand {title}");
+    }
+
+    private double SidebarSectionHeight(Border clip)
+    {
+        var count = clip == LibrarySectionClip ? _shownEntries.Length : _shownCollections.Length;
+        return (Math.Max(count, 1) + 1) * (double)this.FindResource("LG.SidebarRowHeight")!;
+    }
+
+    private void SettleSidebarSection(Border clip, Grid section)
+    {
+        if (_sidebarReveals.ContainsKey(clip)) return;
+        section.ClearValue(HeightProperty);
+        section.IsVisible = !_collapsedSidebarSections.Contains(clip);
+        clip.MaxHeight = section.IsVisible ? SidebarSectionHeight(clip) : 0;
+    }
+
+    private void RevealSidebarSection(Border clip, Grid section, bool expanding)
+    {
+        var from = clip.Bounds.Height;
+        var reveal = new object();
+        _sidebarReveals[clip] = reveal;
+        CancelMotion(clip);
+        if (!CanAnimate(clip))
+        {
+            _sidebarReveals.Remove(clip);
+            SettleSidebarSection(clip, section);
+            return;
+        }
+
+        // Measure the expanded viewport before revealing it, so its footer and scroll extent stay put.
+        if (expanding)
+        {
+            section.ClearValue(HeightProperty);
+            section.IsVisible = true;
+            clip.MaxHeight = SidebarSectionHeight(clip);
+            SidebarLists.UpdateLayout();
+        }
+        var target = expanding ? clip.Bounds.Height : 0;
+        section.Height = Math.Max(from, expanding ? target : section.Bounds.Height);
+        clip.MaxHeight = from;
+        AnimateMotion(clip, async token =>
+        {
+            try { await ViewMotion.RevealFromTop(clip, MaxHeightProperty, from, target, token); }
+            finally
+            {
+                if (_sidebarReveals.GetValueOrDefault(clip) == reveal)
+                {
+                    _sidebarReveals.Remove(clip);
+                    SettleSidebarSection(clip, section);
+                }
+            }
+        });
     }
 
     private void RenderWholeLibrary()

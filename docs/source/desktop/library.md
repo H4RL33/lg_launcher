@@ -33,6 +33,8 @@ Home and the collection browser draw up to four mosaic tiles from the collection
 
 The collapsible Library and Collections lists have separate sort controls and Add new actions. The top Library icon opens the full-library grid. Library, Collections, and collection members use the shared choice picker. Games support title in either direction, playtime, last launched, newest added, and newest released. Collections support name in either direction, cumulative playtime, newest created, and quantity of games. Unknown dates sort after known dates. The library and collection browser share their sort choices with the corresponding sidebar list. Discoveries remains available through the status bar.
 
+Both sidebar headings use the same semibold title style and a smaller, light-weight sort label on the same vertical centre. Opening or closing a heading animates the clipped list and its Add new button with the Mods warning panel’s easing. Reduced Motion changes the height immediately.
+
 With motion enabled, games on the destination page that were also visible on the previous page move from their former positions. Changing the sort order still returns to page one. Reduce Motion applies the new order immediately.
 
 ## `avalonia/LGLauncher.Desktop/Launcher.CollectionIcons.cs`

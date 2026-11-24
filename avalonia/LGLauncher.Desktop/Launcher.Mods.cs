@@ -191,8 +191,8 @@ internal sealed partial class Launcher
             var records = _modTransactions.FindInstallations();
             foreach (var provider in AvailableModProviders)
             {
-                var packages = _modPackages.List(provider);
                 var gameSpecific = provider == ModProviderId.RenoDx;
+                var packages = gameSpecific ? [] : _modPackages.List(provider);
                 var checkedDownload = _checkedModDownloads.GetValueOrDefault(provider);
                 var preferred = gameSpecific ? null : _modPackages.Preferred(provider, checkedDownload, packages);
                 var cached = preferred == null ? null : packages.FirstOrDefault(package => package.Key == preferred.Key);
@@ -202,13 +202,6 @@ internal sealed partial class Launcher
                 check.IsEnabled = !busy;
                 var info = ModPackageInfo(provider);
                 var actions = gameSpecific ? Actions(check, info) : Actions(info, check);
-                var renoUpdates = gameSpecific ? RenoDxUpdates(records, packages).ToArray() : [];
-                if (renoUpdates.Length > 0)
-                {
-                    var update = ModUpdateButton("Update cached RenoDX add-ons", () => _ = UpdateRenoDxCache(renoUpdates));
-                    update.IsEnabled = !busy;
-                    actions.Children.Add(update);
-                }
                 if (preferred != null && cached == null)
                 {
                     var updating = checkedDownload != null && (packages.Count > 0 || preferred.Key != ModPackageStore.Approved(provider).Key);
@@ -234,7 +227,7 @@ internal sealed partial class Launcher
                     _optiScalerUpdateCheck = check;
                     RenderOptiScalerUpdateCheck();
                 }
-                var availability = gameSpecific ? (renoUpdates.Length > 0 ? "Add-on updates available" : "Game-specific add-ons")
+                var availability = gameSpecific ? "Game-specific add-ons"
                     : cached != null ? $"Cached {cached.Key.Version} · {cached.Key.Variant}"
                     : checkedDownload != null && packages.Count > 0 ? "An earlier package is cached."
                     : provider == ModProviderId.ReShade ? "Full add-on package is not downloaded."
@@ -270,25 +263,6 @@ internal sealed partial class Launcher
             body.Children.Add(Section("Managed installations", management));
         }
         catch (Exception error) when (ModUiFailure(error)) { body.Children.Add(Label(error.Message, muted: true)); }
-    }
-
-    private IEnumerable<ModPackageDescriptor> RenoDxUpdates(IReadOnlyList<ModInstallationRecord> records, IReadOnlyList<CachedModPackage> cached)
-    {
-        var installed = records.SelectMany(record => record.Packages.Where(package => package.Provider == ModProviderId.RenoDx)
-            .Select(package => UpdateFor(record, package))).OfType<ModPackageDescriptor>();
-        var available = _library.Games.SelectMany(game => _renoDxCatalog.Find(game)?.Options ?? [])
-            .Where(option => cached.Any(package => RenoDxReplaces(option, package.Key))).Select(option => option.Package);
-        return installed.Concat(available).DistinctBy(package => package.Key)
-            .Where(update => cached.All(package => package.Key != update.Key));
-    }
-
-    private async Task UpdateRenoDxCache(ModPackageDescriptor[] updates)
-    {
-        foreach (var update in updates)
-        {
-            if (!await DownloadModPackage(ModProviderId.RenoDx, (progress, token) => _modPackages.AcquireAsync(update, token, progress)))
-                break;
-        }
     }
 
     private static Grid ModSettingsRow(Control details, Control actions)
@@ -393,6 +367,15 @@ internal sealed partial class Launcher
 
     private Task<bool> DownloadModPackage(ModProviderId provider, ProgressBar? dialogProgress = null) =>
         DownloadModPackage(provider, (progress, token) => _modPackages.AcquireAsync(ModPackageStore.Approved(provider), token, progress), dialogProgress);
+
+    private Task<bool> DownloadRenoDxAddon(ModPackageDescriptor selected, ProgressBar progressBar, Action<byte[]> receive) =>
+        ChangeModPackage(ModProviderId.RenoDx, "Downloading and checking the add-on…", async token =>
+        {
+            var progress = new Progress<int>(percent => progressBar.Value = percent);
+            var bytes = await _modPackages.FetchRenoDxAsync(selected, token, progress);
+            receive(bytes);
+            return "Add-on ready for preview.";
+        });
 
     private Task<bool> DownloadModPackage(ModProviderId provider, Func<IProgress<int>, CancellationToken, Task<CachedModPackage>> acquire,
         ProgressBar? dialogProgress = null)
@@ -973,12 +956,16 @@ internal sealed partial class Launcher
             var planner = new ModInstallPlanner(_modsCompatibility, _modPackages, _modTransactions.Vulkan);
             var addonPackage = provider == ModProviderId.ReFramework
                 ? _modPackages.Preferred(provider, _checkedModDownloads.GetValueOrDefault(provider)) : null;
+            (ModPackageKey Key, byte[] Bytes)? downloaded = null;
             await ShowModSetupPreview(setup, list, game, snapshot, offline, $"{name} setup",
                 token => planner.PreviewAddonAsync(snapshot, root, executable, offline.IsChecked == true, existing,
-                    option?.Package ?? addonPackage, option, token, importedAddon?.SelectedPath),
-                (id, bar) => (option?.Package ?? addonPackage) is { } selected
-                    ? DownloadModPackage(id, (progress, token) => _modPackages.AcquireAsync(selected, token, progress), bar)
-                    : DownloadModPackage(id, bar));
+                    option?.Package ?? addonPackage, option, token, importedAddon?.SelectedPath,
+                    downloaded is { } payload && payload.Key == option?.Package.Key ? payload.Bytes : null),
+                (id, bar) => option?.Package is { } selected
+                    ? DownloadRenoDxAddon(selected, bar, bytes => downloaded = (selected.Key, bytes))
+                    : addonPackage != null
+                        ? DownloadModPackage(id, (progress, token) => _modPackages.AcquireAsync(addonPackage, token, progress), bar)
+                        : DownloadModPackage(id, bar));
 
             bool CanChoose() => DialogHost.Children.Contains(setup) && StillSelected(game, snapshot) && setup.Body.IsEnabled;
 
@@ -1346,12 +1333,15 @@ internal sealed partial class Launcher
         else
         {
             if (UpdateFor(record, installed) is not { } update) return;
-            if (!_modPackages.List(installed.Provider).Any(package => package.Key == update.Key) &&
+            var direct = installed.Provider == ModProviderId.RenoDx;
+            byte[]? downloaded = null;
+            if ((direct || !_modPackages.List(installed.Provider).Any(package => package.Key == update.Key)) &&
                 !await ShowModDownloads([installed.Provider], Current,
-                    (provider, bar) => DownloadModPackage(provider, (progress, token) => _modPackages.AcquireAsync(update, token, progress), bar)))
+                    (provider, bar) => direct ? DownloadRenoDxAddon(update, bar, bytes => downloaded = bytes)
+                        : DownloadModPackage(provider, (progress, token) => _modPackages.AcquireAsync(update, token, progress), bar)))
                 return;
             if (!Current()) return;
-            plan = await planner.PreviewUpdateAsync(record, installed, update, _modLifetime.Token);
+            plan = await planner.PreviewUpdateAsync(record, installed, update, _modLifetime.Token, downloaded);
         }
         if (Current()) await ShowModPlan(plan, Current, (progress, token) => _modTransactions.InstallAsync(plan, token, progress));
     }

@@ -39,16 +39,7 @@ internal static class ModArchiveReader
         long expanded = 0;
         int count = 0;
 
-        if (package.Key.Provider == ModProviderId.RenoDx)
-        {
-            var name = package.Files.Single();
-            if (!ModRenoDxCatalog.IsAddonName(name) || package.Address.AbsolutePath.Split('/')[^1] != name)
-                throw new InvalidDataException("The RenoDX add-on filename is invalid.");
-            ValidateRenoDx(File.OpenRead(archivePath));
-            File.Copy(archivePath, ModPaths.Within(destination, name));
-            written.Add(name, package.Key.Digest);
-        }
-        else if (package.Key.Provider == ModProviderId.ReShade)
+        if (package.Key.Provider == ModProviderId.ReShade)
         {
             var setup = File.ReadAllBytes(archivePath);
             if (setup.Length <= ReShadeZipOffset || !setup.AsSpan(ReShadeZipOffset).StartsWith("PK\u0003\u0004"u8))
