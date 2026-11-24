@@ -2,6 +2,8 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
@@ -18,6 +20,17 @@ public sealed class FrostedContextMenu : ContextMenu
     private RenderTargetBitmap? _snapshot;
     private CancellationTokenSource? _motion;
     private bool _collapsing;
+    private PixelPoint? _pointerAnchor;
+    private bool _revealUpwards;
+
+    static FrostedContextMenu()
+    {
+        ContextRequestedEvent.AddClassHandler<Control>((control, args) =>
+        {
+            if (control.ContextMenu is FrostedContextMenu menu && !menu.IsOpen)
+                menu._pointerAnchor = args.TryGetPosition(control, out var point) ? control.PointToScreen(point) : null;
+        }, RoutingStrategies.Tunnel);
+    }
 
     public FrostedContextMenu()
     {
@@ -56,16 +69,21 @@ public sealed class FrostedContextMenu : ContextMenu
             return;
         }
         // Assign a new clip so Avalonia synchronizes the changed geometry to the compositor.
+        var height = _surface.Bounds.Height * Math.Clamp(RevealProgress, 0, 1);
         _surface.Clip = new RectangleGeometry(
-            new Rect(0, 0, _surface.Bounds.Width, _surface.Bounds.Height * Math.Max(0, RevealProgress)));
+            new Rect(0, _revealUpwards ? _surface.Bounds.Height - height : 0, _surface.Bounds.Width, height));
     }
 
     private void Present()
     {
+        var pointerAnchor = _pointerAnchor;
         Reset();
         UpdateLayout();
-        var target = (Parent as Popup)?.PlacementTarget;
-        if (target == null || TopLevel.GetTopLevel(target) is not Window window) return;
+        if (_surface == null || Parent is not Popup { PlacementTarget: { } target } popup ||
+            TopLevel.GetTopLevel(target) is not Window window) return;
+        var anchor = popup.Placement == PlacementMode.Pointer && pointerAnchor is { } pointer ? pointer : target.PointToScreen(default);
+        var bottom = _surface.PointToScreen(new Point(0, _surface.Bounds.Height));
+        _revealUpwards = bottom.Y <= anchor.Y + 1;
         if (!window.Classes.Contains("lg-opaque") && window.Content is Control content) CaptureBackdrop(content);
         if (!window.Classes.Contains("lg-motion")) return;
 
@@ -146,6 +164,8 @@ public sealed class FrostedContextMenu : ContextMenu
     {
         StopMotion();
         _collapsing = false;
+        _pointerAnchor = null;
+        _revealUpwards = false;
         if (Parent is Popup popup) popup.IsHitTestVisible = true;
         SetValue(RevealProgressProperty, 1d);
         if (_backdrop != null) _backdrop.Background = null;

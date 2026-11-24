@@ -192,7 +192,7 @@
                                             <lg:SymbolIcon Data="{DynamicResource LG.Icon.Game}" Foreground="{DynamicResource LG.Accent}"
                                                       Width="25" Height="25" Opacity=".72" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             <Image Source="{TemplateBinding Artwork}" Stretch="{TemplateBinding ArtworkStretch}"/>
-                                            <lg:SymbolIcon Name="ModdedWrench" Data="{DynamicResource LG.Icon.Wrench}" Foreground="White"
+                                            <lg:SymbolIcon Name="ModdedWrench" Data="{DynamicResource LG.Icon.Wrench}" Foreground="{TemplateBinding ModIndicatorBrush}" Opacity=".7"
                                                            Width="18" Height="18" Margin="8" HorizontalAlignment="Right" VerticalAlignment="Top"
                                                            IsVisible="{TemplateBinding IsModded}" IsHitTestVisible="False"/>
                                         </Grid>
@@ -391,6 +391,18 @@
         <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
         <Setter Property="MinHeight" Value="36"/>
         <Setter Property="FontSize" Value="{DynamicResource LG.Font.13}"/>
+    </Style>
+    <Style Selector="TextBox.lg:pointerover:not(:focus):not(:disabled) /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="{DynamicResource LG.FieldHover}"/>
+        <Setter Property="BorderBrush" Value="White"/>
+    </Style>
+    <Style Selector=".lg-motion TextBox.lg /template/ Border#PART_BorderElement">
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
     </Style>
     <Style Selector="ListBox.lg">
         <Setter Property="Background" Value="Transparent"/>

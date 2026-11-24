@@ -27,6 +27,8 @@ The game-return fixture checks the first contribution prompt, an ordinary return
 - **Depends on** the actual `Launcher` window and named controls, Avalonia layout/rendering and simulated input, shared UI components, and the isolated profile and artwork fixtures.
 - **Used by** `App.axaml.cs` through the `--verify-migration`, `--verify-existing`, and `--verify-setup` arguments. The other launcher verification partials use its helpers.
 
+The sidebar fixture checks heading and sort label sizes, weight and alignment, and intermediate clipping as both sections open and close at 730, 1230, and 1600 pixels wide. It also checks the tile wrench on bright and dark portraits. The game menu fixture verifies that a menu placed above its button clips from the bottom. The search and RSS URL fixtures check the shared hover fill, border, and transitions.
+
 [Main smoke source](../../../avalonia/LGLauncher.Desktop/Launcher.Verification.cs) · [Migration harness](../../../tests/Verify-AvaloniaMigration.ps1)
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Mods.Verification.cs`
@@ -35,7 +37,7 @@ Exercises the wrench in Settings and game details, the package info and refresh 
 
 The Settings fixture checks the combined inline update result, the separate package and managed-installation panels, and shared sidebar row heights. The game fixture checks that the management dialog opens while an inspection is pending, that each installed mod can be inspected separately, and that removing a dependency requires confirmation.
 
-A simulated newer ReShade tag verifies the official upstream link in Settings at all three widths. The mod fixtures update a RenoDX installation from a second local x64 file and through the verified package path, checking the deployed filename and uninstall backup.
+A simulated newer ReShade tag verifies the official upstream link in Settings at all three widths. The mod fixtures update a RenoDX installation from a second local x64 file and a verified per-game download, checking the deployed filename and uninstall backup. A legacy cache fixture checks that its RenoDX entry stays on disk and exposes no Settings cache action.
 
 The Mods fixture verifies the warning count, intermediate clipping during reveal and collapse, and immediate changes with Reduced Motion enabled. It checks the chevron hover scope, insets, and radius, and captures collapsed, hovered, and expanded states at three widths. It also checks that the symbolic package download and cache-delete buttons fit with the other actions. It checks the deletion confirmation and that removing the cached package preserves the game installation.
 
@@ -55,7 +57,7 @@ Checks that preferences apply and persist, that older scale values map to the dr
 
 The About fixture switches from Stable to Next preview and back. It checks that both choices save and captures the shared picker and its open menu at 730, 1230, and 1600 pixels wide.
 
-The Library settings fixture checks that Theme music starts off and saves both switch states. It captures the enabled setting at 730, 1230, and 1600 pixels wide.
+The Library settings fixture checks that Theme music starts off and saves both switch states. It checks both Game Tiles switches and exercises Numeric and Friendly Last Launched dates, including the earlier-year format. It checks the width and right alignment of the playtime trash button and captures the Library settings at 730, 1230, and 1600 pixels wide.
 
 The Appearance fixture switches among all five colourways, checks palette changes independently of the accent, and captures the alternatives. It checks the shared widget radius and shadow resources and captures Widget Customisation at 730, 1230, and 1600 pixels wide. The Library fixture also checks that disabling playtime persists and hides the details statistic and playtime sort.
 

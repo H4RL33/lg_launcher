@@ -196,6 +196,9 @@ internal static class CoreTests
             library.Games[0].ReleaseDate = new DateTime(2026, 10, 21);
             library.Games[0].Scale = GameScale.AAA;
             library.Preferences.DisablePlaytimeTracking = true;
+            library.Preferences.HideTilePlaytime = true;
+            library.Preferences.HideTileModIndicator = true;
+            library.Preferences.FriendlyLaunchDates = true;
             library.Preferences.ShowStoreTags = false;
             library.Preferences.DisableArtworkAccent = true;
             library.Preferences.DefaultAccentColour = "#31415D";
@@ -212,6 +215,8 @@ internal static class CoreTests
             store.Save(library);
             var saved = store.Load();
             var savedGame = saved.Games[0];
+            Check(saved.Preferences.HideTilePlaytime && saved.Preferences.HideTileModIndicator && saved.Preferences.FriendlyLaunchDates,
+                "Tile visibility and launch date preferences survive reload");
             Check(savedGame.TagNames.SequenceEqual(new[] { "Co-op" }) && savedGame.SteamTagsFor().Contains("Space Sim"),
                 "Manual tags override the displayed tag list while Steam tags remain available");
             var developerRule = new CollectionRule

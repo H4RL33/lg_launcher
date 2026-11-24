@@ -52,6 +52,8 @@ public sealed class GameCard : TemplatedControl
         AvaloniaProperty.Register<GameCard, bool>(nameof(ShowPlaytime), true);
     public static readonly StyledProperty<bool> IsModdedProperty =
         AvaloniaProperty.Register<GameCard, bool>(nameof(IsModded));
+    public static readonly StyledProperty<IBrush> ModIndicatorBrushProperty =
+        AvaloniaProperty.Register<GameCard, IBrush>(nameof(ModIndicatorBrush), Brushes.White);
     public static readonly StyledProperty<IImage?> ArtworkProperty =
         AvaloniaProperty.Register<GameCard, IImage?>(nameof(Artwork));
     public static readonly StyledProperty<Stretch> ArtworkStretchProperty =
@@ -75,6 +77,7 @@ public sealed class GameCard : TemplatedControl
     public string Playtime { get => GetValue(PlaytimeProperty); set => SetValue(PlaytimeProperty, value); }
     public bool ShowPlaytime { get => GetValue(ShowPlaytimeProperty); set => SetValue(ShowPlaytimeProperty, value); }
     public bool IsModded { get => GetValue(IsModdedProperty); set => SetValue(IsModdedProperty, value); }
+    public IBrush ModIndicatorBrush { get => GetValue(ModIndicatorBrushProperty); set => SetValue(ModIndicatorBrushProperty, value); }
     public IImage? Artwork { get => GetValue(ArtworkProperty); set => SetValue(ArtworkProperty, value); }
     public Stretch ArtworkStretch { get => GetValue(ArtworkStretchProperty); set => SetValue(ArtworkStretchProperty, value); }
     public double ArtworkHeight { get => GetValue(ArtworkHeightProperty); private set => SetValue(ArtworkHeightProperty, value); }
