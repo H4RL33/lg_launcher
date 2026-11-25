@@ -48,8 +48,6 @@ internal sealed partial class Launcher
     private TextBox? _webAddress;
     private string _shownWebAddress = "";
     private TextBlock? _webStatus;
-    private TextBlock? _webLinkPreview;
-    private Popup? _webLinkPreviewPopup;
     private Button? _webBack;
     private Button? _webForward;
     private Button? _webReload;
@@ -129,14 +127,7 @@ internal sealed partial class Launcher
             IsVisible = false,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
-        var linkAnchor = new Border
-        {
-            Width = 1, Height = 1, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom,
-            IsHitTestVisible = false
-        };
-        _webLinkPreviewPopup = BuildWebLinkPreview(linkAnchor);
-        _webLinkPreviewPopup.Bind(MaxWidthProperty, _webNativeHost.GetObservable(BoundsProperty, bounds => Math.Clamp(bounds.Width, 1, 480)));
-        var viewport = WebChromePanel(new Grid { Children = { _webNativeHost, _webBookmarkPanel, linkAnchor, _webLinkPreviewPopup } },
+        var viewport = WebChromePanel(new Grid { Children = { _webNativeHost, _webBookmarkPanel } },
             "LG.Canvas", default);
         _webBrowserChrome = chrome;
 
@@ -158,35 +149,6 @@ internal sealed partial class Launcher
         }
         UpdateWebToolbar();
         return panel;
-    }
-
-    private Popup BuildWebLinkPreview(Control anchor)
-    {
-        _webLinkPreview = Label("", muted: true);
-        _webLinkPreview.Name = "WebLinkPreview";
-        _webLinkPreview.TextWrapping = TextWrapping.NoWrap;
-        _webLinkPreview.TextTrimming = TextTrimming.CharacterEllipsis;
-        var tooltip = WebChromePanel(_webLinkPreview, "LG.SurfaceRaised", new Thickness(1));
-        tooltip.Padding = new Thickness(8, 3);
-
-        // The native renderer sits above Avalonia content. Use an owned, click-through popup.
-        return new Popup
-        {
-            Child = tooltip,
-            PlacementTarget = anchor,
-            Placement = PlacementMode.TopEdgeAlignedLeft,
-            ShouldUseOverlayLayer = false,
-            TakesFocusFromNativeControl = false,
-            IsHitTestVisible = false,
-            WindowManagerAddShadowHint = false,
-        };
-    }
-
-    private void SetWebLinkPreview(string? text)
-    {
-        if (_webLinkPreview == null || _webLinkPreviewPopup == null) return;
-        _webLinkPreview.Text = text;
-        _webLinkPreviewPopup.IsOpen = IsWebBrowserDisplayed() && !string.IsNullOrEmpty(text);
     }
 
     private Button WebIconButton(string name, string icon, Action action, string? lucide = null)
@@ -271,7 +233,6 @@ internal sealed partial class Launcher
 
         _activeWebTab = tab;
         _showWebBookmarks = false;
-        SetWebLinkPreview(null);
         foreach (var candidate in _webTabs)
         {
             candidate.Select.Classes.Set("selected", candidate == tab);
@@ -539,7 +500,7 @@ internal sealed partial class Launcher
         core.Settings.IsWebMessageEnabled = false;
         core.Settings.AreHostObjectsAllowed = false;
         core.Settings.AreDevToolsEnabled = false;
-        // WebView2's native hover popup can outlive the visible browser surface.
+        // Keep hovered URLs out of the embedded browser.
         core.Settings.IsStatusBarEnabled = false;
 
         core.NavigationStarting += Navigating;
@@ -547,7 +508,6 @@ internal sealed partial class Launcher
         core.SourceChanged += Changed;
         core.DocumentTitleChanged += Changed;
         core.HistoryChanged += Changed;
-        core.StatusBarTextChanged += LinkPreviewChanged;
         core.NewWindowRequested += NewWindow;
         core.WindowCloseRequested += WindowClose;
         core.LaunchingExternalUriScheme += ExternalLink;
@@ -559,7 +519,6 @@ internal sealed partial class Launcher
             core.SourceChanged -= Changed;
             core.DocumentTitleChanged -= Changed;
             core.HistoryChanged -= Changed;
-            core.StatusBarTextChanged -= LinkPreviewChanged;
             core.NewWindowRequested -= NewWindow;
             core.WindowCloseRequested -= WindowClose;
             core.LaunchingExternalUriScheme -= ExternalLink;
@@ -575,7 +534,6 @@ internal sealed partial class Launcher
 
         void Navigating(object? sender, CoreWebView2NavigationStartingEventArgs args)
         {
-            if (tab == _activeWebTab) SetWebLinkPreview(null);
             if (WebAddress.IsPage(args.Uri))
             {
                 SetWebTabStatus(tab, "Loading…");
@@ -600,11 +558,6 @@ internal sealed partial class Launcher
         }
 
         void Changed(object? sender, object args) => RefreshWebTab(tab);
-
-        void LinkPreviewChanged(object? sender, object args)
-        {
-            if (tab == _activeWebTab && IsWebBrowserDisplayed()) SetWebLinkPreview(core.StatusBarText);
-        }
 
         void NewWindow(object? sender, CoreWebView2NewWindowRequestedEventArgs args)
         {
@@ -723,7 +676,6 @@ internal sealed partial class Launcher
         if (_webNativeHost == null) return;
 
         _webNativeHost.IsVisible = IsWebBrowserDisplayed();
-        if (!_webNativeHost.IsVisible || _activeWebTab?.Core == null) SetWebLinkPreview(null);
         if (_webBookmarkPanel != null) _webBookmarkPanel.IsVisible = _showWebBookmarks;
         foreach (var tab in _webTabs.Concat(_closedWebTabs))
         {
