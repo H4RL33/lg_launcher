@@ -18,7 +18,7 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 [Source](../../avalonia/LGLauncher.Components/Widgets.cs)
 
-- **Purpose** — Defines the bindable contracts for `StatusIndicator`, `LibraryRow`, `GameCard`, `CollectionCard`, and `ArtworkToolbar`. Library rows accept a bitmap or a symbolic icon in the same rounded icon slot. The widgets derive portrait height from arranged width and the icon radius from its bounds. Feature actions belong to the host.
+- **Purpose** — Defines the bindable contracts for `StatusIndicator`, `LibraryRow`, `GameCard`, `CollectionCard`, and `ArtworkToolbar`. Library rows accept a bitmap or a symbolic icon in the same rounded icon slot. Game cards derive portrait height from their tile width. Home supplies the known column width before measurement, and every card updates when its arranged width changes. Library rows derive the icon radius from its bounds. Feature actions belong to the host.
 - **Depends on** — Avalonia styled properties, rendering types, and `ICommand`. Visual templates live in `Theme/Components.axaml`.
 - **Used by** — The Desktop window and its home, collections, search, artwork, and status views. Gallery also demonstrates the shared controls.
 
@@ -74,7 +74,7 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 [Source](../../avalonia/LGLauncher.Components/ModalHost.cs)
 
-- **Purpose** — Defines `ModalHost` and `ModalDialog` so prompts remain inside the launcher window. Manages nested dialogs, underlay input, default and dismiss actions, focus restoration, and the accepted result. A dialog can show trailing content vertically centred beside the heading, additional header content below it, leading footer content alongside the actions, or a custom body control that manages its own scrolling.
+- **Purpose** — Defines `ModalHost` and `ModalDialog` so prompts remain inside the launcher window. Manages nested dialogs, underlay input, default and dismiss actions, focus restoration, and the accepted result. A dialog can show trailing content vertically centred beside the heading, additional header content below it, leading footer content alongside the actions, or a custom body control that manages its own scrolling. An empty title omits the heading. Callers can supply a border that wraps the footer and can name a titleless dialog for accessibility. The dialog clips its content to the inner edge of the themed frame, keeping its corner stroke and shadow visible.
 - **Depends on** — Avalonia panels, focus, routed keyboard events, and UI dispatch. Backdrop and dialog shell styles come from `Theme/Components.axaml`.
 - **Used by** — The Desktop window and its dialog, collection, settings, startup, and update flows. Desktop modal smoke checks call the host directly.
 
@@ -118,7 +118,9 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 - **Depends on** — `Widgets.cs`, `SymbolIcon.cs`, Fluent Theme, and the sibling `Tokens.axaml`, `Icons.axaml`, and `Inputs.axaml` resources.
 - **Used by** — Desktop and Gallery application styles. Shared style changes can affect both hosts and several features at once.
 
-Shared text boxes use the darker `LG.FieldHover` fill and a white border on pointer hover. Under `lg-motion`, both brushes transition over 150 ms. Focused fields retain their focus treatment. Desktop derives the hover fill from the canvas for each non-Classic colourway.
+The Web tables use `web-table-row` for the row background and select it with the accent tint. `LG.WebFileRowItem` gives the file viewer a plain item presenter so the table row owns the highlight.
+
+Shared single-line text fields center text and placeholders vertically. Shared text boxes use the darker `LG.FieldHover` fill and a white border on pointer hover. Under `lg-motion`, both brushes transition over 150 ms. Focused fields retain their focus treatment. Desktop derives the hover fill from the canvas for each non-Classic colourway.
 
 ## `avalonia/LGLauncher.Components/Theme/Inputs.axaml`
 

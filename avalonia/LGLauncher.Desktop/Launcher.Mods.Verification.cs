@@ -980,7 +980,7 @@ internal sealed partial class Launcher
                 UpdateLayout();
                 if (size.Width == 730) ContentScroll.Offset = new Vector(0, ContentScroll.Extent.Height);
                 var gameRow = libraryRow.GetVisualAncestors().OfType<ListBoxItem>().First();
-                Require(Math.Abs(gameRow.Bounds.Height - 32) < 1 && new[] { HomeNav, CollectionsNav, LibraryNav, RssNav, AddGame, SettingsNav }
+                Require(Math.Abs(gameRow.Bounds.Height - 32) < 1 && new[] { HomeNav, CollectionsNav, WebNav, RssNav, AddGame, SettingsNav }
                     .All(button => Math.Abs(button.Bounds.Height - gameRow.Bounds.Height) < 1),
                     "The Library game entry and sidebar buttons did not have a consistent height.");
                 Require(icon.TranslatePoint(default, managed) is { } iconOrigin && title.TranslatePoint(default, managed) is { } titleOrigin &&

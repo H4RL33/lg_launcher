@@ -422,7 +422,9 @@ internal sealed partial class Launcher
         UpdateLayout();
         Require(!_chromeArtwork.IsVisible && Equals(LibrarySurface.Background, this.FindResource("LG.Sidebar")),
             "Settings retained the game's frosted artwork.");
-        Require(PageBody.Children.OfType<Button>().Count() == 6, "Settings did not show all six sections, including Mods.");
+        Require(PageBody.Children.OfType<Button>().Select(Avalonia.Automation.AutomationProperties.GetName).SequenceEqual(
+            ["Appearance", "App Behaviour", "Library", "RSS", "Browser", "Transfer Manager", "File Viewer", "Mods", "About"]),
+            "Settings did not show the expected sections.");
         Capture(Path.Combine(Path.GetDirectoryName(preview)!, "settings.png"));
         await VerifyMods(game, preview);
         await VerifyRss(preview);
@@ -457,8 +459,10 @@ internal sealed partial class Launcher
         var switches = PageBody.GetVisualDescendants().OfType<ToggleSwitch>().ToArray();
         Require(switches.Any(toggle => AutomationProperties.GetName(toggle) == "Contribution reminders" && toggle.IsChecked == true),
             "App Behaviour did not enable contribution reminders by default.");
-        var count = OperatingSystem.IsWindows() ? 8 : 6;
-        var uncheckedCount = OperatingSystem.IsWindows() ? 3 : 2;
+        Require(switches.Any(toggle => AutomationProperties.GetName(toggle) == "Always open Magnet links" && toggle.IsChecked == false),
+            "App Behaviour did not default to confirming Magnet links.");
+        var count = OperatingSystem.IsWindows() ? 9 : 7;
+        var uncheckedCount = OperatingSystem.IsWindows() ? 4 : 3;
         Require(switches.Length == count && switches.Count(toggle => toggle.IsChecked != true) == uncheckedCount && !_library.Preferences.AutomaticUpdates,
             "App Behaviour did not display its persisted options or enable updates by opt-in.");
         Require(PageBody.GetVisualDescendants().OfType<Button>().All(button => button.Content as string != "Check for new updates"),
@@ -718,21 +722,42 @@ internal sealed partial class Launcher
                 sort.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await WaitFor(() => menu.IsOpen && menu.RevealProgress == 1, "The Home Library sort menu did not open.");
                 Require(menu.Items.OfType<MenuItem>().Select(item => item.Header).SequenceEqual(GameSortChoices().Select(index => GameSortLabels[index])),
-                    "The Home Library did not offer the same sort options as the full Library.");
+                    "The Home Library did not offer the configured library sort options.");
                 Capture(Path.Combine(reports, $"home-library-sort-{width}.png"));
                 CaptureControl(menu, Path.Combine(reports, $"home-library-sort-menu-{width}.png"));
                 menu.Close();
                 await WaitFor(() => !menu.IsOpen, "The Home Library sort menu did not close.");
             }
+            sort.Focus(NavigationMethod.Pointer);
+            UpdateLayout();
+            var homeScroll = ContentScroll.Offset.Y;
+            Require(homeScroll > 0, "The Home sort fixture did not reach the Library heading.");
             await ChoosePreference(sort, "Title Z–A");
+            UpdateLayout();
             Require(library.Items.Cast<Game[]>().SelectMany(row => row).SequenceEqual(SortedGames(_library.Games, 3)) &&
                 _shownEntries.Select(entry => entry.Game).SequenceEqual(SortedGames(_library.Games, 3)) &&
                 shelves.All(PageBody.Children.Contains), "Sorting Home did not update the library and sidebar together.");
+            Require(Math.Abs(ContentScroll.Offset.Y - homeScroll) < 1,
+                $"Sorting from Home moved the page from {homeScroll} to {ContentScroll.Offset.Y}.");
+
+            _library.Preferences.TileColumns = 1;
+            Render();
+            library = PageBody.Children.OfType<ItemsControl>().Single(view => view.Name == "HomeLibraryGrid");
+            UpdateLayout();
+            ContentScroll.Offset = new Vector(0, ContentScroll.ScrollBarMaximum.Y * .985);
+            UpdateLayout();
+            var sidebarScroll = ContentScroll.Offset.Y;
+            Require(sidebarScroll > homeScroll, "The sidebar sort fixture did not scroll into the Library grid.");
             var sidebarSort = ((Grid)LibrarySectionHeader.Content!).Children.OfType<Button>().Last();
+            sidebarSort.Focus(NavigationMethod.Pointer);
             await ChoosePreference(sidebarSort, "Title A–Z");
+            UpdateLayout();
             Require(AutomationProperties.GetHelpText(HomeSortPicker()) == "Current value Title A–Z" &&
                 library.Items.Cast<Game[]>().SelectMany(row => row).SequenceEqual(SortedGames(_library.Games, 0)),
                 "Changing the sidebar sort did not update Home's sort picker and library rows.");
+            Require(Math.Abs(ContentScroll.Offset.Y - sidebarScroll) < 1,
+                $"Sorting from the sidebar moved Home from {sidebarScroll} to {ContentScroll.Offset.Y}.");
+            Capture(Path.Combine(reports, "home-library-sorted-scroll.png"));
         }
         finally
         {
@@ -1026,9 +1051,11 @@ internal sealed partial class Launcher
         {
             _sort = 0;
             _motion = false;
-            LibraryNav.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Require(_page == Page.Library && _cardGrid?.Children.Count == _library.Games.Count,
-                "The Library button did not open the whole library grid.");
+            HomeNav.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            UpdateLayout();
+            var homeLibrary = PageBody.Children.OfType<ItemsControl>().Single(control => control.Name == "HomeLibraryGrid");
+            Require(homeLibrary.Items.Cast<Game[]>().Sum(row => row.Length) == _library.Games.Count,
+                "Home did not show all games in its Library section.");
             foreach (var button in new[] { AddGame, AddCollection })
                 Require(button.Content is StackPanel { Children: [SymbolIcon plus, TextBlock { Text: "Add new" }] } &&
                     Equals(plus.Data, this.FindResource("LG.Icon.Plus")), "The Add new action did not put the plus before its text.");
@@ -1046,10 +1073,12 @@ internal sealed partial class Launcher
             var librarySort = PageBody.GetVisualDescendants().OfType<Button>().Single(button =>
                 AutomationProperties.GetName(button) == "Sort library");
             await ChoosePreference(librarySort, "Title Z–A");
-            Require(_shownEntries[0].Game == played && _cardGrid?.Children[0].Tag == played,
-                "The Library sort did not reorder the grid and sidebar together.");
+            await WaitFor(() => _shownEntries[0].Game == played && PageBody.Children.OfType<ItemsControl>()
+                .Single(control => control.Name == "HomeLibraryGrid").Items.Cast<Game[]>().FirstOrDefault()?.FirstOrDefault() == played,
+                "The Library sort did not reorder Home and the sidebar together.");
             await ChoosePreference(PageBody.GetVisualDescendants().OfType<Button>().Single(button =>
                 AutomationProperties.GetName(button) == "Sort library"), "Title A–Z");
+            Navigate(Page.Collections, manual);
             foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
             {
                 (Width, Height) = size;
@@ -1073,7 +1102,7 @@ internal sealed partial class Launcher
                     Math.Abs(badge.Bounds.Width - (tile.Bounds.Width < 64 ? 22 : 26)) <= 1,
                     $"The modded portrait did not show the bordered white wrench. Badge {badge.Bounds.Size}, " +
                     $"tile {tile.Bounds.Width:0.##}, fill {badge.Background}, border {badge.BorderBrush}, icon {wrench.Foreground}.");
-                Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"whole-library-{size.Item1}.png"));
+                Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"modded-collection-{size.Item1}.png"));
                 tile.Artwork = null;
             }
             Navigate(Page.Collections);

@@ -46,6 +46,7 @@ internal sealed partial class App : Application
                             try
                             {
                                 if (Program.VerificationMode == "--verify-mods-ui") await launcher.VerifyModsOnly(preview);
+                                else if (Program.VerificationMode == "--verify-web") await launcher.VerifyWeb(preview);
                                 else await launcher.VerifyMigration(preview, Program.VerificationMode == "--verify-migration");
                                 desktop.Shutdown();
                             }

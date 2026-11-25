@@ -28,15 +28,15 @@ internal sealed partial class Launcher
     private static readonly int[] FontSizes = [11, 12, 13, 14, 15, 16, 17, 18];
     private static readonly int[] InterfaceScales = [MinimumInterfaceScale, 100, 125, 150, 175, MaximumInterfaceScale];
     private sealed record Colourway(string Name, string Canvas, string Sidebar, string Surface, string Raised, string Line,
-        string Text, string Muted, string Selection);
+        string Text, string Muted, string Selection, string Folder);
 
     private static readonly Colourway[] Colourways =
     [
-        new("Classic", "#0E111C", "#121624", "#191D2E", "#252A40", "#323950", "#F1F2FC", "#A9AEC7", "#3C365D"),
-        new("Adwaita", "#222226", "#2E2E32", "#343438", "#39393D", "#4C4C51", "#FFFFFF", "#C0C0C6", "#45454A"),
-        new("Catppuccin Mocha", "#1E1E2E", "#181825", "#242438", "#313244", "#45475A", "#CDD6F4", "#BAC2DE", "#45475A"),
-        new("Everforest", "#2D353B", "#232A2E", "#343F44", "#3D484D", "#4F585E", "#D3C6AA", "#B7BDA8", "#4F585E"),
-        new("Tokyo Night", "#1A1B26", "#16161E", "#222436", "#292E42", "#3B4261", "#C0CAF5", "#A9B1D6", "#394B70")
+        new("Classic", "#0E111C", "#121624", "#191D2E", "#252A40", "#323950", "#F1F2FC", "#A9AEC7", "#3C365D", "#F0BC79"),
+        new("Adwaita", "#222226", "#2E2E32", "#343438", "#39393D", "#4C4C51", "#FFFFFF", "#C0C0C6", "#45454A", "#F8E45C"),
+        new("Catppuccin Mocha", "#1E1E2E", "#181825", "#242438", "#313244", "#45475A", "#CDD6F4", "#BAC2DE", "#45475A", "#F9E2AF"),
+        new("Everforest", "#2D353B", "#232A2E", "#343F44", "#3D484D", "#4F585E", "#D3C6AA", "#B7BDA8", "#4F585E", "#DBBC7F"),
+        new("Tokyo Night", "#1A1B26", "#16161E", "#222436", "#292E42", "#3B4261", "#C0CAF5", "#A9B1D6", "#394B70", "#E0AF68")
     ];
 
     private Colourway ActiveColourway => Colourways.FirstOrDefault(palette => palette.Name == _library.Preferences.Colourway) ?? Colourways[0];
@@ -177,6 +177,7 @@ internal sealed partial class Launcher
         SetColour("LG.Line", Color.Parse(palette.Line));
         SetColour("LG.Text", text);
         SetColour("LG.Muted", Color.Parse(palette.Muted));
+        SetColour("LG.FolderIcon", Color.Parse(palette.Folder));
         SetColour("LG.ArtworkGlass", WithAlpha(sidebar, 0xB3));
         SetColour("LG.ArtworkGlassLine", WithAlpha(text, 0x38));
         if (classic)
@@ -470,7 +471,7 @@ internal sealed partial class Launcher
 
     private Button BuildChoicePicker<T>(string title, IEnumerable<T> choices, T current, Func<T, string> format, Func<T, bool> select,
         bool textSearch = false, bool wrapLabel = false, Action<T, Action<T>>? editCustom = null, bool textOnly = false,
-        Func<T, string>? currentLabel = null)
+        Func<T, string>? currentLabel = null, Func<T, SymbolIcon>? choiceIcon = null)
     {
         var value = Label("");
         value.VerticalAlignment = VerticalAlignment.Center;
@@ -518,6 +519,7 @@ internal sealed partial class Launcher
         {
             var item = menu.AddAction(format(choice), () => ApplyAfterClose(() => SelectChoice(choice)));
             item.ToggleType = MenuItemToggleType.Radio;
+            item.Icon = choiceIcon?.Invoke(choice);
             item.Tag = choice;
         }
         if (editCustom != null)
@@ -585,6 +587,31 @@ internal sealed partial class Launcher
             var items = menu.Items.OfType<MenuItem>();
             var selected = items.FirstOrDefault(item => item != customItem && Equals(item.Tag, current)) ?? customItem;
             foreach (var item in items) item.IsChecked = item == selected;
+        }
+    }
+
+    private static void WireNumberPreference(NumericUpDown number, Func<decimal, bool> save)
+    {
+        var previous = number.Value;
+        number.Spinned += (_, _) => Commit();
+        number.ValueChanged += (_, _) =>
+        {
+            if (!number.IsKeyboardFocusWithin) Commit();
+        };
+        number.LostFocus += (_, _) =>
+        {
+            if (!number.IsKeyboardFocusWithin) Commit();
+        };
+        number.AddHandler(KeyDownEvent, (_, args) =>
+        {
+            if (args.Key == Key.Enter && !args.Handled) Commit();
+        });
+
+        void Commit()
+        {
+            if (number.Value == previous) return;
+            if (number.Value is { } value && save(value)) previous = value;
+            else number.Value = previous;
         }
     }
 

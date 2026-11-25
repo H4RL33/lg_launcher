@@ -14,7 +14,7 @@ The navigation check verifies eviction of the oldest route at the 64-entry limit
 
 The collection sidebar check opens a collection from its row, compares the game and collection row sizes, checks the miniature symbols, and verifies the sort picker's frosted menu. At 730, 1230, and 1600 dips wide it captures the sidebar, popup, and sorted tile during and after movement. It tracks the remaining translation through animation cleanup to catch any jump toward the original slot. The same widths exercise and capture the immediate reorder with motion disabled.
 
-The Library fixture opens the whole-library grid from its icon, collapses and reopens its sidebar list, checks the plus signs and collection type chooser, and verifies that reverse sorting updates the list and grid together.
+The Library fixture opens Home, collapses and reopens the Library sidebar list, checks the plus signs and collection type chooser, and verifies that reverse sorting updates the list and Home grid together. The collection grid fixture checks the modded portrait indicator.
 
 The Home fixture checks that Collections hides its scrollbar and retains animated shelf arrows and horizontal wheel input. It captures the overflowing shelves across narrow, typical, and wide windows.
 
@@ -27,7 +27,7 @@ The game-return fixture checks the first contribution prompt, an ordinary return
 - **Depends on** the actual `Launcher` window and named controls, Avalonia layout/rendering and simulated input, shared UI components, and the isolated profile and artwork fixtures.
 - **Used by** `App.axaml.cs` through the `--verify-migration`, `--verify-existing`, and `--verify-setup` arguments. The other launcher verification partials use its helpers.
 
-The sidebar fixture checks heading and sort label sizes, weight and alignment, and intermediate clipping as both sections open and close at 730, 1230, and 1600 pixels wide. It captures the white wrench badge on bright and dark portraits. The Home fixture checks the shared Library sort options and order and captures the picker at those widths. It checks the column count and tile width against the measured viewport at each size, including when the display limits the requested width. The game menu fixture verifies that a menu placed above its button clips from the bottom. The search and RSS URL fixtures check the shared hover fill, border, and transitions.
+The sidebar fixture checks heading and sort label sizes, weight and alignment, and intermediate clipping as both sections open and close at 730, 1230, and 1600 pixels wide. It captures the white wrench badge on bright and dark portraits. The Home fixture checks the shared Library sort options and order and captures the picker at those widths. It verifies that sorting keeps the Library heading in view and that changing the sidebar sort preserves the scroll position near the bottom of a one-column Library. It checks the column count and tile width against the measured viewport at each size, including when the display limits the requested width. The game menu fixture verifies that a menu placed above its button clips from the bottom. The search and RSS URL fixtures check the shared hover fill, border, and transitions.
 
 [Main smoke source](../../../avalonia/LGLauncher.Desktop/Launcher.Verification.cs) · [Migration harness](../../../tests/Verify-AvaloniaMigration.ps1)
 
@@ -59,7 +59,7 @@ The About fixture switches from Stable to Next preview and back. It checks that 
 
 The Library settings fixture checks that Theme music starts off and saves both switch states. It checks both Game Tiles switches and exercises Numeric and Friendly Last Launched dates, including the earlier-year format. It compares the playtime switch tracks with the trash button and captures the Library settings and open Date format menu at 730, 1230, and 1600 pixels wide.
 
-The game tile layout fixture captures both layout settings at those widths, checks setting and restoring both values, and exercises the width boundary for each column. It checks that the full Library, collection members, and Home use the selected settings.
+The game tile layout fixture captures both layout settings at those widths, checks setting and restoring both values, and exercises the width boundary for each column. It checks that collection members and Home use the selected settings.
 
 The Appearance fixture switches among all five colourways, checks palette changes independently of the accent, and captures the alternatives. It checks the shared widget radius and shadow resources and captures Widget Customisation at 730, 1230, and 1600 pixels wide. The Library fixture also checks that disabling playtime persists and hides the details statistic and playtime sort.
 
@@ -130,7 +130,9 @@ The theme playback fixture uses a silent WAV to check the selection delay, inter
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Rss.Verification.cs`
 
-Tests RSS settings, file and OPML import, enablement, saved refresh interval, offline reuse, the Home shelf, article history, rendering, and image viewport loading. Local data and injected HTTP responses exercise Atom and RSS parsing, conditional requests, restricted web links, and bounded markup.
+Tests RSS settings, file and OPML import, enablement, automatic refresh-interval saves, persisted browser and transfer routing, offline reuse, the Home shelf, article history, rendering, and image viewport loading. Local data and injected HTTP responses exercise Atom and RSS parsing, conditional requests, restricted web links, and bounded markup.
+
+The transfer fixture covers HTML and Atom XHTML anchors, primary links, deduplicated enclosures, offline cache compatibility, and cancellation of the existing destination picker. It validates safe redirects, the descriptor size limit, and the temporary .torrent file provided to an injected association handler. No torrent app is launched.
 
 The image fixture opens game details from a scrolled article, checks that the decoded image detaches, then returns to the article through history and captures it at narrow, typical, and wider widths.
 

@@ -2,7 +2,8 @@ param(
     [string]$Launcher = (Join-Path $PSScriptRoot '..\build\LG Launcher.exe'),
     [string]$ExistingLibrary,
     [string]$PortraitSample,
-    [switch]$ModsOnly
+    [switch]$ModsOnly,
+    [switch]$WebOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -61,6 +62,12 @@ function Test-Library([string]$Data, [string]$Mode, [string]$Preview) {
     if ($Mode -eq '--verify-existing' -and $before -ne (Get-FileHash -LiteralPath (Join-Path $Data 'library.json')).Hash) {
         throw 'Opening the legacy data changed the library file.'
     }
+}
+
+if ($WebOnly) {
+    Test-Library $fixture '--verify-web' (Join-Path $run 'web.png')
+    Write-Output "Web UI verification passed. $run"
+    return
 }
 
 if ($ModsOnly) {

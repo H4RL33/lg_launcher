@@ -123,27 +123,14 @@ internal sealed partial class Launcher
         });
     }
 
-    private void RenderWholeLibrary()
-    {
-        PageTitle.Text = "Library";
-        PageBody.Children.Add(Actions(BuildLibrarySortPicker()));
-        var games = SortedGames(_library.Games, _librarySort).ToArray();
-        if (games.Length > 0) RenderCards(games);
-        else PageBody.Children.Add(Section("No games yet", Label("Use Add new in the sidebar to add a game.", muted: true)));
-    }
-
     private Button BuildLibrarySortPicker() => BuildChoicePicker("Sort library", GameSortChoices(), _librarySort,
         index => GameSortLabels[index], index => SetLibrarySort(index, fromSidebar: false));
 
     private bool SetLibrarySort(int index, bool fromSidebar)
     {
-        if (_page == Page.Library) ReorderCards(() => _librarySort = index);
-        else
-        {
-            _librarySort = index;
-            RenderSidebar();
-            if (_page == Page.Home) RefreshHomeLibrarySort(fromSidebar);
-        }
+        _librarySort = index;
+        RenderSidebar();
+        if (_page == Page.Home) RefreshHomeLibrarySort(fromSidebar);
         if (!fromSidebar) PreferencesChanged?.Invoke();
         return true;
     }

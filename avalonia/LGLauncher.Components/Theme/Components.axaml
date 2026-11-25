@@ -44,6 +44,16 @@
                 </Style>
             </ControlTheme>
 
+            <ControlTheme x:Key="LG.WebFileRowItem" TargetType="ListBoxItem">
+                <Setter Property="Template">
+                    <ControlTemplate>
+                        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+                    </ControlTemplate>
+                </Setter>
+            </ControlTheme>
+
             <ControlTheme x:Key="LG.WarningPanelHeader" TargetType="ToggleButton">
                 <Setter Property="MinHeight" Value="36"/>
                 <Setter Property="Cursor" Value="Hand"/>
@@ -411,6 +421,9 @@
         <Setter Property="MinHeight" Value="36"/>
         <Setter Property="FontSize" Value="{DynamicResource LG.Font.13}"/>
     </Style>
+    <Style Selector="TextBox.lg[AcceptsReturn=False]">
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
     <Style Selector="TextBox.lg:pointerover:not(:focus):not(:disabled) /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource LG.FieldHover}"/>
         <Setter Property="BorderBrush" Value="White"/>
@@ -430,6 +443,9 @@
     <Style Selector="ListBox.lg ListBoxItem">
         <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
         <Setter Property="Padding" Value="8,6"/>
+    </Style>
+    <Style Selector="ListBox.web-file-list ListBoxItem">
+        <Setter Property="Theme" Value="{StaticResource LG.WebFileRowItem}"/>
     </Style>
     <Style Selector="HeaderedContentControl.lg-section"><Setter Property="Theme" Value="{StaticResource LG.Section}"/></Style>
     <Style Selector="TabControl.lg-tabs">
@@ -451,6 +467,16 @@
         <Setter Property="Foreground" Value="{DynamicResource LG.Text}"/>
         <Setter Property="FontSize" Value="{DynamicResource LG.Font.20}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style Selector="Border.web-table-row">
+        <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="Border.web-table-row:pointerover">
+        <Setter Property="Background" Value="{DynamicResource LG.SurfaceRaised}"/>
+    </Style>
+    <Style Selector="Border.web-table-row.web-menu-open, Border.web-table-row.web-menu-open:pointerover,
+                     ListBox.web-file-list ListBoxItem:selected Border.web-table-row">
+        <Setter Property="Background" Value="{DynamicResource LG.WebRowContextTint}"/>
     </Style>
     <Style Selector="Border.lg-modal-backdrop">
         <Setter Property="Background" Value="#92060912"/>

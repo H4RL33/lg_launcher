@@ -19,6 +19,8 @@
     <SolidColorBrush x:Key="LG.Success">#83DEC3</SolidColorBrush>
     <SolidColorBrush x:Key="LG.Modified">#8BBCFF</SolidColorBrush>
     <SolidColorBrush x:Key="LG.Warning">#F0BC79</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.FolderIcon">#F0BC79</SolidColorBrush>
+    <SolidColorBrush x:Key="LG.WebRowContextTint" Color="{StaticResource LG.DefaultAccentColor}" Opacity="0.25"/>
     <SolidColorBrush x:Key="LG.WarningFill">#543B12</SolidColorBrush>
     <SolidColorBrush x:Key="LG.Error">#FFA0AA</SolidColorBrush>
     <SolidColorBrush x:Key="LG.DestructiveFill">#842D43</SolidColorBrush>
