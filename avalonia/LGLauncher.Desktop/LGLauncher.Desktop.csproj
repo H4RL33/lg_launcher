@@ -4,7 +4,7 @@
     <AssemblyName>LG Launcher</AssemblyName>
     <RootNamespace>LGLauncher</RootNamespace>
     <Nullable>annotations</Nullable>
-    <Version>0.1.18</Version>
+    <Version>0.1.19</Version>
     <SkiaSharpVersion>3.119.4</SkiaSharpVersion>
     <ApplicationIcon>../../assets/launcher.ico</ApplicationIcon>
     <ApplicationManifest>../../src/app.manifest</ApplicationManifest>
@@ -18,6 +18,13 @@
     <PackageReference Include="SkiaSharp" Version="$(SkiaSharpVersion)" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="$(SkiaSharpVersion)" />
     <PackageReference Include="SkiaSharp.NativeAssets.Win32" Version="$(SkiaSharpVersion)" />
+    <PackageReference Include="Avalonia.Controls.WebView" Version="12.1.2" />
+    <!-- The Avalonia host only needs the Core wrapper. Skip the SDK's WPF and WinForms references. -->
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4370.26"
+                      ExcludeAssets="build;buildTransitive" GeneratePathProperty="true" />
+    <Reference Include="Microsoft.Web.WebView2.Core"
+               HintPath="$(PkgMicrosoft_Web_WebView2)/lib_manual/netcoreapp3.0/Microsoft.Web.WebView2.Core.dll" />
+    <PackageReference Include="MonoTorrent" Version="3.0.2" />
     <PackageReference Include="Markdig" Version="1.6.0" />
     <PackageReference Include="NVorbis" Version="0.10.5" />
     <PackageReference Include="Concentus.Oggfile" Version="1.0.7" />
@@ -29,6 +36,8 @@
     <EmbeddedResource Include="Mods/SharpCompress.LICENSE.txt" />
     <EmbeddedResource Include="Markdig.LICENSE.txt" />
     <EmbeddedResource Include="ThemeAudio.LICENSE.txt" />
+    <EmbeddedResource Include="Web.LICENSE.txt" />
+    <EmbeddedResource Include="uBOLite.edge.zip" LogicalName="LGLauncher.uBOLite.edge.zip" />
     <Compile Include="../../src/Library.cs;../../src/GameSessions.cs;../../src/SteamCatalog.cs;../../src/ArtworkFraming.cs" LinkBase="Core" />
   </ItemGroup>
 </Project>

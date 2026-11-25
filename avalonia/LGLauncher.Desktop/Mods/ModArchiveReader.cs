@@ -12,6 +12,24 @@ internal static class ModArchiveReader
     // Offset of the appended ZIP in the SHA-256-pinned ReShade 6.8.0 full add-on download.
     private const int ReShadeZipOffset = 153088;
 
+    internal static void ValidateRenoDx(Stream input)
+    {
+        using (input)
+        using (var binary = new PEReader(input, PEStreamOptions.LeaveOpen))
+        {
+            try
+            {
+                if (binary.PEHeaders.CoffHeader.Machine == Machine.Amd64 && binary.PEHeaders.IsDll && binary.PEHeaders.PEHeader != null)
+                    return;
+            }
+            catch (BadImageFormatException error)
+            {
+                throw new InvalidDataException("The RenoDX file is not a Windows x64 add-on.", error);
+            }
+        }
+        throw new InvalidDataException("The RenoDX file is not a Windows x64 add-on.");
+    }
+
     internal static Dictionary<string, string> Extract(string archivePath, string destination, ModPackageDescriptor package, CancellationToken token)
     {
         var wanted = package.Files.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -21,18 +39,7 @@ internal static class ModArchiveReader
         long expanded = 0;
         int count = 0;
 
-        if (package.Key.Provider == ModProviderId.RenoDx)
-        {
-            var name = package.Files.Single();
-            if (!ModRenoDxCatalog.IsAddonName(name) || package.Address.AbsolutePath.Split('/')[^1] != name)
-                throw new InvalidDataException("The RenoDX add-on filename is invalid.");
-            using var binary = new PEReader(File.OpenRead(archivePath));
-            if (binary.PEHeaders.CoffHeader.Machine != Machine.Amd64 || !binary.PEHeaders.IsDll || binary.PEHeaders.PEHeader == null)
-                throw new InvalidDataException("The RenoDX package is not a Windows x64 add-on.");
-            File.Copy(archivePath, ModPaths.Within(destination, name));
-            written.Add(name, package.Key.Digest);
-        }
-        else if (package.Key.Provider == ModProviderId.ReShade)
+        if (package.Key.Provider == ModProviderId.ReShade)
         {
             var setup = File.ReadAllBytes(archivePath);
             if (setup.Length <= ReShadeZipOffset || !setup.AsSpan(ReShadeZipOffset).StartsWith("PK\u0003\u0004"u8))

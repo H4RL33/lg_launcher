@@ -17,7 +17,11 @@ namespace LGLauncher;
 
 internal sealed partial class Launcher : Window
 {
-    private enum Page { Home, Collections, Discoveries, Rss, RssArticle, Settings, Appearance, Behaviour, RssSettings, LibrarySettings, Mods, About, Game }
+    private enum Page
+    {
+        Home, Web, Collections, Discoveries, Rss, RssArticle, Settings, Appearance, Widgets, Behaviour, RssSettings,
+        LibrarySettings, BrowserSettings, TransferSettings, FileViewerSettings, Mods, About, Game
+    }
 
     private readonly LibraryStore _store;
     private readonly Library _library;
@@ -49,6 +53,8 @@ internal sealed partial class Launcher : Window
     private bool _rescan;
     private int _offset;
     private int _sort;
+    private int _librarySort;
+    private int _collectionsSort;
     private UniformGrid? _cardGrid;
 
     public Launcher(LibraryStore store, Library library)
@@ -71,6 +77,8 @@ internal sealed partial class Launcher : Window
         SmoothScroll.EnableWheel(this);
         ApplyInterfaceScale();
         ApplyTranslucency();
+        ApplyColourway();
+        ApplyWidgetTheme();
         using var icon = typeof(Launcher).Assembly.GetManifestResourceStream("LGLauncher.Icon.ico");
         if (icon != null) Icon = new WindowIcon(icon);
         ArtworkHost.Content = _artwork;
@@ -96,14 +104,25 @@ internal sealed partial class Launcher : Window
         };
         Click(HomeNav, () => Navigate(Page.Home));
         Click(CollectionsNav, () => Navigate(Page.Collections));
-        Click(DiscoveriesNav, () => Navigate(Page.Discoveries));
+        var collectionsIcon = Symbol("LG.Icon.Library", 19);
+        collectionsIcon.Data = LucideIconCatalog.Find("grid-2x2")?.Geometry ?? collectionsIcon.Data;
+        CollectionsNavIcon.Content = collectionsIcon;
+        var webIcon = Symbol("LG.Icon.ExternalLink", 19);
+        webIcon.Data = LucideIconCatalog.Find("globe")?.Geometry ?? webIcon.Data;
+        WebNavIcon.Content = webIcon;
+        Click(WebNav, () => Navigate(Page.Web));
+        DialogHost.PropertyChanged += (_, args) =>
+        {
+            if (args.Property == IsVisibleProperty) UpdateWebBrowserVisibility();
+        };
         Click(RssNav, () => Navigate(Page.Rss));
         Click(OpenReviews, () => Navigate(Page.Discoveries));
         Click(SettingsNav, () => Navigate(Page.Settings));
         Click(GameModsButton, () => { if (_game is { } game) _ = ShowGameMods(game); });
         Click(RequestModButton, () => OpenModNotes(ModRequestPage));
         Click(SupportButton, OpenSupportPage);
-        Click(AddGame, AddFromFile);
+        Click(AddGame, () => EditGame(new Game { Title = "", Path = "" }, true));
+        Click(AddCollection, () => _ = ChooseCollectionType());
         Click(ManageFolder, ManageLibraryFolder);
         Click(UpdateAction, () =>
         {
@@ -129,6 +148,8 @@ internal sealed partial class Launcher : Window
                 Launch(item.Game);
         };
         InitializeSearch();
+        InitializeSidebarSections();
+        RefreshManagedGameStatus();
         ContentScroll.PropertyChanged += (_, args) =>
         {
             if (args.Property == ScrollViewer.ViewportProperty) SizeCardGrid();
@@ -177,6 +198,8 @@ internal sealed partial class Launcher : Window
         {
             _closed = true;
             if (!_saveFailed) FlushPendingSteamGenres();
+            DisposeWebTransfers();
+            DisposeWebBrowser();
             DialogHost.CloseAll();
             _searchDelay.Stop();
             _rssTimer.Stop();
@@ -203,7 +226,7 @@ internal sealed partial class Launcher : Window
     private void HandleKeys(object? sender, KeyEventArgs args)
     {
         if (_updateHandoff) { args.Handled = true; return; }
-        if (DialogHost.HasModal) return;
+        if (DialogHost.HasModal || _stoppingWebTransfers) return;
         if (args.Key is Key.BrowserBack or Key.BrowserForward)
         {
             MoveInHistory(args.Key == Key.BrowserBack ? -1 : 1);
@@ -212,6 +235,11 @@ internal sealed partial class Launcher : Window
         }
         if (HandleArtworkKey(args.Key)) { args.Handled = true; return; }
         if (args.KeyModifiers == KeyModifiers.None && HandleSearchKey(args.Key)) { args.Handled = true; return; }
+        if (HandleWebKey(args))
+        {
+            args.Handled = true;
+            return;
+        }
         if (args.KeyModifiers != KeyModifiers.Control) return;
         switch (args.Key)
         {
@@ -229,15 +257,20 @@ internal sealed partial class Launcher : Window
         RefreshDiscoveryIndicators();
         HomeNav.Classes.Set("selected", _page == Page.Home);
         CollectionsNav.Classes.Set("selected", _page == Page.Collections);
-        DiscoveriesNav.Classes.Set("selected", _page == Page.Discoveries);
-        var settingsPage = _page is Page.Settings or Page.Appearance or Page.Behaviour or Page.RssSettings or Page.LibrarySettings or Page.Mods or Page.About;
+        var webPage = _page == Page.Web;
+        WebNav.Classes.Set("selected", webPage);
+        if (!webPage && WebWorkspaceHost.IsVisible) ClearWebFileSelection();
+        WebWorkspaceHost.IsVisible = webPage;
+        UpdateWebBrowserVisibility();
+        var settingsPage = _page is Page.Settings or Page.Appearance or Page.Widgets or Page.Behaviour or Page.RssSettings or
+            Page.LibrarySettings or Page.BrowserSettings or Page.TransferSettings or Page.FileViewerSettings or Page.Mods or Page.About;
         RssNav.Classes.Set("selected", _page is Page.Rss or Page.RssArticle);
         SettingsNav.Classes.Set("selected", settingsPage);
-        SearchSurface.IsVisible = !settingsPage && !_editingArtwork && _page != Page.RssArticle;
+        SearchSurface.IsVisible = !webPage && !settingsPage && !_editingArtwork && _page != Page.RssArticle;
         var returningToMods = _page == Page.Mods && Details.IsVisible;
         Details.IsVisible = _page == Page.Game;
         UpdateThemeMusic();
-        ContentScroll.IsVisible = !Details.IsVisible;
+        ContentScroll.IsVisible = !Details.IsVisible && !webPage;
         RequestModButton.IsVisible = ModRequestScope.IsVisible = _page == Page.Mods;
         ApplyArtworkAccent();
         RefreshArtworkGlass();
@@ -249,12 +282,23 @@ internal sealed partial class Launcher : Window
             return;
         }
         ClearGameLogo();
+        if (webPage)
+        {
+            _cardGrid = null;
+            PageBody.Children.Clear();
+            RenderWebWorkspace();
+            return;
+        }
         var settingsTitle = _page switch
         {
             Page.Settings => "Settings",
             Page.Appearance => "Appearance",
+            Page.Widgets => "Widget Customisation",
             Page.Behaviour => "App Behaviour",
             Page.RssSettings => "RSS settings",
+            Page.BrowserSettings => "Browser",
+            Page.TransferSettings => "Transfer Manager",
+            Page.FileViewerSettings => "File Viewer",
             Page.LibrarySettings => "Library settings",
             Page.Mods => "Mods",
             Page.About => "About",
@@ -282,6 +326,11 @@ internal sealed partial class Launcher : Window
                 PageBody.Children.Add(SettingsRow("App Behaviour", "LG.Icon.Controls", Page.Behaviour));
                 PageBody.Children.Add(SettingsRow("Library", "LG.Icon.Library", Page.LibrarySettings));
                 PageBody.Children.Add(SettingsRow("RSS", "LG.Icon.Rss", Page.RssSettings));
+                var browserIcon = Symbol("LG.Icon.ExternalLink", 19);
+                browserIcon.Data = LucideIconCatalog.Find("globe")?.Geometry ?? browserIcon.Data;
+                PageBody.Children.Add(SettingsRow("Browser", browserIcon, () => Navigate(Page.BrowserSettings)));
+                PageBody.Children.Add(SettingsRow("Transfer Manager", "LG.Icon.Download", Page.TransferSettings));
+                PageBody.Children.Add(SettingsRow("File Viewer", "LG.Icon.FolderOpen", Page.FileViewerSettings));
                 if (OperatingSystem.IsWindows()) PageBody.Children.Add(SettingsRow("Mods", "LG.Icon.Wrench", Page.Mods));
                 PageBody.Children.Add(SettingsRow("About", "LG.Icon.Info", Page.About));
                 break;
@@ -289,6 +338,11 @@ internal sealed partial class Launcher : Window
                 PageTitle.Text = "Appearance";
                 PageBody.Children.Add(SettingsBack());
                 PageBody.Children.Add(BuildAppearance());
+                break;
+            case Page.Widgets:
+                PageTitle.Text = "Widget Customisation";
+                PageBody.Children.Add(SettingsBack(Page.Appearance, "Appearance"));
+                PageBody.Children.Add(BuildWidgetSettings());
                 break;
             case Page.Behaviour:
                 PageTitle.Text = "App Behaviour";
@@ -304,6 +358,14 @@ internal sealed partial class Launcher : Window
                 PageTitle.Text = "Library settings";
                 PageBody.Children.Add(SettingsBack());
                 PageBody.Children.Add(BuildLibrarySettings());
+                break;
+            case Page.BrowserSettings:
+            case Page.TransferSettings:
+            case Page.FileViewerSettings:
+                PageTitle.Text = settingsTitle;
+                PageBody.Children.Add(SettingsBack());
+                PageBody.Children.Add(_page == Page.BrowserSettings ? BuildBrowserSettings() :
+                    _page == Page.TransferSettings ? BuildTransferSettings() : BuildFileViewerSettings());
                 break;
             case Page.Mods:
                 PageTitle.Text = "Mods";
@@ -322,8 +384,8 @@ internal sealed partial class Launcher : Window
 
     private void RenderSidebar()
     {
-        var rows = _library.Games.OrderBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase).Select(GetEntry).ToArray();
-        var collections = _library.Collections.OrderBy(collection => collection.Name, StringComparer.CurrentCultureIgnoreCase)
+        var rows = SortedGames(_library.Games, _librarySort).Select(GetEntry).ToArray();
+        var collections = SortedCollections()
             .Select(collection => new SidebarCollection(collection, collection.Name, CollectionSidebarIcon(collection))).ToArray();
         _updatingSidebar = true;
         if (!_shownEntries.SequenceEqual(rows)) LibraryGames.ItemsSource = _shownEntries = rows;
@@ -332,9 +394,8 @@ internal sealed partial class Launcher : Window
         LibraryCollections.SelectedItem = _page == Page.Collections ? _shownCollections.FirstOrDefault(entry => entry.Collection == _collection) : null;
         _updatingSidebar = false;
 
-        var rowHeight = (double)this.FindResource("LG.SidebarRowHeight")!;
-        SidebarLists.RowDefinitions[1].MaxHeight = Math.Max(rows.Length, 1) * rowHeight;
-        SidebarLists.RowDefinitions[3].MaxHeight = Math.Max(collections.Length, 1) * rowHeight;
+        SettleSidebarSection(LibrarySectionClip, LibrarySection);
+        SettleSidebarSection(CollectionsSectionClip, CollectionsSection);
         LibraryEmpty.IsVisible = rows.Length == 0;
         CollectionsEmpty.IsVisible = collections.Length == 0;
         RefreshVisibleIcons();
@@ -349,13 +410,12 @@ internal sealed partial class Launcher : Window
             return;
         }
         var current = _collection;
-        string[] sortLabels = ["Title A–Z", "Last launched", "Most played"];
-        var sort = BuildChoicePicker("Sort collection", Enumerable.Range(0, sortLabels.Length), _sort,
-            index => sortLabels[index], index => SortCollection(current, index));
+        var sort = BuildChoicePicker("Sort collection", GameSortChoices(), _sort,
+            index => GameSortLabels[index], index => SortCollection(current, index));
         PageBody.Children.Add(Actions(ActionButton("All collections", () => Navigate(Page.Collections), "quiet"), sort,
             ActionButton(current.IsDynamic ? "Edit rules" : "Rename", () => EditCollection(current)), ActionButton("Delete", () => DeleteCollection(current), "quiet")));
         if (current.IsDynamic) PageBody.Children.Add(Label(DescribeCollectionRules(current), muted: true));
-        var members = SortedGames(_library.Games.Where(current.Includes)).ToArray();
+        var members = SortedGames(_library.Games.Where(current.Includes), _sort).ToArray();
         if (members.Length == 0) PageBody.Children.Add(Section("No games to show", Label(
             current.IsDynamic ? "Games appear here when they match these rules." : "Use Add to collection from a game's menu to add it here.", muted: true)));
         else RenderCards(members);
@@ -364,10 +424,15 @@ internal sealed partial class Launcher : Window
     private bool SortCollection(GameCollection collection, int sort)
     {
         if (_page != Page.Collections || _collection != collection) return false;
+        return ReorderCards(() => _sort = sort);
+    }
+
+    private bool ReorderCards(Action applySort)
+    {
         var previousPositions = _cardGrid is { } previous && CanAnimate(previous)
-            ? previous.Children.ToDictionary(tile => (Game)tile.Tag!, tile => tile.TranslatePoint(default, PageBody))
+            ? previous.Children.Where(tile => tile.Tag != null).ToDictionary(tile => tile.Tag!, tile => tile.TranslatePoint(default, PageBody))
             : null;
-        _sort = sort;
+        applySort();
         _offset = 0;
         Render();
         if (previousPositions == null || _cardGrid is not { } reordered) return true;
@@ -375,7 +440,7 @@ internal sealed partial class Launcher : Window
         UpdateLayout();
         foreach (var tile in reordered.Children)
         {
-            if (previousPositions.GetValueOrDefault((Game)tile.Tag!) is not { } from ||
+            if (tile.Tag == null || previousPositions.GetValueOrDefault(tile.Tag) is not { } from ||
                 tile.TranslatePoint(default, PageBody) is not { } to) continue;
             Vector offset = from - to;
             if (offset.SquaredLength > .25) AnimateMotion(tile, token => ViewMotion.Move(tile, offset, token));
@@ -383,10 +448,13 @@ internal sealed partial class Launcher : Window
         return true;
     }
 
-    private IEnumerable<Game> SortedGames(IEnumerable<Game> games) => _sort switch
+    private IEnumerable<Game> SortedGames(IEnumerable<Game> games, int sort) => sort switch
     {
         1 => games.OrderByDescending(game => game.LastPlayedUtc).ThenBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase),
-        2 => games.OrderByDescending(game => game.PlaySeconds).ThenBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase),
+        2 when TrackPlaytime => games.OrderByDescending(game => game.PlaySeconds).ThenBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase),
+        3 => games.OrderByDescending(game => game.Title, StringComparer.CurrentCultureIgnoreCase),
+        4 => games.OrderByDescending(game => game.AddedUtc).ThenBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase),
+        5 => games.OrderByDescending(game => game.SteamReleaseDate).ThenBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase),
         _ => games.OrderBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase)
     };
 
@@ -394,7 +462,11 @@ internal sealed partial class Launcher : Window
     {
         const int pageSize = 24;
         _offset = Math.Min(_offset, (games.Length - 1) / pageSize * pageSize);
-        var grid = new UniformGrid { ColumnSpacing = 12, RowSpacing = 14, HorizontalAlignment = HorizontalAlignment.Left };
+        var grid = new UniformGrid { Columns = GameTileColumns, ColumnSpacing = GameTileColumnSpacing, RowSpacing = 14 };
+        grid.SizeChanged += (_, args) =>
+        {
+            if (args.WidthChanged && args.NewSize.Width > 0) grid.Columns = FittingGameTileColumns(args.NewSize.Width);
+        };
         foreach (var game in games.Skip(_offset).Take(pageSize))
         {
             // The host carries the reorder translation while the card retains its hover transform.
@@ -411,13 +483,14 @@ internal sealed partial class Launcher : Window
         var card = new GameCard
         {
             Title = game.Title,
+            IsModded = game.IsModded && !_library.Preferences.HideTileModIndicator,
             Playtime = game.PlaySeconds >= 3600 ? $"{game.PlaySeconds / 3600d:0.#} hr" : $"{game.PlaySeconds / 60} min",
-            ShowPlaytime = showPlaytime && game.PlaySeconds >= 60,
+            ShowPlaytime = TrackPlaytime && !_library.Preferences.HideTilePlaytime && showPlaytime && game.PlaySeconds >= 60,
             OpenCommand = new LauncherCommand(() => SelectGame(game)),
             ContextMenu = BuildGameMenu(game, PlacementMode.Pointer)
         };
         var lastLaunched = game.LastPlayedUtc.HasValue ? "Last launched " + FormatDate(game.LastPlayedUtc) : "Never launched";
-        ToolTip.SetTip(card, game.Title + Environment.NewLine + lastLaunched);
+        ToolTip.SetTip(card, game.Title + Environment.NewLine + lastLaunched + (game.IsModded ? Environment.NewLine + "Modded" : ""));
         LoadCardArtwork(card, game);
         return card;
     }
@@ -431,10 +504,9 @@ internal sealed partial class Launcher : Window
 
     private void SizeCardGrid()
     {
-        if (_cardGrid is not { Children.Count: > 0 } grid) return;
-        var isCollectionOverview = _page == Page.Collections && _collection == null;
-        var cardWidth = isCollectionOverview ? 200 : 182;
-        var minimumGridCardWidth = isCollectionOverview ? 162 : 150;
+        if (_cardGrid is not { Children.Count: > 0 } grid || _page != Page.Collections || _collection != null) return;
+        const int cardWidth = 200;
+        const int minimumGridCardWidth = 162;
         var viewport = ContentScroll.Viewport.Width > 0 ? ContentScroll.Viewport.Width : Width - 205;
         var available = Math.Max(minimumGridCardWidth, viewport - 54);
         var slots = Math.Max(1, (int)((available + grid.ColumnSpacing) / (minimumGridCardWidth + grid.ColumnSpacing)));
@@ -492,7 +564,9 @@ internal sealed partial class Launcher : Window
         SteamLabel.Text = hasSteamMatch ? game.SteamId.ToString(CultureInfo.InvariantCulture) : null;
         AutomationProperties.SetName(SteamLabel, hasSteamMatch ? $"Steam App ID {SteamLabel.Text}" : null);
         Playtime.Text = game.PlaySeconds >= 3600 ? $"{game.PlaySeconds / 3600} hr {game.PlaySeconds % 3600 / 60} min" : $"{game.PlaySeconds / 60} min";
-        LastPlayed.Text = FormatDate(game.LastPlayedUtc);
+        PlaytimeDetail.IsVisible = TrackPlaytime;
+        LastPlayed.Text = FormatLastLaunched(game.LastPlayedUtc);
+        ModdedStatus.Text = game.IsModded ? "Yes" : "No";
         RenderGenres(game);
         RenderStoreTags(game);
         var playing = _playing.Contains(game.Id);
@@ -503,6 +577,17 @@ internal sealed partial class Launcher : Window
     }
 
     private static string FormatDate(DateTime? utc) => utc?.ToLocalTime().ToString("d", CultureInfo.CurrentCulture) ?? "Never";
+
+    private string FormatLastLaunched(DateTime? utc)
+    {
+        if (!_library.Preferences.FriendlyLaunchDates || utc == null) return FormatDate(utc);
+        var date = utc.Value.ToLocalTime();
+        var culture = CultureInfo.CurrentCulture;
+        var month = date.ToString("MMM", culture);
+        if (culture.TwoLetterISOLanguageName == "en" && month != date.ToString("MMMM", culture)) month += ".";
+        var day = date.ToString("%d", culture);
+        return date.Year == DateTime.Now.Year ? $"{month} {day}" : $"{month} {day}, {date.ToString("yyyy", culture)}";
+    }
     private void Status(string message) => StatusText.Text = message;
 
     private bool Save()
@@ -518,7 +603,12 @@ internal sealed partial class Launcher : Window
 
     private async void HandleClosing(object? sender, WindowClosingEventArgs args)
     {
-        if (_allowClose || _verification) return;
+        if (_verification) return;
+        if (_allowClose)
+        {
+            DeferCloseForWebTransfers(args);
+            return;
+        }
         if (_updateHandoff) { args.Cancel = true; return; }
         if (_modFileOperation) { args.Cancel = true; Status("Wait for the mod file operation to finish."); return; }
         if (!_explicitQuit && args.CloseReason == WindowCloseReason.WindowClosing && DialogHost.HasModal)
@@ -533,13 +623,19 @@ internal sealed partial class Launcher : Window
             return;
         }
         _explicitQuit = false;
-        if (_playing.Count == 0 && !_saveFailed) return;
+        if (_playing.Count == 0 && !_saveFailed)
+        {
+            if (DeferCloseForWebTransfers(args)) _allowClose = true;
+            return;
+        }
         args.Cancel = true;
         if (_confirmingClose) return;
         _confirmingClose = true;
         try
         {
-            if (_playing.Count > 0 && !await Confirm("Games are running", "Close LG Launcher and save playtime so far? Your games will keep running.")) return;
+            var closingMessage = TrackPlaytime ? "Close LG Launcher and save playtime so far? Your games will keep running."
+                : "Close LG Launcher? Your games will keep running.";
+            if (_playing.Count > 0 && !await Confirm("Games are running", closingMessage)) return;
             var snapshots = _sessions.CurrentTime();
             foreach (var game in _library.Games)
                 if (snapshots.TryGetValue(game.Id, out var seconds)) game.PlaySeconds += seconds;
@@ -584,9 +680,8 @@ internal sealed partial class Launcher : Window
 
     private void RefreshDiscoveryIndicators()
     {
-        DiscoveryBadge.IsVisible = _discoveries.Count > 0;
-        DiscoveryCount.Text = _discoveries.Count > 99 ? "99+" : _discoveries.Count.ToString(CultureInfo.CurrentCulture);
         ReviewCount.Text = _discoveries.Count == 1 ? "1 item for review" : $"{_discoveries.Count} items for review";
+        AutomationProperties.SetName(OpenReviews, ReviewCount.Text);
     }
 
     private void RefreshDiscoveriesAfterScan()
@@ -652,7 +747,7 @@ internal sealed partial class Launcher : Window
         if (!CanPlayWithMods(game)) { Status("Finish or recover the mod file operation before launching this game."); return; }
         try
         {
-            _sessions.Launch(game.Id, game.Path, game.Arguments, _library.Preferences.SetProcessPriority);
+            _sessions.Launch(game.Id, game.Path, game.Arguments, _library.Preferences.SetProcessPriority, TrackPlaytime);
             _playing.Add(game.Id);
             game.LastPlayedUtc = DateTime.UtcNow;
             if (Save()) Status("Launched " + game.Title + ".");
@@ -673,13 +768,13 @@ internal sealed partial class Launcher : Window
     private void EndSession(string id, long seconds)
     {
         if (_closed || _allowClose || !_playing.Remove(id)) return;
-        _sessions.Acknowledge(id);
+        seconds = _sessions.Acknowledge(id);
         var returnedFromPlay = _playing.Count == 0;
         if (returnedFromPlay) RecordGameReturn();
         var game = _library.Games.Find(entry => entry.Id == id);
         if (game != null) game.PlaySeconds += seconds;
         var saved = (game != null || returnedFromPlay) && Save();
-        if (saved && game != null) Status("Saved playtime for " + game.Title + ".");
+        if (saved && game != null && TrackPlaytime) Status("Saved playtime for " + game.Title + ".");
         if (returnedFromPlay)
         {
             RestoreWindow();

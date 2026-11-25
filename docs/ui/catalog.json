@@ -88,7 +88,7 @@
       "kind": "component",
       "scope": "shared-avalonia",
       "source": "avalonia/LGLauncher.Components/FrostedContextMenu.cs",
-      "summary": "Displays a shared context menu with motion-dependent reveal and collapse and an optional blurred snapshot of the owning window.",
+      "summary": "Displays a shared context menu with motion-dependent clipping and an optional blurred snapshot. The reveal starts at the edge closest to the pointer or trigger.",
       "symbols": [
         "FrostedContextMenu",
         "RevealProgress",
@@ -108,15 +108,17 @@
       "kind": "component",
       "scope": "shared-avalonia",
       "source": "avalonia/LGLauncher.Components/Widgets.cs",
-      "summary": "Displays a responsive two-to-three portrait tile, accessible open action and optional playtime. The caller supplies artwork, command, and playtime.",
+      "summary": "Displays a responsive two-to-three portrait tile, accessible open action, optional playtime, and a compact white wrench badge for managed mods.",
       "symbols": [
         "GameCard",
         "Title",
         "Playtime",
         "ShowPlaytime",
+        "IsModded",
         "Artwork",
         "ArtworkStretch",
         "ArtworkHeight",
+        "SizeArtworkForWidth",
         "ArtworkBackground",
         "OpenCommand"
       ],
@@ -268,7 +270,7 @@
       "kind": "helper",
       "scope": "shared-avalonia",
       "source": "avalonia/LGLauncher.Components/ViewMotion.cs",
-      "summary": "Provides cancellable view fades, tile movement, and a shared top-down reveal and collapse for context menus and warnings. A moving tile holds its destination through transform cleanup. The host decides whether motion is allowed.",
+      "summary": "Provides cancellable view fades, tile movement, and shared clipping motion for context menus, warnings, and sidebar sections. A moving tile holds its destination through transform cleanup. The host decides whether motion is allowed.",
       "symbols": [
         "ViewMotion",
         "Reveal",
@@ -676,9 +678,12 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Settings.cs",
-      "summary": "Composes font, base size, interface scale, translucency, default and artwork accent colours, and motion controls, and keeps runtime resources and layout in sync.",
+      "summary": "Composes font, size, scale, translucency, base colourway, accent, motion, and Widget Customisation. Applies shared corner radii and shadow strength immediately.",
       "symbols": [
         "BuildAppearance",
+        "BuildWidgetSettings",
+        "ApplyColourway",
+        "ApplyWidgetTheme",
         "BuildDefaultAccentPicker",
         "ApplyInterfaceScale",
         "ApplyTranslucency",
@@ -750,7 +755,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
-      "summary": "Lays out a responsive bounded card grid and supplies previous and next paging actions for the collections and discoveries workflows.",
+      "summary": "Fills the content width with up to the configured game columns, reduces columns at the saved minimum tile width, and sizes the separate collection cover grid.",
       "symbols": [
         "ShowCardGrid",
         "SizeCardGrid",
@@ -958,7 +963,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
-      "summary": "Constructs a portrait tile for a game, formats playtime, loads artwork, and attaches the shared game menu. Collection sorting moves tiles to their new positions when motion is enabled.",
+      "summary": "Constructs a game portrait, applies the saved visibility of the wrench badge and playtime caption, loads artwork, and attaches the game menu. The grid uses the configured columns and animates sort changes when motion is enabled.",
       "symbols": [
         "BuildGameCard",
         "RenderCards",
@@ -988,7 +993,9 @@
         "GenreChips",
         "StoreTags",
         "Playtime",
+        "PlaytimeDetail",
         "LastPlayed",
+        "ModdedStatus",
         "PlayGame",
         "EditGameButton",
         "RefreshSteamButton",
@@ -1015,7 +1022,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Mods.cs",
-      "summary": "Groups packages and managed installations in separate panels with inline update status and symbolic actions. The game list and Settings share one available-mod list and per-mod Lucide symbols. The RenoDX Settings row opens an Info dialog that explains where to find game-specific add-ons. Existing Special K installs are accessible from the game’s legacy management rows. The game list groups prerequisite and compatibility warnings in a collapsed panel with a count. Setup previews saved originals, replacements, and in-place edits. The animated picker selects OptiScaler DLL names and DXGI spoofing, graphics APIs, and RenoDX add-on variants. Managed mods share uninstall, verification, and affected-file actions.",
+      "summary": "Groups shared packages and managed installations with symbolic actions. Manage and the game wrench open the same installed-first list with green ticks. The cached version chooser displays usage counts. Guided OptiScaler and REFramework setup prefers an eligible cached package. The RenoDX Settings row offers catalog refresh and information. The game dialog downloads or imports the add-on for setup or update. Installed mods share update previews, uninstall, verification, and affected-file actions.",
       "symbols": ["AvailableModProviders", "BuildMods", "RenderOptiScalerUpdateCheck", "CheckModUpdates", "RefreshRenoDxCatalog", "ModIcon", "ModPackageInfo", "ManagedModSettingsRow", "ModSettingsRow", "DownloadModPackage", "DeleteModPackage", "ModDeleteButton", "ModCacheDeleteButton", "RefreshGameModList", "RenderGameModWarnings", "RefreshModInspection", "ShowGameMods", "ShowGameManagedMod", "ShowGameOptiScaler", "ShowGameReShade", "ShowGameAddon", "ShowModSetup", "ShowModSetupPreview", "ShowModDownloads", "ShowModPlan", "ModFileRow", "ShowManagedMod", "UpgradeReShade", "ShowModVerification", "ShowAffectedModFiles", "DxgiSpoofingRow", "ConfirmModUninstall"],
       "related": ["pattern.desktop.game-details", "pattern.desktop.common-builders", "pattern.desktop.dialogs", "pattern.desktop.preference-controls", "helper.launcher-menus", "helper.lucide-icon-catalog", "style.button.settings-row", "style.button.destructive", "style.warning-panel", "style.choice-picker", "style.game-icon", "style.section", "style.tooltip", "style.progress-bar", "icon.wrench", "icon.info", "icon.check", "icon.refresh", "icon.download", "icon.delete", "icon.replace", "icon.edit", "token.modified"]
     },
@@ -1091,16 +1098,20 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Home.cs",
-      "summary": "Builds the full-library card grid as virtualised rows with adaptable column count. Recently played uses a separate shelf.",
+      "summary": "Builds Home's virtualised game grid with the configured tile-width threshold and column limit, and its sort picker shared with the sidebar. Sorting from either picker preserves Home's vertical scroll position. Recently played uses the same sizing.",
       "symbols": [
         "HomeLibraryGrid",
+        "HomeLibraryHeader",
+        "HomeLibrarySortPicker",
+        "RefreshHomeLibrarySort",
         "RenderHome",
         "VirtualizingStackPanel",
         "ItemsControl"
       ],
       "related": [
         "component.game-card",
-        "pattern.desktop.game-card"
+        "pattern.desktop.game-card",
+        "style.choice-picker"
       ]
     },
     {
@@ -1140,7 +1151,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Search.cs",
-      "summary": "The shell's search controller updates a styled results dropdown, accounts for its bounded height, and supports keyboard navigation and result activation.",
+      "summary": "The search controller matches titles, genres, or a leading metadata prefix. An empty unfocused field rotates usage examples. Results use the bounded dropdown with keyboard navigation.",
       "symbols": [
         "InitializeSearch",
         "ShowSearchResults",
@@ -1173,12 +1184,18 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Settings.cs",
-      "summary": "Groups preferences for game logos, Steam store tags, and the recent RSS shelf.",
+      "summary": "Groups playtime recording and clearing, game tile columns and minimum width, visibility switches, compact date format, game metadata and music, and the recent RSS shelf.",
       "symbols": [
-        "BuildLibrarySettings"
+        "BuildLibrarySettings",
+        "GameTileColumns",
+        "GameTileMinimumWidth",
+        "ApplyPlaytimeTracking",
+        "ClearPlaytime"
       ],
       "related": [
-        "pattern.desktop.preference-controls"
+        "pattern.desktop.preference-controls",
+        "style.choice-picker",
+        "style.button.destructive"
       ]
     },
     {
@@ -1237,6 +1254,7 @@
         "EditInterfaceScale",
         "SavePreference",
         "PreferencesChanged",
+        "CompactToggle",
         "overrideReason"
       ],
       "related": [
@@ -1287,11 +1305,12 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Rss.cs",
-      "summary": "Displays RSS articles with selectable text, paragraphs, headings, quotes, code styling, and optional inline images and external link actions. The About release notes reuse the native text blocks.",
+      "summary": "Displays RSS articles with selectable text, headings, quotes, code, and inline images. Magnet and .torrent links are clickable in article content, the main link, and up to sixteen enclosure actions. About release notes reuse the native text blocks.",
       "symbols": [
         "RenderRssArticle",
         "ArticleText",
-        "BuildRssParagraph"
+        "BuildRssParagraph",
+        "RssTransferButton"
       ],
       "related": [
         "component.desktop.rss-image"
@@ -1302,7 +1321,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Rss.cs",
-      "summary": "Groups feed URL input and file import, refresh interval with number spinner, subscription switches, and per-feed feedback.",
+      "summary": "Groups feed URL input and import, an autosaving refresh interval, independent browser and transfer routing preferences, subscription switches, and per-feed feedback.",
       "symbols": [
         "BuildRssSettings",
         "BuildRssFeedRow",
@@ -1342,25 +1361,28 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
-      "summary": "Shows navigation and the discovery badge, followed by the Library and Collections lists and the Add game and Settings actions. Game rows, collection rows, and buttons share the same height.",
+      "summary": "Shows Home, Collections, Web, RSS, and Settings. Library and Collections share semibold headings, smaller light sort labels, and animated list clips with plus-leading Add new actions.",
       "symbols": [
         "LibrarySurface",
         "HomeNav",
         "CollectionsNav",
-        "DiscoveriesNav",
+        "WebNav",
         "RssNav",
-        "DiscoveryBadge",
-        "DiscoveryCount",
         "SidebarLists",
+        "LibrarySectionHeader",
+        "CollectionsSectionHeader",
+        "LibrarySectionClip",
+        "CollectionsSectionClip",
         "LibraryGames",
         "LibraryEmpty",
         "LibraryCollections",
         "CollectionsEmpty",
         "AddGame",
+        "AddCollection",
         "SettingsNav"
       ],
-      "selectors": ["ListBox.sidebar-list ListBoxItem", "TextBlock.sidebar-heading"],
-      "resourceKeys": ["LG.SidebarRowHeight"],
+      "selectors": ["ListBox.sidebar-list ListBoxItem", "TextBlock.sidebar-heading", "TextBlock.sidebar-sort"],
+      "resourceKeys": ["LG.SidebarRowHeight", "LG.Font.12", "LG.Font.11"],
       "related": [
         "component.library-row",
         "style.button.nav",
@@ -1372,6 +1394,121 @@
         "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
         "avalonia/LGLauncher.Desktop/Launcher.Artwork.cs"
       ]
+    },
+    {
+      "id": "pattern.desktop.web-workspace",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.cs",
+      "summary": "Animates switches among Browser, Downloads, and Files through a symbolic right rail while keeping browser tabs attached for state and transfers.",
+      "symbols": [
+        "RenderWebWorkspace",
+        "SelectWebView",
+        "ShowWebFiles"
+      ],
+      "related": [
+        "pattern.desktop.sidebar",
+        "pattern.desktop.web-browser",
+        "pattern.desktop.web-downloads",
+        "pattern.desktop.web-files"
+      ]
+    },
+    {
+      "id": "pattern.desktop.web-browser",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Browser.cs",
+      "summary": "Places the square address field and New tab icon above a full-height, evenly divided tab strip. Each tab contains its own close icon. The bookmark icon opens the saved list and current-page action. Opens the native WebView2 page on first navigation. Reload retries the last address when a tab’s controller fails. Mouse Back and Forward follow the active tab’s history. The Magnet confirmation offers an Always open checkbox. Browser preferences control single-tab visibility, the homepage, address bar searches, ad blocking, and pop-ups.",
+      "symbols": [
+        "BuildWebBrowser",
+        "WebAddress",
+        "WebTabStrip",
+        "WebAddressBar",
+        "WebNewTab",
+        "WebBookmarkList",
+        "WebNativeHost"
+      ],
+      "related": [
+        "pattern.desktop.web-workspace",
+        "style.button.selected",
+        "style.text-box",
+        "component.modal-dialog"
+      ]
+    },
+    {
+      "id": "pattern.desktop.web-downloads",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Transfers.cs",
+      "summary": "Shows browser and BitTorrent transfers with left-aligned, resizable columns for text-only progress, size, speeds, ETA, and ratio. The flush top bar accepts Magnet and HTTPS .torrent links. The table scrolls horizontally when needed. Every cell and gap in a row opens the animated menu with Start, Stop, Remove, Open target folder, and Open in Files for completed downloads. Start can resume a browser download after a recoverable interruption. A timed amber warning appears below the address bar for invalid submissions. Rows highlight on hover and use an accent tint while the menu is open.",
+      "symbols": [
+        "BuildWebTransfers",
+        "WebMagnetInput",
+        "WebAddMagnet",
+        "WebTransferList"
+      ],
+      "related": [
+        "pattern.desktop.web-workspace",
+        "pattern.desktop.web-files",
+        "style.text-box"
+      ]
+    },
+    {
+      "id": "pattern.desktop.web-files",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Files.cs",
+      "summary": "Browses local folders in a table with left-aligned, resizable name, type, size, and modification columns. The top path bar has symbolic actions. The left Quick Access sidebar lists Downloads and user-pinned folders. Mouse Back and Forward follow the current session’s folder history. Directory navigation slides the listing across. Rows use the Transfers tint for selections and open context menus. Empty space or Escape clears the selection. Hidden and cut entries are dimmed, and folder icons use the active colourway’s yellow.",
+      "symbols": [
+        "BuildWebFiles",
+        "WebFilesPath",
+        "WebFilesEntries",
+        "WebFilesOpen"
+      ],
+      "related": [
+        "pattern.desktop.web-workspace",
+        "pattern.desktop.web-downloads",
+        "style.text-box",
+        "component.modal-dialog"
+      ]
+    },
+    {
+      "id": "style.web-table-row",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Draws the same hover and selection fills for transfers and files. File list items let the table row draw the highlight.",
+      "selectors": ["Border.web-table-row", "ListBox.web-file-list ListBoxItem"],
+      "classes": ["web-table-row", "web-file-list"],
+      "resourceKeys": ["LG.WebFileRowItem", "LG.WebRowContextTint"],
+      "related": ["pattern.desktop.web-files", "pattern.desktop.web-downloads"]
+    },
+    {
+      "id": "pattern.desktop.web-file-actions",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Files.Operations.cs",
+      "summary": "Provides item and background menus for file operations. Protects files in an active transfer and permits access to abandoned visible partial folders. Holding Shift switches Delete to the red Destroy command with a confirmation. Executables can be run after confirmation.",
+      "symbols": ["WebFileRowMenu", "WebFileListingMenu", "WebFileDelete", "WebFilesPaste", "WebFilesNewDirectory", "WebFilesGoBack"],
+      "related": ["pattern.desktop.web-files", "helper.launcher-menus", "component.modal-dialog"]
+    },
+    {
+      "id": "pattern.desktop.web-settings",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Settings.cs",
+      "summary": "Adds settings pages with browser privacy and single-tab controls, inline homepage and search URL, provider icons, torrent connection and ratio controls, file visibility, and a folder picker for the downloads directory.",
+      "symbols": ["BuildBrowserSettings", "BuildTransferSettings", "BuildFileViewerSettings"],
+      "related": ["pattern.desktop.web-browser", "pattern.desktop.web-downloads", "pattern.desktop.web-files"]
+    },
+    {
+      "id": "pattern.desktop.web-quick-access",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Files.QuickAccess.cs",
+      "summary": "Shows Downloads and saved folder pins in Files. Shared animated menus add a folder or remove its pin.",
+      "symbols": ["BuildWebQuickAccess", "WebFilesQuickAccess", "WebFilesQuickAccessDownloads", "WebFilesQuickAccessPin"],
+      "related": ["pattern.desktop.web-files", "helper.launcher-menus", "style.button.nav"]
     },
     {
       "id": "pattern.desktop.store-tags",
@@ -1729,8 +1866,8 @@
       "summary": "Uses the artwork tint and translucent border over chrome and search surfaces when the desktop artwork host enables glass.",
       "selectors": [
         "Window.artwork-glass Border.artwork-chrome, Window.artwork-glass Border.search-results",
-        "Window.artwork-glass TextBox.library-search /template/ Border#PART_BorderElement",
-        "Window.artwork-glass TextBox.library-search:not(:focus) /template/ Border#PART_BorderElement"
+        "Window.artwork-glass TextBox.library-search:not(:pointerover) /template/ Border#PART_BorderElement, Window.artwork-glass TextBox.library-search:focus /template/ Border#PART_BorderElement",
+        "Window.artwork-glass TextBox.library-search:not(:pointerover):not(:focus) /template/ Border#PART_BorderElement"
       ],
       "classes": [
         "artwork-glass",
@@ -2030,12 +2167,18 @@
       "kind": "style",
       "scope": "shared-avalonia",
       "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
-      "summary": "Uses the launcher canvas, line, shared radius, and text size for ordinary text entry.",
+      "summary": "Uses shared canvas, line, radius, and text size. Unfocused text fields darken and show a white border on hover, with brush transitions when motion is enabled.",
       "selectors": [
-        "TextBox.lg"
+        "TextBox.lg",
+        "TextBox.lg[AcceptsReturn=False]",
+        "TextBox.lg:pointerover:not(:focus):not(:disabled) /template/ Border#PART_BorderElement",
+        ".lg-motion TextBox.lg /template/ Border#PART_BorderElement"
       ],
       "classes": [
         "lg"
+      ],
+      "related": [
+        "token.fieldhover"
       ]
     },
     {
@@ -2043,12 +2186,14 @@
       "kind": "style",
       "scope": "shared-avalonia",
       "source": "avalonia/LGLauncher.Components/Theme/Inputs.axaml",
-      "summary": "Keeps the Fluent toggle switch face. The knob transition is enabled only under lg-motion.",
+      "summary": "Keeps the Fluent toggle face and motion. Caption-free launcher switches use the width of their track so the trailing edge aligns with neighbouring controls.",
       "selectors": [
         "ToggleSwitch",
+        "ToggleSwitch.lg-compact /template/ Border#OuterBorder, ToggleSwitch.lg-compact /template/ Border#SwitchKnobBounds, ToggleSwitch.lg-compact /template/ Canvas#PART_SwitchKnob",
         ".lg-motion ToggleSwitch"
       ],
       "classes": [
+        "lg-compact",
         "lg-motion"
       ],
       "resourceKeys": [
@@ -2162,12 +2307,14 @@
       "kind": "control-theme",
       "scope": "shared-avalonia",
       "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
-      "summary": "Renders clipped portrait art, a game-icon fallback, an accessible open button, and an optional playtime pill.",
+      "summary": "Renders clipped portrait art, a game-icon fallback, an accessible open button, a width-constrained playtime pill, and a fixed white wrench on a small bordered badge.",
       "resourceKey": "{x:Type lg:GameCard}",
       "targetType": "GameCard",
       "symbols": [
         "PortraitFrame",
-        "PlaytimePill"
+        "PlaytimePill",
+        "ModdedBadge",
+        "ModdedWrench"
       ]
     },
     {
@@ -2308,6 +2455,14 @@
       "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
       "summary": "Main dark canvas and input background.",
       "resourceKey": "LG.Canvas"
+    },
+    {
+      "id": "token.fieldhover",
+      "kind": "token",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Tokens.axaml",
+      "summary": "Darkened input fill displayed when an unfocused text field is hovered.",
+      "resourceKey": "LG.FieldHover"
     },
     {
       "id": "token.controlpadding",

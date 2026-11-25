@@ -10,11 +10,178 @@ namespace LGLauncher;
 
 internal sealed partial class Launcher
 {
+    private static readonly string[] GameSortLabels = ["Title A–Z", "Last launched", "Playtime", "Title Z–A", "Added date", "Release date"];
+    private static readonly string[] CollectionSortLabels = ["A–Z", "Z–A", "Cumulative playtime", "Created date", "Qty. games"];
+    private static readonly string[] SidebarGameSortLabels = ["A–Z", "Last played", "Playtime", "Z–A", "Added", "Released"];
+    private static readonly string[] SidebarCollectionSortLabels = ["A–Z", "Z–A", "Playtime", "Created", "Games"];
+    private readonly HashSet<Border> _collapsedSidebarSections = [];
+    private readonly Dictionary<Border, object> _sidebarReveals = [];
+
+    private IEnumerable<int> GameSortChoices() => Enumerable.Range(0, GameSortLabels.Length).Where(index => TrackPlaytime || index != 2);
+
+    private IEnumerable<int> CollectionSortChoices() => Enumerable.Range(0, CollectionSortLabels.Length).Where(index => TrackPlaytime || index != 2);
+
+    private void InitializeSidebarSections()
+    {
+        SidebarLists.RowDefinitions[1].Bind(RowDefinition.MaxHeightProperty, LibrarySectionClip.GetObservable(MaxHeightProperty));
+        SidebarLists.RowDefinitions[3].Bind(RowDefinition.MaxHeightProperty, CollectionsSectionClip.GetObservable(MaxHeightProperty));
+        UpdateHeaders();
+        PreferencesChanged += UpdateHeaders;
+
+        void UpdateHeaders()
+        {
+            LibrarySectionHeader.Content = SidebarSectionHeader("Library", LibrarySectionClip, LibrarySection, GameSortChoices(), _librarySort,
+                GameSortLabels, SidebarGameSortLabels, index => SetLibrarySort(index, fromSidebar: true));
+            CollectionsSectionHeader.Content = SidebarSectionHeader("Collections", CollectionsSectionClip, CollectionsSection, CollectionSortChoices(), _collectionsSort,
+                CollectionSortLabels, SidebarCollectionSortLabels, index => SetCollectionsSort(index, fromSidebar: true));
+        }
+    }
+
+    private Grid SidebarSectionHeader(string title, Border clip, Grid section, IEnumerable<int> choices, int current,
+        string[] labels, string[] shortLabels, Func<int, bool> select)
+    {
+        var arrow = Symbol(Expanded() ? "LG.Icon.ChevronDown" : "LG.Icon.Chevron", 12);
+        arrow.VerticalAlignment = VerticalAlignment.Center;
+        var label = Label(title.ToUpperInvariant());
+        label.Classes.Add("sidebar-heading");
+        label.VerticalAlignment = VerticalAlignment.Center;
+        var toggle = new Button { Classes = { "lg", "quiet" } };
+        Click(toggle, () =>
+        {
+            if (Expanded()) _collapsedSidebarSections.Add(clip);
+            else _collapsedSidebarSections.Remove(clip);
+            arrow.Data = (Geometry?)this.FindResource(Expanded() ? "LG.Icon.ChevronDown" : "LG.Icon.Chevron");
+            UpdateToggleName();
+            RevealSidebarSection(clip, section, Expanded());
+        });
+        toggle.Padding = new Thickness(4, 0);
+        toggle.HorizontalAlignment = HorizontalAlignment.Left;
+        toggle.Content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal, Spacing = 5, VerticalAlignment = VerticalAlignment.Center, Children = { arrow, label }
+        };
+        UpdateToggleName();
+        var sort = BuildChoicePicker($"Sort {title.ToLowerInvariant()}", choices, current, index => labels[index], select,
+            textOnly: true, currentLabel: index => shortLabels[index]);
+        if (sort.Content is TextBlock sortLabel) sortLabel.Classes.Add("sidebar-sort");
+        Grid.SetColumn(sort, 1);
+        return new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), Children = { toggle, sort } };
+
+        bool Expanded() => !_collapsedSidebarSections.Contains(clip);
+        void UpdateToggleName() => AutomationProperties.SetName(toggle, Expanded() ? $"Collapse {title}" : $"Expand {title}");
+    }
+
+    private double SidebarSectionHeight(Border clip)
+    {
+        var count = clip == LibrarySectionClip ? _shownEntries.Length : _shownCollections.Length;
+        return (Math.Max(count, 1) + 1) * (double)this.FindResource("LG.SidebarRowHeight")!;
+    }
+
+    private void SettleSidebarSection(Border clip, Grid section)
+    {
+        if (_sidebarReveals.ContainsKey(clip)) return;
+        section.ClearValue(HeightProperty);
+        section.IsVisible = !_collapsedSidebarSections.Contains(clip);
+        clip.MaxHeight = section.IsVisible ? SidebarSectionHeight(clip) : 0;
+    }
+
+    private void RevealSidebarSection(Border clip, Grid section, bool expanding)
+    {
+        var from = clip.Bounds.Height;
+        var reveal = new object();
+        _sidebarReveals[clip] = reveal;
+        CancelMotion(clip);
+        if (!CanAnimate(clip))
+        {
+            _sidebarReveals.Remove(clip);
+            SettleSidebarSection(clip, section);
+            return;
+        }
+
+        // Measure the expanded viewport before revealing it, so its footer and scroll extent stay put.
+        if (expanding)
+        {
+            section.ClearValue(HeightProperty);
+            section.IsVisible = true;
+            clip.MaxHeight = SidebarSectionHeight(clip);
+            SidebarLists.UpdateLayout();
+        }
+        var target = expanding ? clip.Bounds.Height : 0;
+        section.Height = Math.Max(from, expanding ? target : section.Bounds.Height);
+        clip.MaxHeight = from;
+        AnimateMotion(clip, async token =>
+        {
+            try { await ViewMotion.RevealFromTop(clip, MaxHeightProperty, from, target, token); }
+            finally
+            {
+                if (_sidebarReveals.GetValueOrDefault(clip) == reveal)
+                {
+                    _sidebarReveals.Remove(clip);
+                    SettleSidebarSection(clip, section);
+                }
+            }
+        });
+    }
+
+    private Button BuildLibrarySortPicker() => BuildChoicePicker("Sort library", GameSortChoices(), _librarySort,
+        index => GameSortLabels[index], index => SetLibrarySort(index, fromSidebar: false));
+
+    private bool SetLibrarySort(int index, bool fromSidebar)
+    {
+        _librarySort = index;
+        RenderSidebar();
+        if (_page == Page.Home) RefreshHomeLibrarySort(fromSidebar);
+        if (!fromSidebar) PreferencesChanged?.Invoke();
+        return true;
+    }
+
+    private bool SetCollectionsSort(int index, bool fromSidebar)
+    {
+        if (_page == Page.Collections && _collection == null) ReorderCards(() => _collectionsSort = index);
+        else
+        {
+            _collectionsSort = index;
+            RenderSidebar();
+        }
+        if (!fromSidebar) PreferencesChanged?.Invoke();
+        return true;
+    }
+
+    private IEnumerable<GameCollection> SortedCollections() => _collectionsSort switch
+    {
+        1 => _library.Collections.OrderByDescending(collection => collection.Name, StringComparer.CurrentCultureIgnoreCase),
+        2 when TrackPlaytime => _library.Collections.OrderByDescending(collection => _library.Games.Where(collection.Includes).Sum(game => game.PlaySeconds))
+            .ThenBy(collection => collection.Name, StringComparer.CurrentCultureIgnoreCase),
+        3 => _library.Collections.OrderByDescending(collection => collection.CreatedUtc).ThenBy(collection => collection.Name, StringComparer.CurrentCultureIgnoreCase),
+        4 => _library.Collections.OrderByDescending(collection => _library.Games.Count(collection.Includes))
+            .ThenBy(collection => collection.Name, StringComparer.CurrentCultureIgnoreCase),
+        _ => _library.Collections.OrderBy(collection => collection.Name, StringComparer.CurrentCultureIgnoreCase)
+    };
+
+    private Task<bool> ChooseCollectionType()
+    {
+        var dialog = new ModalDialog("New collection", 440);
+        dialog.Body.Children.Add(SettingsRow("Manual collection", "LG.Icon.Library", () => Choose(false),
+            Label("Choose which games to include.", muted: true)));
+        dialog.Body.Children.Add(SettingsRow("Dynamic collection", "LG.Icon.Brain", () => Choose(true),
+            Label("Include games automatically using rules.", muted: true)));
+        dialog.Footer.Children.Add(ActionButton("Cancel", () => dialog.Close(), "quiet"));
+        return ShowModal(dialog);
+
+        void Choose(bool dynamic)
+        {
+            dialog.Close(true);
+            EditCollection(null, dynamic);
+        }
+    }
+
     private void RenderCollectionCards()
     {
         PageBody.Children.Add(Actions(ActionButton("New collection", () => EditCollection(null), "primary"),
-            IconButton("New dynamic collection", "LG.Icon.Brain", () => EditCollection(null, true))));
-        var collections = _library.Collections.OrderBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
+            IconButton("New dynamic collection", "LG.Icon.Brain", () => EditCollection(null, true)),
+            BuildChoicePicker("Sort collections", CollectionSortChoices(), _collectionsSort, index => CollectionSortLabels[index],
+                index => SetCollectionsSort(index, fromSidebar: false))));
+        var collections = SortedCollections().ToArray();
         if (collections.Length == 0)
         {
             PageBody.Children.Add(Section("No collections yet", Label("Create a collection, then use Add to collection from a game's menu.", muted: true)));
@@ -25,7 +192,7 @@ internal sealed partial class Launcher
         _offset = Math.Min(_offset, (collections.Length - 1) / pageSize * pageSize);
         var grid = new UniformGrid { ColumnSpacing = 12, RowSpacing = 14, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var collection in collections.Skip(_offset).Take(pageSize))
-            grid.Children.Add(CollectionBrowseCard(collection));
+            grid.Children.Add(new Border { Child = CollectionBrowseCard(collection), Tag = collection });
         ShowCardGrid(grid);
         AddPagination(collections.Length, pageSize);
     }

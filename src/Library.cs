@@ -35,6 +35,20 @@ namespace LGLauncher
         [DataMember(EmitDefaultValue = false)] public bool SteamGenresComplete { get; set; }
         [DataMember(EmitDefaultValue = false)] public List<string> SteamTags { get; set; }
         [DataMember(EmitDefaultValue = false)] public int TagSteamId { get; set; }
+        [DataMember(EmitDefaultValue = false)] public List<string> ManualTags { get; set; }
+        [DataMember(EmitDefaultValue = false)] public List<string> Developers { get; set; }
+        [DataMember(EmitDefaultValue = false)] public List<string> Publishers { get; set; }
+        [DataMember(EmitDefaultValue = false)] public int DetailsSteamId { get; set; }
+        [DataMember(EmitDefaultValue = false)] public DateTime? ReleaseDate { get; set; }
+        [DataMember(EmitDefaultValue = false)] public DateTime? AddedUtc { get; set; }
+        [DataMember(EmitDefaultValue = false)] public GameScale Scale { get; set; }
+
+        internal bool IsModded { get; set; }
+        internal bool HasSteamDetails => SteamId > 0 && SteamId == DetailsSteamId;
+        internal IEnumerable<string> DeveloperNames => HasSteamDetails ? Developers ?? Enumerable.Empty<string>() : Enumerable.Empty<string>();
+        internal IEnumerable<string> PublisherNames => HasSteamDetails ? Publishers ?? Enumerable.Empty<string>() : Enumerable.Empty<string>();
+        internal DateTime? SteamReleaseDate => HasSteamDetails ? ReleaseDate : null;
+        internal IEnumerable<string> TagNames => ManualTags ?? SteamTagsFor();
 
         internal IEnumerable<string> GenreNames
         {
@@ -48,6 +62,8 @@ namespace LGLauncher
             return HasSteamTags ? SteamTags : Enumerable.Empty<string>();
         }
     }
+
+    internal enum GameScale { Unspecified, Indie, AA, AAA }
 
     [DataContract]
     internal sealed class ArtworkPosition
@@ -73,6 +89,7 @@ namespace LGLauncher
         [DataMember(EmitDefaultValue = false)] public bool MatchAnyGenre { get; set; }
         [DataMember(EmitDefaultValue = false)] public List<CollectionRule> Rules { get; set; }
         [DataMember(EmitDefaultValue = false)] public string IconName { get; set; }
+        [DataMember(EmitDefaultValue = false)] public DateTime? CreatedUtc { get; set; }
 
         public bool IsDynamic { get { return (Rules != null ? Rules.Count : GenreFilters == null ? 0 : GenreFilters.Count) > 0; } }
 
@@ -99,7 +116,7 @@ namespace LGLauncher
         }
     }
 
-    internal enum CollectionAttribute { Genre, SteamTag }
+    internal enum CollectionAttribute { Genre, SteamTag, Developer, Publisher, Modded }
     internal enum CollectionOperator { Is, IsNot, Contains }
 
     [DataContract]
@@ -122,6 +139,17 @@ namespace LGLauncher
                 case CollectionAttribute.SteamTag:
                     if (!game.HasSteamTags) return false;
                     values = game.SteamTagsFor();
+                    break;
+                case CollectionAttribute.Developer:
+                    values = game.DeveloperNames;
+                    if (!values.Any()) return false;
+                    break;
+                case CollectionAttribute.Publisher:
+                    values = game.PublisherNames;
+                    if (!values.Any()) return false;
+                    break;
+                case CollectionAttribute.Modded:
+                    values = new[] { game.IsModded ? "Yes" : "No" };
                     break;
                 default:
                     return false;
@@ -152,6 +180,15 @@ namespace LGLauncher
         [DataMember(EmitDefaultValue = false)] public bool DisableArtworkShift { get; set; }
         [DataMember] public bool UseGameLogos { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool PlayThemeMusic { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool DisablePlaytimeTracking { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool HideTilePlaytime { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool HideTileModIndicator { get; set; }
+        [DataMember(EmitDefaultValue = false)] public int? TileColumns { get; set; }
+        [DataMember(EmitDefaultValue = false)] public int? TileMinimumWidth { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool FriendlyLaunchDates { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string Colourway { get; set; }
+        [DataMember(EmitDefaultValue = false)] public int? WidgetRadius { get; set; }
+        [DataMember(EmitDefaultValue = false)] public int? WidgetShadowStrength { get; set; }
         [DataMember] public bool ShowStoreTags { get; set; }
         [DataMember] public bool ShowRecentRss { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool StartWithSystem { get; set; }
@@ -163,6 +200,22 @@ namespace LGLauncher
         [DataMember(EmitDefaultValue = false)] public bool AutomaticUpdates { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool UsePreviewUpdates { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool DisableContributionReminders { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool AlwaysOpenMagnetLinks { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool DisableWebAdBlocker { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool DisableWebPopupBlocking { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebHomepage { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebSearchEngine { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebSearchTemplate { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool DisableWebDht { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebTorrentBindAddress { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebTorrentProtocol { get; set; }
+        [DataMember(EmitDefaultValue = false)] public double? WebTorrentStopRatio { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool HideWebSingleTab { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebDownloadsDirectory { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool OpenRssLinksInInternalBrowser { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool OpenRssTransfersInternally { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool HideWebHiddenFiles { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool HideWebFileExtensions { get; set; }
         [DataMember(EmitDefaultValue = false)] public int RssRefreshMinutes { get; set; }
         [DataMember(EmitDefaultValue = false)] public List<RssSubscription> RssFeeds { get; set; }
 

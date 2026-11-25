@@ -11,10 +11,22 @@ namespace LGLauncher;
 internal sealed partial class Launcher
 {
     private readonly DispatcherTimer _searchDelay = new() { Interval = TimeSpan.FromMilliseconds(125) };
+    private readonly DispatcherTimer _searchExamplesTimer = new() { Interval = TimeSpan.FromSeconds(30) };
+    private static readonly string[] SearchExamples =
+        ["Search games or genres", "genre: RPG", "developer: Rockstar", "publisher: Capcom", "tag: Co-op", "year: 2024", "scale: Indie"];
     private string? _displayedSearchQuery;
 
     private void InitializeSearch()
     {
+        var example = 0;
+        _searchExamplesTimer.Tick += (_, _) =>
+        {
+            if (!SearchSurface.IsVisible || SearchBox.IsFocused || !String.IsNullOrEmpty(SearchBox.Text)) return;
+            example = (example + 1) % SearchExamples.Length;
+            SearchBox.PlaceholderText = SearchExamples[example];
+        };
+        Opened += (_, _) => _searchExamplesTimer.Start();
+        Closed += (_, _) => _searchExamplesTimer.Stop();
         _searchDelay.Tick += (_, _) => ShowSearchResults();
         SearchBox.TextChanged += (_, _) =>
         {
@@ -77,10 +89,24 @@ internal sealed partial class Launcher
     private static Func<Game, bool> CreateLibrarySearch(string query)
     {
         const StringComparison comparison = StringComparison.CurrentCultureIgnoreCase;
-        if (query.StartsWith("genre:", StringComparison.OrdinalIgnoreCase))
+        var separator = query.IndexOf(':');
+        if (separator > 0)
         {
-            var genre = query[6..].Trim();
-            return game => genre.Length == 0 || game.GenreNames.Any(value => value.Contains(genre, comparison));
+            var prefix = query[..separator].Trim().ToLowerInvariant();
+            var qualifier = query[(separator + 1)..].Trim();
+            Func<Game, IEnumerable<string>>? values = prefix switch
+            {
+                "genre" => game => game.GenreNames,
+                "tag" => game => game.TagNames.Concat(game.SteamTagsFor()),
+                "developer" => game => game.DeveloperNames,
+                "publisher" => game => game.PublisherNames,
+                _ => null
+            };
+            if (values != null) return game => qualifier.Length == 0 || values(game).Any(value => value.Contains(qualifier, comparison));
+            if (prefix == "year") return game => qualifier.Length == 0 ||
+                int.TryParse(qualifier, out var year) && game.SteamReleaseDate?.Year == year;
+            if (prefix == "scale") return game => qualifier.Length == 0 ||
+                game.Scale != GameScale.Unspecified && game.Scale.ToString().Equals(qualifier, comparison);
         }
 
         var terms = query.Split(' ', StringSplitOptions.RemoveEmptyEntries);

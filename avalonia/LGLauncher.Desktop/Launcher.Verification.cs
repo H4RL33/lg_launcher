@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia;
+using Avalonia.Animation;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -85,6 +86,8 @@ internal sealed partial class Launcher
             "Framing saved before zoom support changed.");
         Require(game.ArtworkPosition.X == .71 && game.ArtworkPosition.Y == .39 && game.ArtworkPosition.Zoom == 2.4,
             "The manual crop was not loaded.");
+        await VerifyGameTileLayout(game, preview);
+        UpdateLayout();
         var homeViews = PageBody.GetVisualDescendants().OfType<Control>().ToArray();
         Require(PageBody.Children.Select(child => child is TextBlock text ? text : (child as Grid)?.Children.FirstOrDefault() as TextBlock)
             .OfType<TextBlock>().Select(heading => heading.Text)
@@ -127,6 +130,7 @@ internal sealed partial class Launcher
         var collectionAction = recentCard.ContextMenu!.Items.OfType<MenuItem>()
             .Single(item => Equals(item.Header, "Add to collection"));
         recentCard.ContextMenu.Close();
+        await WaitFor(() => !recentCard.ContextMenu.IsOpen, "The portrait menu did not close before opening its dialog.");
         collectionAction.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await WaitFor(() => DialogHost.HasModal, "The game menu did not open its collection picker.");
         UpdateLayout();
@@ -173,6 +177,7 @@ internal sealed partial class Launcher
             "A multi-term search did not match a title and a genre together.");
         Require(HandleSearchKey(Key.Escape) && !SearchDropdown.IsVisible, "Escape did not dismiss the dropdown.");
         await VerifySearchMotion();
+        SearchBox.Focus();
         SearchBox.Text = "no such game";
         await WaitFor(() => SearchDropdown.IsVisible && SearchEmpty.IsVisible, "Search did not show its empty state.");
         SearchBox.Text = "legacy";
@@ -257,7 +262,7 @@ internal sealed partial class Launcher
             "The scan lost the saved ignored path.");
         var desktop = (Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)Application.Current!.ApplicationLifetime!;
         Require(_startupComplete && desktop.MainWindow == this && !desktop.Windows.OfType<StartupWindow>().Any() &&
-            ReviewCount.Text == "1 item for review" &&
+            AutomationProperties.GetName(OpenReviews) == "1 item for review" &&
             Grid.GetColumn(ManageFolder) < Grid.GetColumn(OpenReviews) && Grid.GetColumn(OpenReviews) < Grid.GetColumn(GameCount),
             "Startup did not complete or the status line is out of order.");
 
@@ -336,6 +341,17 @@ internal sealed partial class Launcher
         Require(collapseFrames.Any(progress => progress is > 0 and < 1) && collapseFrames[^1] == 0 &&
             collapseFrames.Zip(collapseFrames.Skip(1)).All(pair => pair.First >= pair.Second),
             "The menu did not collapse smoothly to the top before closing.");
+        var upwardMenu = (FrostedContextMenu)BuildGameMenu(game, PlacementMode.Top);
+        GameOptions.ContextMenu = upwardMenu;
+        upwardMenu.Open(GameOptions);
+        var upwardSurface = upwardMenu.GetVisualDescendants().OfType<Panel>().Single(panel => panel.Name == "RevealSurface");
+        await WaitFor(() => upwardSurface.Clip is RectangleGeometry { Rect.Height: > 0, Rect.Y: > 0 },
+            "The menu placed above the options button did not reveal from its bottom edge.");
+        CaptureControl(upwardMenu, Path.Combine(Path.GetDirectoryName(preview)!, "game-menu-reveal-upwards.png"));
+        await WaitFor(() => upwardMenu.RevealProgress == 1, "The upward menu did not finish opening.");
+        upwardMenu.Close();
+        await WaitFor(() => !upwardMenu.IsOpen, "The upward menu did not finish closing.");
+        await VerifyTextFieldHover(SearchBox, Path.Combine(Path.GetDirectoryName(preview)!, "library-search-hover.png"));
         _motion = false;
         ResetArtworkParallax(immediate: true);
         Classes.Remove("lg-motion");
@@ -406,7 +422,9 @@ internal sealed partial class Launcher
         UpdateLayout();
         Require(!_chromeArtwork.IsVisible && Equals(LibrarySurface.Background, this.FindResource("LG.Sidebar")),
             "Settings retained the game's frosted artwork.");
-        Require(PageBody.Children.OfType<Button>().Count() == 6, "Settings did not show all six sections, including Mods.");
+        Require(PageBody.Children.OfType<Button>().Select(Avalonia.Automation.AutomationProperties.GetName).SequenceEqual(
+            ["Appearance", "App Behaviour", "Library", "RSS", "Browser", "Transfer Manager", "File Viewer", "Mods", "About"]),
+            "Settings did not show the expected sections.");
         Capture(Path.Combine(Path.GetDirectoryName(preview)!, "settings.png"));
         await VerifyMods(game, preview);
         await VerifyRss(preview);
@@ -441,8 +459,10 @@ internal sealed partial class Launcher
         var switches = PageBody.GetVisualDescendants().OfType<ToggleSwitch>().ToArray();
         Require(switches.Any(toggle => AutomationProperties.GetName(toggle) == "Contribution reminders" && toggle.IsChecked == true),
             "App Behaviour did not enable contribution reminders by default.");
-        var count = OperatingSystem.IsWindows() ? 8 : 6;
-        var uncheckedCount = OperatingSystem.IsWindows() ? 3 : 2;
+        Require(switches.Any(toggle => AutomationProperties.GetName(toggle) == "Always open Magnet links" && toggle.IsChecked == false),
+            "App Behaviour did not default to confirming Magnet links.");
+        var count = OperatingSystem.IsWindows() ? 9 : 7;
+        var uncheckedCount = OperatingSystem.IsWindows() ? 4 : 3;
         Require(switches.Length == count && switches.Count(toggle => toggle.IsChecked != true) == uncheckedCount && !_library.Preferences.AutomaticUpdates,
             "App Behaviour did not display its persisted options or enable updates by opt-in.");
         Require(PageBody.GetVisualDescendants().OfType<Button>().All(button => button.Content as string != "Check for new updates"),
@@ -633,6 +653,8 @@ internal sealed partial class Launcher
     private async Task VerifyHomeOverflow(string preview)
     {
         var originalWidth = Width;
+        var originalSort = _librarySort;
+        var originalColumns = _library.Preferences.TileColumns;
         var extraGames = Enumerable.Range(1, 32).Select(index => new Game
         {
             Title = $"Sample game {index:00}", LastPlayedUtc = index <= 2 ? DateTime.UnixEpoch.AddDays(index) : null,
@@ -644,24 +666,36 @@ internal sealed partial class Launcher
         try
         {
             Width = MinWidth;
+            _library.Preferences.TileColumns = 2;
+            Render();
+            var overflowShelves = PageBody.Children.OfType<ScrollViewer>().ToArray();
+            await WaitFor(() => overflowShelves.All(view => view.Extent.Width > view.Viewport.Width),
+                "The two-column recent shelf or the collection shelf did not overflow.");
+            var reports = Path.GetDirectoryName(preview)!;
+            await VerifySmoothHomeScrolling(overflowShelves, preview);
+
+            _library.Preferences.TileColumns = originalColumns;
             Render();
             var library = PageBody.Children.OfType<ItemsControl>().Single(view => view.Name == "HomeLibraryGrid");
             var shelves = PageBody.Children.OfType<ScrollViewer>().ToArray();
             await WaitFor(() => library.Items.Cast<Game[]>().SelectMany(row => row).Count() == _library.Games.Count &&
-                shelves.All(view => view.Extent.Width > view.Viewport.Width), "The narrow Home layout clipped rows or omitted library games.");
-            var narrowColumns = ((Game[])library.Items[0]!).Length;
-            var reports = Path.GetDirectoryName(preview)!;
+                library.GetVisualDescendants().OfType<GameCard>().Any(card => card.Bounds.Width > 0),
+                "The narrow Home layout clipped rows or omitted library games.");
+            var recentShelf = shelves[0];
+            var recentCard = recentShelf.GetVisualDescendants().OfType<GameCard>().First();
+            await WaitFor(() => TilesFitViewport(library, recentShelf, recentCard),
+                "Home did not fit its game tiles to the narrow viewport.");
             Capture(Path.Combine(reports, "home-sections.png"));
-            await VerifySmoothHomeScrolling(shelves, preview);
             foreach (var width in new[] { 1230, 1600 })
             {
                 Width = width;
                 await Task.Delay(85);
+                UpdateLayout();
+                await WaitFor(() => TilesFitViewport(library, recentShelf, recentCard),
+                    $"Home did not fit its game tiles to the viewport at the requested {width}px window width.");
                 Capture(Path.Combine(reports, $"home-sections-{width}.png"));
             }
             Width = originalWidth;
-            await WaitFor(() => ((Game[])library.Items[0]!).Length > narrowColumns,
-                "The Library did not fit more portrait columns at a wider window size.");
             Require(!PageBody.GetVisualDescendants().OfType<Button>()
                 .Single(button => button.Name == "RecentlyPlayedRowNext").IsEffectivelyVisible,
                 "The recent shelf showed arrows when all cards fit.");
@@ -676,14 +710,80 @@ internal sealed partial class Launcher
                 "The Home library showed a playtime pill for a session under one minute.");
             Require(library.GetVisualDescendants().OfType<GameCard>().Count() < _library.Games.Count,
                 "The scrollable Library realized every portrait at once.");
+
+            var sort = HomeSortPicker();
+            foreach (var width in new[] { 730, 1230, 1600 })
+            {
+                Width = width;
+                await Task.Delay(40);
+                sort.BringIntoView();
+                UpdateLayout();
+                var menu = PreferenceMenu(sort);
+                sort.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await WaitFor(() => menu.IsOpen && menu.RevealProgress == 1, "The Home Library sort menu did not open.");
+                Require(menu.Items.OfType<MenuItem>().Select(item => item.Header).SequenceEqual(GameSortChoices().Select(index => GameSortLabels[index])),
+                    "The Home Library did not offer the configured library sort options.");
+                Capture(Path.Combine(reports, $"home-library-sort-{width}.png"));
+                CaptureControl(menu, Path.Combine(reports, $"home-library-sort-menu-{width}.png"));
+                menu.Close();
+                await WaitFor(() => !menu.IsOpen, "The Home Library sort menu did not close.");
+            }
+            sort.Focus(NavigationMethod.Pointer);
+            UpdateLayout();
+            var homeScroll = ContentScroll.Offset.Y;
+            Require(homeScroll > 0, "The Home sort fixture did not reach the Library heading.");
+            await ChoosePreference(sort, "Title Z–A");
+            UpdateLayout();
+            Require(library.Items.Cast<Game[]>().SelectMany(row => row).SequenceEqual(SortedGames(_library.Games, 3)) &&
+                _shownEntries.Select(entry => entry.Game).SequenceEqual(SortedGames(_library.Games, 3)) &&
+                shelves.All(PageBody.Children.Contains), "Sorting Home did not update the library and sidebar together.");
+            Require(Math.Abs(ContentScroll.Offset.Y - homeScroll) < 1,
+                $"Sorting from Home moved the page from {homeScroll} to {ContentScroll.Offset.Y}.");
+
+            _library.Preferences.TileColumns = 1;
+            Render();
+            library = PageBody.Children.OfType<ItemsControl>().Single(view => view.Name == "HomeLibraryGrid");
+            UpdateLayout();
+            ContentScroll.Offset = new Vector(0, ContentScroll.ScrollBarMaximum.Y * .985);
+            UpdateLayout();
+            var sidebarScroll = ContentScroll.Offset.Y;
+            Require(sidebarScroll > homeScroll, "The sidebar sort fixture did not scroll into the Library grid.");
+            var sidebarSort = ((Grid)LibrarySectionHeader.Content!).Children.OfType<Button>().Last();
+            sidebarSort.Focus(NavigationMethod.Pointer);
+            await ChoosePreference(sidebarSort, "Title A–Z");
+            UpdateLayout();
+            Require(AutomationProperties.GetHelpText(HomeSortPicker()) == "Current value Title A–Z" &&
+                library.Items.Cast<Game[]>().SelectMany(row => row).SequenceEqual(SortedGames(_library.Games, 0)),
+                "Changing the sidebar sort did not update Home's sort picker and library rows.");
+            Require(Math.Abs(ContentScroll.Offset.Y - sidebarScroll) < 1,
+                $"Sorting from the sidebar moved Home from {sidebarScroll} to {ContentScroll.Offset.Y}.");
+            Capture(Path.Combine(reports, "home-library-sorted-scroll.png"));
         }
         finally
         {
             Width = originalWidth;
+            _librarySort = originalSort;
+            _library.Preferences.TileColumns = originalColumns;
             _library.Games.RemoveAll(extraGames.Contains);
             _library.Collections.RemoveAll(extraCollections.Contains);
             Render();
+            PreferencesChanged?.Invoke();
             ContentScroll.Offset = default;
+        }
+
+        Button HomeSortPicker() => PageBody.GetVisualDescendants().OfType<Button>()
+            .Single(button => AutomationProperties.GetName(button) == "Sort library");
+
+        bool TilesFitViewport(ItemsControl library, ScrollViewer recentShelf, GameCard recentCard)
+        {
+            if (library.Bounds.Width <= 0 || recentShelf.Bounds.Width <= 0 || library.Items[0] is not Game[] firstRow) return false;
+            var recentColumns = ExpectedColumns(recentShelf.Bounds.Width);
+            var tileWidth = (recentShelf.Bounds.Width - (recentColumns - 1) * GameTileColumnSpacing) / recentColumns;
+            return firstRow.Length == ExpectedColumns(library.Bounds.Width) &&
+                Math.Abs(recentCard.Bounds.Width - tileWidth) <= 1;
+
+            int ExpectedColumns(double availableWidth) => Enumerable.Range(1, GameTileColumns).Last(columns =>
+                columns == 1 || columns * GameTileMinimumWidth + (columns - 1) * GameTileColumnSpacing <= availableWidth);
         }
     }
 
@@ -802,7 +902,8 @@ internal sealed partial class Launcher
         {
             Navigate(Page.Collections);
             UpdateLayout();
-            var tiles = PageBody.Children.OfType<UniformGrid>().Single().Children.OfType<CollectionCard>().ToArray();
+            var tiles = PageBody.Children.OfType<UniformGrid>().Single().Children.OfType<Border>()
+                .Select(host => host.Child).OfType<CollectionCard>().ToArray();
             var manualTile = tiles.Single(tile => tile.Title == manual.Name);
             var dynamicTile = tiles.Single(tile => tile.Title == dynamicCollection.Name);
             var mosaic = (Grid)manualTile.Content!;
@@ -944,11 +1045,66 @@ internal sealed partial class Launcher
         var motion = Classes.Contains("lg-motion");
         var motionEnabled = _motion;
         var sortMode = _sort;
-        var played = new Game { Title = "ZZ Sidebar sample", PlaySeconds = 1000000, CollectionIds = [manual.Id] };
+        var played = new Game { Title = "ZZ Sidebar sample", PlaySeconds = 1000000, CollectionIds = [manual.Id], IsModded = true };
         _library.Games.Add(played);
         try
         {
             _sort = 0;
+            _motion = false;
+            HomeNav.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            UpdateLayout();
+            var homeLibrary = PageBody.Children.OfType<ItemsControl>().Single(control => control.Name == "HomeLibraryGrid");
+            Require(homeLibrary.Items.Cast<Game[]>().Sum(row => row.Length) == _library.Games.Count,
+                "Home did not show all games in its Library section.");
+            foreach (var button in new[] { AddGame, AddCollection })
+                Require(button.Content is StackPanel { Children: [SymbolIcon plus, TextBlock { Text: "Add new" }] } &&
+                    Equals(plus.Data, this.FindResource("LG.Icon.Plus")), "The Add new action did not put the plus before its text.");
+            var libraryHeader = (Grid)LibrarySectionHeader.Content!;
+            var collapse = libraryHeader.Children.OfType<Button>().First();
+            collapse.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(!LibrarySection.IsVisible && CollectionsSection.IsVisible, "Collapsing Library hid the wrong sidebar section.");
+            collapse.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(LibrarySection.IsVisible, "The Library sidebar section could not be expanded again.");
+            AddCollection.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(ActiveModDialog is { } collectionType &&
+                collectionType.Body.Children.OfType<Button>().Select(AutomationProperties.GetName)
+                    .SequenceEqual(["Manual collection", "Dynamic collection"]), "Add new did not offer manual and dynamic collections.");
+            DialogHost.DismissTop();
+            var librarySort = PageBody.GetVisualDescendants().OfType<Button>().Single(button =>
+                AutomationProperties.GetName(button) == "Sort library");
+            await ChoosePreference(librarySort, "Title Z–A");
+            await WaitFor(() => _shownEntries[0].Game == played && PageBody.Children.OfType<ItemsControl>()
+                .Single(control => control.Name == "HomeLibraryGrid").Items.Cast<Game[]>().FirstOrDefault()?.FirstOrDefault() == played,
+                "The Library sort did not reorder Home and the sidebar together.");
+            await ChoosePreference(PageBody.GetVisualDescendants().OfType<Button>().Single(button =>
+                AutomationProperties.GetName(button) == "Sort library"), "Title A–Z");
+            Navigate(Page.Collections, manual);
+            foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
+            {
+                (Width, Height) = size;
+                await Task.Delay(40);
+                UpdateLayout();
+                var tile = _cardGrid!.Children.OfType<Border>().Single(host => host.Tag == played).Child as GameCard;
+                Require(tile is { IsModded: true }, "The modded portrait did not show its indicator.");
+                var badge = tile!.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "ModdedBadge");
+                using var bright = MakePortrait(Brushes.White);
+                using var dark = MakePortrait(Brushes.Black);
+                tile.Artwork = dark;
+                CaptureControl(tile, Path.Combine(Path.GetDirectoryName(preview)!, $"modded-portrait-dark-{size.Item1}.png"));
+                tile.Artwork = bright;
+                CaptureControl(tile, Path.Combine(Path.GetDirectoryName(preview)!, $"modded-portrait-light-{size.Item1}.png"));
+                var wrench = (SymbolIcon)badge.Child!;
+                Require(badge is
+                {
+                    IsVisible: true, IsHitTestVisible: false, Background: ISolidColorBrush { Color.A: 255 },
+                    BorderBrush: not null, BorderThickness.Top: > 0
+                } && wrench.Foreground is ISolidColorBrush { Color: var colour } && colour == Colors.White && wrench.Opacity == 1 &&
+                    Math.Abs(badge.Bounds.Width - (tile.Bounds.Width < 64 ? 22 : 26)) <= 1,
+                    $"The modded portrait did not show the bordered white wrench. Badge {badge.Bounds.Size}, " +
+                    $"tile {tile.Bounds.Width:0.##}, fill {badge.Background}, border {badge.BorderBrush}, icon {wrench.Foreground}.");
+                Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"modded-collection-{size.Item1}.png"));
+                tile.Artwork = null;
+            }
             Navigate(Page.Collections);
             LibraryCollections.SelectedItem = _shownCollections.Single(item => item.Collection == manual);
             Require(_collection == manual && PageTitle.Text == manual.Name && LibraryGames.SelectedItem == null,
@@ -961,6 +1117,8 @@ internal sealed partial class Launcher
                 (Width, Height) = (size.Width, size.Height);
                 await Task.Delay(40);
                 UpdateLayout();
+                await VerifySidebarReveal(LibrarySectionHeader, LibrarySectionClip, LibrarySection, "library");
+                await VerifySidebarReveal(CollectionsSectionHeader, CollectionsSectionClip, CollectionsSection, "collections");
                 var gameRow = LibraryGames.GetVisualDescendants().OfType<ListBoxItem>().First();
                 var collectionRows = LibraryCollections.GetVisualDescendants().OfType<ListBoxItem>().ToArray();
                 Require(collectionRows.Length == _library.Collections.Count && collectionRows.Count(row => row.IsSelected) == 1 &&
@@ -1001,6 +1159,36 @@ internal sealed partial class Launcher
             Navigate(Page.Collections, dynamicCollection);
         }
 
+        static RenderTargetBitmap MakePortrait(IBrush background)
+        {
+            var bitmap = new RenderTargetBitmap(new PixelSize(40, 60));
+            using var drawing = bitmap.CreateDrawingContext();
+            drawing.FillRectangle(background, new Rect(0, 0, 40, 60));
+            return bitmap;
+        }
+
+        async Task VerifySidebarReveal(ContentControl header, Border clip, Grid section, string name)
+        {
+            var buttons = ((Grid)header.Content!).Children.OfType<Button>().ToArray();
+            var heading = ((StackPanel)buttons[0].Content!).Children.OfType<TextBlock>().Single();
+            var sort = (TextBlock)buttons[1].Content!;
+            Require(heading.FontSize == (double)this.FindResource("LG.Font.12")! && heading.FontWeight == FontWeight.SemiBold &&
+                sort.FontSize == (double)this.FindResource("LG.Font.11")! && sort.FontWeight == FontWeight.Light &&
+                Math.Abs(heading.TranslatePoint(new Point(0, heading.Bounds.Height / 2), header)!.Value.Y -
+                    sort.TranslatePoint(new Point(0, sort.Bounds.Height / 2), header)!.Value.Y) <= 1,
+                "The sidebar section and sort labels did not share the prescribed sizing and centre alignment.");
+            var expanded = clip.Bounds.Height;
+            buttons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitFor(() => clip.Bounds.Height > 0 && clip.Bounds.Height < expanded,
+                $"The {name} sidebar did not animate its collapse.");
+            Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"sidebar-{name}-collapse-{Width:0}.png"));
+            await WaitFor(() => !section.IsVisible && clip.Bounds.Height == 0, $"The {name} sidebar did not finish collapsing.");
+            buttons[0].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitFor(() => clip.Bounds.Height > 0 && clip.Bounds.Height < expanded,
+                $"The {name} sidebar did not animate its reveal.");
+            await WaitFor(() => clip.Bounds.Height >= expanded && Double.IsNaN(section.Height),
+                $"The {name} sidebar did not finish opening.");
+        }
         async Task VerifySortMotion(string previews, double width)
         {
             var beforeSort = MemberCards();
@@ -1018,10 +1206,10 @@ internal sealed partial class Launcher
 
                 void RecordTravel() => remainingTravel.Add(new Vector(translation.X, translation.Y).Length);
             };
-            await SelectPreferenceOption(sortPicker, "Most played");
+            await SelectPreferenceOption(sortPicker, "Playtime");
             await WaitFor(() => _sort == 2, "Selecting a sort option did not update the collection.");
             var mostPlayed = MemberCards()[0];
-            Require(AutomationProperties.GetHelpText(SortPicker()) == "Current value Most played" &&
+            Require(AutomationProperties.GetHelpText(SortPicker()) == "Current value Playtime" &&
                 mostPlayed.Title == played.Title,
                 "The shared sort picker did not apply or display the chosen collection order.");
             await WaitFor(() => PositionsBetween(Position(mostPlayed), originalPosition, firstSlot),
@@ -1294,6 +1482,28 @@ internal sealed partial class Launcher
         }
         Require(await prompts && _store.Load().UsageNoticeAccepted && !_store.Load().Preferences.AutomaticUpdates,
             "The first-usage prompts did not save the new choices.");
+    }
+
+    private async Task VerifyTextFieldHover(TextBox field, string preview)
+    {
+        var frame = field.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "PART_BorderElement");
+        var startingFill = frame.Background;
+        var startingBorder = frame.BorderBrush;
+        var hoverFill = this.FindResource("LG.FieldHover");
+        var pseudoClasses = (IPseudoClasses)field.Classes;
+        Require(frame.Transitions?.OfType<BrushTransition>().Count() == 2 && !field.IsFocused,
+            "The text field was missing its hover transitions or was already focused.");
+        pseudoClasses.Add(":pointerover");
+        try
+        {
+            await WaitFor(() => Equals(frame.Background, hoverFill) &&
+                frame.BorderBrush is ISolidColorBrush { Color: var borderColour } && borderColour == Colors.White,
+                "The text field did not settle into its dark hover surface and white border.");
+            Capture(preview);
+        }
+        finally { pseudoClasses.Remove(":pointerover"); }
+        await WaitFor(() => Equals(frame.Background, startingFill) && Equals(frame.BorderBrush, startingBorder),
+            "The text field hover colours did not fade out.");
     }
 
     private static async Task WaitFor(Func<bool> condition, string error)

@@ -14,7 +14,11 @@ The four files here are linked into the .NET 10 Desktop project. The Windows cor
 
 Profiles with unreadable JSON or null game, collection, or RSS subscription records fall back to the last readable backup. The first successful save after recovery replaces the unusable primary while preserving that backup. Subsequent saves resume backing up the previous primary.
 
-The optional `UsePreviewUpdates` preference records the Next preview opt-in. Fresh and existing profiles default to Stable when the field is absent.
+The optional `UsePreviewUpdates` preference records the Next preview opt-in. Fresh and existing profiles default to Stable when the field is absent. The optional `TileColumns` and `TileMinimumWidth` preferences store the game tile column limit and width threshold. Desktop defaults to six columns and 120 px when those fields are absent.
+
+The optional `AlwaysOpenMagnetLinks` preference defaults to off and records the browser’s confirmation opt-in. Optional Web preferences provide defaults for older profiles, including enabled uBO Lite, pop-up blocking, a visible single tab, IPv4 DHT, a stop ratio of 1.0, hidden files, and filename extensions. The RSS internal-browser and internal-download-manager preferences both default to off. [Web settings](desktop/settings.md#avalonialglauncherdesktoplauncherwebsettingscs)
+
+Optional game properties store the added date, manual tags, scale, and Steam release date, developers, and publishers. Steam details are scoped to the ID that supplied them. Collection creation dates and older game addition dates can be unknown. Dynamic rules also accept Developer, Publisher, and Modded. The launcher populates Modded from installation records after loading a profile. Profiles can override the base colourway, widget radii and shadow strength, or disable playtime tracking. Optional flags hide the tile playtime caption or mod indicator, or enable friendly launch dates. Older profiles retain both captions and numeric dates by default.
 
 Desktop saves backdrop, portrait, and logo overrides as separate GUIDs in the current profile. `CustomArtworkPath` resolves them under `artwork/custom`. The optional `ThemeMusicFile` is a GUID plus a supported extension. `ThemeMusicPath` validates the complete filename before resolving it under `music`. Optional original basenames are saved with each override for display in Manage metadata. Earlier overrides can have an asset ID without an original name. Existing profiles start with theme music off.
 
@@ -28,6 +32,8 @@ Desktop saves backdrop, portrait, and logo overrides as separate GUIDs in the cu
 
 Steam images are staged beside the target cache entry and decoded before publication. The validator checks one staged image at a time. Unreadable candidates and canceled downloads leave the existing cache in place, and Steam can supply an alternative candidate when available. Display paths can retry unreadable cached files when fetching is available.
 
+`GetGameDetails` fetches Steam's developer and publisher lists and parses complete English release dates for the matching app. Coming-soon and incomplete dates remain unset.
+
 ## `src/GameSessions.cs`
 
 [Source](../../src/GameSessions.cs)
@@ -37,6 +43,8 @@ Steam images are staged beside the target cache entry and decoded before publica
 - **Used by** — Desktop `Launcher.axaml.cs` handles launch, pauses background work as appropriate, and persists playtime. `tests/CoreTests.cs` exercises a short-lived process, its completion event, and the High priority opt-in.
 
 On Windows, Desktop can opt in to setting `ProcessPriorityClass.High` on the process started and tracked by `GameSessions.Launch`. The library stores the opt-in as `LauncherPreferences.SetProcessPriority`, with existing and fresh profiles defaulting to off. The priority change is best effort so short-lived processes and Windows access restrictions do not interrupt session tracking. High is the highest non-realtime Windows process priority class. [Windows scheduling priorities](https://learn.microsoft.com/en-us/windows/win32/procthread/scheduling-priorities)
+
+Sessions started with tracking off still report process exit. Disabling tracking discards active and pending durations. The next launch uses the saved preference. Clearing playtime resets pending durations and restarts any active timers.
 
 ## `src/ArtworkFraming.cs`
 

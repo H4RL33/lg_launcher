@@ -13,8 +13,10 @@ internal sealed record ModPackageKey(ModProviderId Provider, string Variant, str
 }
 
 internal sealed record ModPackageDescriptor(ModPackageKey Key, Uri Address, long Length, string[] Files);
-internal sealed record ModPackageCheck(string Status, ModPackageDescriptor? Download);
-internal sealed record CachedModPackage(ModPackageKey Key, string ContentDirectory, Dictionary<string, string> Files);
+internal sealed record ModUpstreamRelease(string Version, Uri Page);
+internal sealed record ModPackageCheck(string Status, ModPackageDescriptor? Download, ModUpstreamRelease? Release = null);
+internal sealed record CachedModPackage(ModPackageKey Key, string ContentDirectory, Dictionary<string, string> Files,
+    ModPackageDescriptor? Source = null);
 
 internal sealed class ModPackageStore(string profile, HttpClient? http = null)
 {
@@ -26,7 +28,7 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
     internal const string ReShadeVulkanManifestDigest = "AA21713718843E531DA396E2BFC80772C9CB3C369D6C30B836BE6B0AE812D503";
     internal static readonly ModProviderId[] FixedPackageProviders = [ModProviderId.OptiScaler, ModProviderId.ReFramework,
         ModProviderId.SpecialK, ModProviderId.ReShade];
-    private sealed record Entry(ModPackageKey Key, Dictionary<string, string> Files);
+    private sealed record Entry(ModPackageKey Key, Dictionary<string, string> Files, Uri? Address = null, long Length = 0);
 
     private static readonly HttpClient Downloads = new(new HttpClientHandler { AllowAutoRedirect = false })
     {
@@ -88,7 +90,8 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
             }).OfType<Version>().Max();
             if (latest == null) throw new InvalidDataException("The ReShade release list contained no stable versions.");
             return latest > Version.Parse(approved.Key.Version)
-                ? new($"version {latest} available upstream (awaiting review)", approved)
+                ? new($"version {latest} available upstream (awaiting review)", approved,
+                    new(latest.ToString(), new("https://reshade.me/#download")))
                 : new(ApprovedStatus(), approved);
         }
         if (provider == ModProviderId.SpecialK)
@@ -103,19 +106,61 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
         using var document = JsonDocument.Parse(json);
         var release = document.RootElement;
         var tag = release.GetProperty("tag_name").GetString() ?? "unknown";
-        var officialMatch = release.GetProperty("assets").EnumerateArray().Any(asset =>
+        var assets = release.GetProperty("assets").EnumerateArray().ToArray();
+        var officialMatch = assets.Any(asset =>
             asset.TryGetProperty("browser_download_url", out var address) && address.GetString() == approved.Address.AbsoluteUri &&
             asset.TryGetProperty("digest", out var digest) && String.Equals(digest.GetString(), "sha256:" + approved.Key.Digest, StringComparison.OrdinalIgnoreCase));
-        return officialMatch ? new(ApprovedStatus(), approved)
-            : new($"Upstream release {tag} is awaiting verification. Approved version {approved.Key.Version} remains available.", approved);
+        if (officialMatch) return new(ApprovedStatus(), approved);
+        var versionLabel = provider == ModProviderId.ReFramework ? String.Join('-', tag.Split('-').Take(2)) : tag;
+        ModUpstreamRelease? upstream = null;
+        if (IsNewer(provider, versionLabel, approved.Key.Version))
+        {
+            upstream = new(versionLabel, new($"https://github.com/{repository}/releases/tag/{Uri.EscapeDataString(tag)}"));
+            var candidates = assets.Select(asset => ReadUpdateAsset(asset, versionLabel, approved)).OfType<ModPackageDescriptor>().Take(2).ToArray();
+            if (candidates.Length == 1)
+            {
+                var download = candidates[0];
+                var cached = List(provider).Any(package => package.Key == download.Key);
+                return new(cached ? $"up-to-date ({download.Key.Version})" : $"version {download.Key.Version} available", download, upstream);
+            }
+        }
+        return new($"Upstream release {tag} is awaiting verification. Approved version {approved.Key.Version} remains available.", approved, upstream);
 
         string ApprovedStatus() => List(provider).Any(package => package.Key == approved.Key)
             ? "up-to-date"
             : $"version {approved.Key.Version} available";
     }
 
+    internal static bool IsNewer(ModProviderId provider, string candidate, string current)
+    {
+        if (provider == ModProviderId.ReFramework)
+            return Nightly(candidate, out var next) && Nightly(current, out var previous) && next > previous;
+        return Version.TryParse(candidate.TrimStart('v'), out var nextVersion) &&
+            Version.TryParse(current.TrimStart('v'), out var previousVersion) && nextVersion > previousVersion;
+
+        static bool Nightly(string value, out int revision) =>
+            Int32.TryParse(value.StartsWith("nightly-", StringComparison.Ordinal) ? value.Split('-').ElementAtOrDefault(1) : null, out revision);
+    }
+
+    private static ModPackageDescriptor? ReadUpdateAsset(JsonElement asset, string version, ModPackageDescriptor approved)
+    {
+        if (!asset.TryGetProperty("name", out var nameValue) || nameValue.GetString() is not { } name ||
+            !asset.TryGetProperty("browser_download_url", out var url) || !Uri.TryCreate(url.GetString(), UriKind.Absolute, out var address) ||
+            !asset.TryGetProperty("size", out var sizeValue) || !sizeValue.TryGetInt64(out var size) || size is <= 0 or > 256L * 1024 * 1024 ||
+            !asset.TryGetProperty("digest", out var digestValue) || digestValue.GetString() is not { } digest ||
+            !digest.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) || !VerifiedDownload.IsSha256(digest[7..]) ||
+            !AllowedAddress(address, approved.Key.Provider, redirect: false) || address.Segments[^1] != name) return null;
+        var expected = approved.Key.Provider == ModProviderId.ReFramework ? name == "REFramework.zip"
+            : name.StartsWith($"Optiscaler_{version.TrimStart('v')}", StringComparison.OrdinalIgnoreCase) &&
+                name.EndsWith(".7z", StringComparison.OrdinalIgnoreCase) &&
+                !name.Contains("debug", StringComparison.OrdinalIgnoreCase);
+        return expected ? new(approved.Key with { Version = version, Digest = digest[7..].ToUpperInvariant() }, address, size, approved.Files) : null;
+    }
+
     internal async Task<CachedModPackage> AcquireAsync(ModPackageDescriptor descriptor, CancellationToken token, IProgress<int>? progress = null)
     {
+        if (descriptor.Key.Provider == ModProviderId.RenoDx)
+            throw new InvalidDataException("Download RenoDX from the game's Mods dialog.");
         await _operation.WaitAsync(token).ConfigureAwait(false);
         try
         {
@@ -136,14 +181,27 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
                         files.GetValueOrDefault(ReShadeVulkanManifest) != ReShadeVulkanManifestDigest))
                     throw new InvalidDataException("The ReShade payload does not match the reviewed x64 release.");
                 File.Delete(archive);
-                WriteEntry(Path.Combine(stage, "package.json"), new(descriptor.Key, files));
+                WriteEntry(Path.Combine(stage, "package.json"), new(descriptor.Key, files, descriptor.Address, descriptor.Length));
                 token.ThrowIfCancellationRequested();
                 Directory.Move(stage, destination);
-                return new(descriptor.Key, Path.Combine(destination, "files"), files);
+                return new(descriptor.Key, Path.Combine(destination, "files"), files, descriptor);
             }
             finally { if (Directory.Exists(stage)) Directory.Delete(stage, recursive: true); }
         }
         finally { _operation.Release(); }
+    }
+
+    internal async Task<byte[]> FetchRenoDxAsync(ModPackageDescriptor descriptor, CancellationToken token, IProgress<int>? progress = null)
+    {
+        if (descriptor.Key.Provider != ModProviderId.RenoDx || descriptor.Files is not [var filename] ||
+            !ModRenoDxCatalog.IsAddonName(filename) || !descriptor.Address.IsAbsoluteUri ||
+            descriptor.Address.AbsolutePath.Split('/')[^1] != filename)
+            throw new InvalidDataException("The RenoDX add-on filename is invalid.");
+        using var download = new MemoryStream();
+        await Download(descriptor, download, token, progress).ConfigureAwait(false);
+        download.Position = 0;
+        ModArchiveReader.ValidateRenoDx(download);
+        return download.ToArray();
     }
 
     internal IReadOnlyList<CachedModPackage> List(ModProviderId provider)
@@ -152,6 +210,29 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
         ModPaths.RejectReparsePoints(_root);
         return Directory.EnumerateDirectories(_root).Where(path => VerifiedDownload.IsSha256(Path.GetFileName(path)))
             .Select(Read).OfType<CachedModPackage>().Where(package => package.Key.Provider == provider).ToArray();
+    }
+
+    internal ModPackageDescriptor Preferred(ModProviderId provider, ModPackageDescriptor? checkedPackage = null,
+        IReadOnlyList<CachedModPackage>? cached = null)
+    {
+        var approved = Approved(provider);
+        var newest = checkedPackage ?? approved;
+        if (provider is not (ModProviderId.OptiScaler or ModProviderId.ReFramework)) return newest;
+        foreach (var package in cached ?? List(provider))
+        {
+            if (package.Source is { } source && source.Key.Variant == approved.Key.Variant &&
+                source.Files.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(approved.Files) &&
+                IsNewer(provider, source.Key.Version, newest.Key.Version))
+                newest = source;
+        }
+        return newest;
+    }
+
+    internal ModPackageDescriptor PreferredForSetup(ModProviderId provider, ModPackageDescriptor? checkedPackage = null)
+    {
+        var cached = List(provider);
+        var preferred = Preferred(provider, cached: cached);
+        return cached.Any(package => package.Key == preferred.Key) ? preferred : checkedPackage ?? preferred;
     }
 
     internal async Task DeleteAsync(ModPackageKey key, CancellationToken token)
@@ -183,8 +264,11 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
         try
         {
             var entry = JsonSerializer.Deserialize<Entry>(File.ReadAllText(marker));
-            return entry != null && Path.GetFileName(directory) == entry.Key.StoreId
-                ? new(entry.Key, Path.Combine(directory, "files"), new(entry.Files, StringComparer.OrdinalIgnoreCase)) : null;
+            if (entry == null || Path.GetFileName(directory) != entry.Key.StoreId) return null;
+            var source = entry.Address != null && entry.Length is > 0 and <= 256L * 1024 * 1024 &&
+                AllowedAddress(entry.Address, entry.Key.Provider, redirect: false)
+                ? new ModPackageDescriptor(entry.Key, entry.Address, entry.Length, entry.Files.Keys.ToArray()) : null;
+            return new(entry.Key, Path.Combine(directory, "files"), new(entry.Files, StringComparer.OrdinalIgnoreCase), source);
         }
         catch (JsonException) { return null; }
     }

@@ -16,13 +16,32 @@ namespace LGLauncher;
 internal sealed partial class Launcher
 {
     private const string SupportUrl = "https://ko-fi.com/h4rl33";
+    private const int DefaultTileColumns = 6;
+    private const int MaximumTileColumns = 10;
+    private const int DefaultTileMinimumWidth = 120;
+    private static readonly int[] TileColumnChoices = Enumerable.Range(1, MaximumTileColumns).ToArray();
+    private static readonly int[] TileWidthChoices = [32, 48, 64, 80, 96, 112, DefaultTileMinimumWidth, 128, 144, 160, 192, 224, 256];
     private const string UsageDisclosure =
         "LG Launcher is for legally obtained games. Do not use it to launch pirated copies. LG Launcher does not condone video game piracy.";
     private const int MinimumInterfaceScale = 75;
     private const int MaximumInterfaceScale = 200;
     private static readonly int[] FontSizes = [11, 12, 13, 14, 15, 16, 17, 18];
     private static readonly int[] InterfaceScales = [MinimumInterfaceScale, 100, 125, 150, 175, MaximumInterfaceScale];
+    private sealed record Colourway(string Name, string Canvas, string Sidebar, string Surface, string Raised, string Line,
+        string Text, string Muted, string Selection, string Folder);
+
+    private static readonly Colourway[] Colourways =
+    [
+        new("Classic", "#0E111C", "#121624", "#191D2E", "#252A40", "#323950", "#F1F2FC", "#A9AEC7", "#3C365D", "#F0BC79"),
+        new("Adwaita", "#222226", "#2E2E32", "#343438", "#39393D", "#4C4C51", "#FFFFFF", "#C0C0C6", "#45454A", "#F8E45C"),
+        new("Catppuccin Mocha", "#1E1E2E", "#181825", "#242438", "#313244", "#45475A", "#CDD6F4", "#BAC2DE", "#45475A", "#F9E2AF"),
+        new("Everforest", "#2D353B", "#232A2E", "#343F44", "#3D484D", "#4F585E", "#D3C6AA", "#B7BDA8", "#4F585E", "#DBBC7F"),
+        new("Tokyo Night", "#1A1B26", "#16161E", "#222436", "#292E42", "#3B4261", "#C0CAF5", "#A9B1D6", "#394B70", "#E0AF68")
+    ];
+
+    private Colourway ActiveColourway => Colourways.FirstOrDefault(palette => palette.Name == _library.Preferences.Colourway) ?? Colourways[0];
     private event Action? PreferencesChanged;
+    private bool TrackPlaytime => !_library.Preferences.DisablePlaytimeTracking;
 
     private int EffectiveFontSize => Math.Clamp(_library.Preferences.InterfaceFontSize is 0
         ? (int)Math.Round(_defaultFontSize) : _library.Preferences.InterfaceFontSize, 11, 18);
@@ -44,6 +63,11 @@ internal sealed partial class Launcher
     {
         var prefs = _library.Preferences;
         bool SaveScale(int percent) => SavePreference(prefs.InterfaceScalePercent, percent, value => prefs.InterfaceScalePercent = value, ApplyInterfaceScale);
+        var colourway = BuildChoicePicker("Colourway", Colourways, ActiveColourway, palette => palette.Name,
+            palette => SavePreference(prefs.Colourway, palette == Colourways[0] ? null : palette.Name,
+                value => prefs.Colourway = value, ApplyColourway));
+        colourway.HorizontalAlignment = HorizontalAlignment.Right;
+        colourway.MinWidth = 154;
         return new StackPanel
         {
             Spacing = 14,
@@ -66,11 +90,13 @@ internal sealed partial class Launcher
                     Spacing = 9,
                     Children =
                     {
+                        PreferenceRow("Colourway", colourway),
                         PreferenceToggle("Translucency", "Use frosted glass in the launcher.",
                             !prefs.DisableTranslucency, value => prefs.DisableTranslucency = !value, ApplyTranslucency),
                         PreferenceRow("Default accent colour", BuildDefaultAccentPicker()),
                         PreferenceToggle("Artwork accent colour", "Match the accent colour to the artwork on game details.",
-                            !prefs.DisableArtworkAccent, value => prefs.DisableArtworkAccent = !value, ApplyArtworkAccent)
+                            !prefs.DisableArtworkAccent, value => prefs.DisableArtworkAccent = !value, ApplyArtworkAccent),
+                        SettingsRow("Widget Customisation", "LG.Icon.Controls", Page.Widgets)
                     }
                 }),
                 Section("Motion", new StackPanel
@@ -90,14 +116,121 @@ internal sealed partial class Launcher
         };
     }
 
+    private Control BuildWidgetSettings()
+    {
+        var prefs = _library.Preferences;
+        var radius = BuildChoicePicker("Corner radius", new[] { -1, 0, 4, 8, 12, 16, 20 }, prefs.WidgetRadius ?? -1,
+            value => value < 0 ? "Default" : $"{value} px",
+            value => SavePreference(prefs.WidgetRadius, value < 0 ? (int?)null : value,
+                radius => prefs.WidgetRadius = radius, ApplyWidgetTheme));
+        var shadows = BuildChoicePicker("Shadow strength", new[] { 0, 25, 50, 75, 100 }, prefs.WidgetShadowStrength ?? 100,
+            value => value == 0 ? "Off" : $"{value}%",
+            value => SavePreference(prefs.WidgetShadowStrength, value == 100 ? (int?)null : value,
+                strength => prefs.WidgetShadowStrength = strength, ApplyWidgetTheme));
+        foreach (var picker in new[] { radius, shadows })
+        {
+            picker.HorizontalAlignment = HorizontalAlignment.Right;
+            picker.MinWidth = 100;
+        }
+        return Section("Shape and shadows", new StackPanel
+        {
+            Spacing = 9,
+            Children = { PreferenceRow("Corner radius", radius), PreferenceRow("Shadow strength", shadows) }
+        });
+    }
+
+    private void ApplyWidgetTheme()
+    {
+        var prefs = _library.Preferences;
+        foreach (var key in new[] { "LG.ControlRadius", "LG.PanelRadius", "LG.ArtworkInsetRadius" })
+        {
+            if (prefs.WidgetRadius is { } radius) Resources[key] = new CornerRadius(Math.Clamp(radius, 0, 20));
+            else Resources.Remove(key);
+        }
+
+        var strength = Math.Clamp(prefs.WidgetShadowStrength ?? 100, 0, 100);
+        SetShadow("LG.SmallShadow", "0 2 8", 0x55);
+        SetShadow("LG.PopupShadow", "0 7 20", 0x55);
+        SetShadow("LG.ModalShadow", "0 14 48", 0x90);
+
+        void SetShadow(string key, string geometry, int opacity)
+        {
+            Resources[key] = strength == 0 ? default(BoxShadows)
+                : BoxShadows.Parse($"{geometry} #{opacity * strength / 100:X2}000000");
+        }
+    }
+
+    private void ApplyColourway()
+    {
+        var palette = ActiveColourway;
+        var classic = palette == Colourways[0];
+        var canvas = Color.Parse(palette.Canvas);
+        var sidebar = Color.Parse(palette.Sidebar);
+        var surface = Color.Parse(palette.Surface);
+        var raised = Color.Parse(palette.Raised);
+        var text = Color.Parse(palette.Text);
+        SetColour("LG.Canvas", canvas);
+        SetColour("LG.FieldHover", ArtworkAccent.Mix(canvas, Colors.Black, .35));
+        SetColour("LG.Sidebar", sidebar);
+        SetColour("LG.Surface", surface);
+        SetColour("LG.SurfaceRaised", raised);
+        SetColour("LG.Line", Color.Parse(palette.Line));
+        SetColour("LG.Text", text);
+        SetColour("LG.Muted", Color.Parse(palette.Muted));
+        SetColour("LG.FolderIcon", Color.Parse(palette.Folder));
+        SetColour("LG.ArtworkGlass", WithAlpha(sidebar, 0xB3));
+        SetColour("LG.ArtworkGlassLine", WithAlpha(text, 0x38));
+        if (classic)
+        {
+            foreach (var key in new[] { "LG.MainBackground", "LG.DetailShade", "LG.ArtworkFallback" }) Resources.Remove(key);
+        }
+        else
+        {
+            Resources["LG.MainBackground"] = new SolidColorBrush(canvas);
+            Resources["LG.DetailShade"] = new LinearGradientBrush
+            {
+                StartPoint = RelativePoint.Parse("0%,100%"),
+                EndPoint = RelativePoint.Parse("23%,0%"),
+                GradientStops = { new(canvas, 0), new(WithAlpha(canvas, 0xC0), .32), new(WithAlpha(canvas, 0x4D), .7), new(WithAlpha(canvas, 3), 1) }
+            };
+            Resources["LG.ArtworkFallback"] = new SolidColorBrush(raised);
+        }
+        ApplyArtworkAccent();
+
+        void SetColour(string key, Color colour)
+        {
+            if (classic) Resources.Remove(key);
+            else Resources[key] = new SolidColorBrush(colour);
+        }
+
+        static Color WithAlpha(Color colour, byte alpha) => Color.FromArgb(alpha, colour.R, colour.G, colour.B);
+    }
+
     private Control BuildLibrarySettings()
     {
         var prefs = _library.Preferences;
+        var clearPlaytime = ModDeleteButton("Clear playtime data", () => _ = ClearPlaytime());
+        clearPlaytime.HorizontalAlignment = HorizontalAlignment.Right;
+        var dateFormat = BuildChoicePicker("Date format", new[] { false, true }, prefs.FriendlyLaunchDates,
+            friendly => friendly ? "Friendly" : "Numeric",
+            friendly => SavePreference(prefs.FriendlyLaunchDates, friendly, value => prefs.FriendlyLaunchDates = value, null));
+        dateFormat.MinWidth = 112;
+        dateFormat.HorizontalAlignment = HorizontalAlignment.Right;
         return new StackPanel
         {
             Spacing = 14,
             Children =
             {
+                Section("General", new StackPanel
+                {
+                    Spacing = 9,
+                    Children =
+                    {
+                        PreferenceToggle("Track playtime", "Record how long games run and show their playtime.",
+                            TrackPlaytime, value => prefs.DisablePlaytimeTracking = !value, ApplyPlaytimeTracking),
+                        PreferenceRow("Clear playtime data", clearPlaytime)
+                    }
+                }),
                 Section("Game Details", new StackPanel
                 {
                     Spacing = 9,
@@ -108,14 +241,68 @@ internal sealed partial class Launcher
                         PreferenceToggle("Theme music", "Play a custom track or a matched, installed Steam theme when viewing a game.",
                             prefs.PlayThemeMusic, value => prefs.PlayThemeMusic = value, UpdateThemeMusic,
                             overrideReason: () => OperatingSystem.IsWindows() ? null : "Theme music playback is available on Windows."),
-                        PreferenceToggle("Show Store Tags", "Show Steam store tags below genres on game details.",
-                            prefs.ShowStoreTags, value => prefs.ShowStoreTags = value)
+                        PreferenceToggle("Show Store Tags", "Show tags below genres on game details.",
+                            prefs.ShowStoreTags, value => prefs.ShowStoreTags = value),
+                        PreferenceRow("Date format", dateFormat)
+                    }
+                }),
+                Section("Game Tiles", new StackPanel
+                {
+                    Spacing = 9,
+                    Children =
+                    {
+                        PreferenceToggle("Show mod indicator", "Show a wrench over modded game artwork.",
+                            !prefs.HideTileModIndicator, value => prefs.HideTileModIndicator = !value),
+                        PreferenceToggle("Show playtime caption", "Show tracked time below game artwork.",
+                            !prefs.HideTilePlaytime, value => prefs.HideTilePlaytime = !value,
+                            overrideReason: () => TrackPlaytime ? null : "Turn on Track playtime to show captions."),
+                        PreferenceChoice("Columns", TileColumnChoices, GameTileColumns, "",
+                            value => SavePreference(prefs.TileColumns, value == DefaultTileColumns ? (int?)null : value,
+                                count => prefs.TileColumns = count, null)),
+                        PreferenceChoice("Minimum width", TileWidthChoices, GameTileMinimumWidth, " px",
+                            value => SavePreference(prefs.TileMinimumWidth, value == DefaultTileMinimumWidth ? (int?)null : value,
+                                width => prefs.TileMinimumWidth = width, null))
                     }
                 }),
                 Section("Home", PreferenceToggle("Display most-recent RSS articles on Home",
                     "Show a row of recent articles from enabled feeds.", prefs.ShowRecentRss, value => prefs.ShowRecentRss = value))
             }
         };
+    }
+
+    private int GameTileColumns => Math.Clamp(_library.Preferences.TileColumns ?? DefaultTileColumns, 1, MaximumTileColumns);
+    private int GameTileMinimumWidth =>
+        _library.Preferences.TileMinimumWidth is { } width && TileWidthChoices.Contains(width) ? width : DefaultTileMinimumWidth;
+
+    private int FittingGameTileColumns(double width) => Math.Clamp(
+        (int)((width + GameTileColumnSpacing) / (GameTileMinimumWidth + GameTileColumnSpacing)), 1, GameTileColumns);
+
+    private void ApplyPlaytimeTracking()
+    {
+        if (TrackPlaytime) return;
+        _sessions.StopTrackingPlaytime();
+        if (_sort == 2) _sort = 0;
+        if (_librarySort == 2) _librarySort = 0;
+        if (_collectionsSort == 2) _collectionsSort = 0;
+        RenderSidebar();
+    }
+
+    private async Task ClearPlaytime()
+    {
+        if (!await Confirm("Clear playtime data?", "Remove the recorded playtime for every game in your library.",
+            "Clear playtime", destructive: true)) return;
+        var previous = _library.Games.Where(game => game.PlaySeconds != 0).Select(game => (Game: game, game.PlaySeconds)).ToArray();
+        var previouslyUnsaved = _saveFailed;
+        foreach (var entry in previous) entry.Game.PlaySeconds = 0;
+        if (!Save())
+        {
+            foreach (var entry in previous) entry.Game.PlaySeconds = entry.PlaySeconds;
+            _saveFailed = previouslyUnsaved;
+            return;
+        }
+        _sessions.ResetPlaytime();
+        RenderSidebar();
+        Status("Cleared playtime data.");
     }
 
     private Control BuildAbout()
@@ -146,10 +333,20 @@ internal sealed partial class Launcher
         };
     }
 
+    private static ToggleSwitch CompactToggle(bool isChecked = false) => new()
+    {
+        Classes = { "lg-compact" },
+        IsChecked = isChecked,
+        OnContent = "",
+        OffContent = "",
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Center
+    };
+
     private Control PreferenceToggle(string title, string description, bool current, Action<bool> save,
         Action? apply = null, Func<string?>? overrideReason = null)
     {
-        var toggle = new ToggleSwitch { IsChecked = current, OnContent = "", OffContent = "" };
+        var toggle = CompactToggle(current);
         AutomationProperties.SetName(toggle, title);
         var row = PreferenceRow(title, toggle, description);
         toggle.IsCheckedChanged += (_, _) =>
@@ -273,7 +470,8 @@ internal sealed partial class Launcher
     }
 
     private Button BuildChoicePicker<T>(string title, IEnumerable<T> choices, T current, Func<T, string> format, Func<T, bool> select,
-        bool textSearch = false, bool wrapLabel = false, Action<T, Action<T>>? editCustom = null)
+        bool textSearch = false, bool wrapLabel = false, Action<T, Action<T>>? editCustom = null, bool textOnly = false,
+        Func<T, string>? currentLabel = null, Func<T, SymbolIcon>? choiceIcon = null)
     {
         var value = Label("");
         value.VerticalAlignment = VerticalAlignment.Center;
@@ -305,9 +503,15 @@ internal sealed partial class Launcher
         var picker = new Button
         {
             HorizontalAlignment = HorizontalAlignment.Stretch, Classes = { "lg", "choice-picker" },
-            Content = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 8, Children = { value, chevron } },
+            Content = textOnly ? value : new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 8, Children = { value, chevron } },
             ContextMenu = menu
         };
+        if (textOnly)
+        {
+            picker.Classes.Remove("choice-picker");
+            picker.Classes.Add("quiet");
+            picker.Padding = new Thickness(7, 0);
+        }
         AutomationProperties.SetName(picker, title);
         MenuItem? customItem = null;
         Action? commit = null;
@@ -315,6 +519,7 @@ internal sealed partial class Launcher
         {
             var item = menu.AddAction(format(choice), () => ApplyAfterClose(() => SelectChoice(choice)));
             item.ToggleType = MenuItemToggleType.Radio;
+            item.Icon = choiceIcon?.Invoke(choice);
             item.Tag = choice;
         }
         if (editCustom != null)
@@ -377,11 +582,36 @@ internal sealed partial class Launcher
 
         void UpdateChoice()
         {
-            value.Text = format(current);
-            AutomationProperties.SetHelpText(picker, $"Current value {value.Text}");
+            value.Text = currentLabel?.Invoke(current) ?? format(current);
+            AutomationProperties.SetHelpText(picker, $"Current value {format(current)}");
             var items = menu.Items.OfType<MenuItem>();
             var selected = items.FirstOrDefault(item => item != customItem && Equals(item.Tag, current)) ?? customItem;
             foreach (var item in items) item.IsChecked = item == selected;
+        }
+    }
+
+    private static void WireNumberPreference(NumericUpDown number, Func<decimal, bool> save)
+    {
+        var previous = number.Value;
+        number.Spinned += (_, _) => Commit();
+        number.ValueChanged += (_, _) =>
+        {
+            if (!number.IsKeyboardFocusWithin) Commit();
+        };
+        number.LostFocus += (_, _) =>
+        {
+            if (!number.IsKeyboardFocusWithin) Commit();
+        };
+        number.AddHandler(KeyDownEvent, (_, args) =>
+        {
+            if (args.Key == Key.Enter && !args.Handled) Commit();
+        });
+
+        void Commit()
+        {
+            if (number.Value == previous) return;
+            if (number.Value is { } value && save(value)) previous = value;
+            else number.Value = previous;
         }
     }
 

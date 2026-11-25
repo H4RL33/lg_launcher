@@ -345,13 +345,16 @@ internal sealed partial class Launcher
         {
             foreach (var key in new[]
             {
-                "LG.Accent", "LG.AccentFill", "LG.OnAccent", "LG.Selection", listSelection, listHover, listPressed, textSelection, textFocus,
+                "LG.Accent", "LG.AccentFill", "LG.OnAccent", "LG.Selection", "LG.WebRowContextTint",
+                listSelection, listHover, listPressed, textSelection, textFocus,
                 "ToggleSwitchFillOn", "ToggleSwitchFillOnPointerOver", "ToggleSwitchFillOnPressed",
                 "ToggleSwitchKnobFillOn", "ToggleSwitchKnobFillOnPointerOver", "ToggleSwitchKnobFillOnPressed"
             })
             {
                 Resources.Remove(key);
             }
+            if (ActiveColourway != Colourways[0])
+                Resources["LG.Selection"] = new SolidColorBrush(Color.Parse(ActiveColourway.Selection));
             return;
         }
 
@@ -364,6 +367,7 @@ internal sealed partial class Launcher
         var indicator = ArtworkAccent.ForDarkSurface(color);
         SetBrush("LG.Accent", indicator);
         SetBrush("LG.Selection", selection);
+        SetBrush("LG.WebRowContextTint", Color.FromArgb(0x40, indicator.R, indicator.G, indicator.B));
         SetBrush(listSelection, selection);
         SetBrush(listHover, hover);
         SetBrush(listPressed, ArtworkAccent.Mix(surface, hover, .72));

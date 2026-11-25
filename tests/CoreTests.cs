@@ -163,6 +163,9 @@ internal static class CoreTests
             Check(oldLibrary.UsageNoticeAccepted && oldLibrary.Preferences.InterfaceFont == null && oldLibrary.Preferences.ShowRecentRss,
                 "Existing libraries enable Home RSS by default without resetting their acknowledgment");
             Check(oldLibrary.Preferences.ShowStoreTags, "Old settings keep store tags visible by default");
+            Check(oldLibrary.Preferences.TileColumns == null && library.Preferences.TileColumns == null &&
+                oldLibrary.Preferences.TileMinimumWidth == null && library.Preferences.TileMinimumWidth == null,
+                "Old and new profiles use the default game tile geometry");
             Check(!oldLibrary.Preferences.DisableArtworkAccent && !library.Preferences.DisableArtworkAccent,
                 "Existing and new profiles enable artwork accents by default");
             Check(!oldLibrary.Preferences.SetProcessPriority && !library.Preferences.SetProcessPriority,
@@ -189,6 +192,18 @@ internal static class CoreTests
             library.Games[0].SteamGenresComplete = true;
             library.Games[0].SteamTags = SteamCatalog.ParseStoreTags(2380050, tagPage);
             library.Games[0].TagSteamId = library.Games[0].SteamId;
+            library.Games[0].ManualTags = new List<string> { "Co-op" };
+            library.Games[0].Developers = new List<string> { "Rockstar North" };
+            library.Games[0].Publishers = new List<string> { "Rockstar Games" };
+            library.Games[0].DetailsSteamId = 19;
+            library.Games[0].ReleaseDate = new DateTime(2026, 10, 21);
+            library.Games[0].Scale = GameScale.AAA;
+            library.Preferences.DisablePlaytimeTracking = true;
+            library.Preferences.HideTilePlaytime = true;
+            library.Preferences.HideTileModIndicator = true;
+            library.Preferences.TileColumns = 4;
+            library.Preferences.TileMinimumWidth = 160;
+            library.Preferences.FriendlyLaunchDates = true;
             library.Preferences.ShowStoreTags = false;
             library.Preferences.DisableArtworkAccent = true;
             library.Preferences.DefaultAccentColour = "#31415D";
@@ -204,6 +219,26 @@ internal static class CoreTests
             });
             store.Save(library);
             var saved = store.Load();
+            var savedGame = saved.Games[0];
+            Check(saved.Preferences.HideTilePlaytime && saved.Preferences.HideTileModIndicator && saved.Preferences.FriendlyLaunchDates,
+                "Tile visibility and launch date preferences survive reload");
+            Check(saved.Preferences.TileColumns == 4 && saved.Preferences.TileMinimumWidth == 160, "The game tile geometry survives reload");
+            Check(savedGame.TagNames.SequenceEqual(new[] { "Co-op" }) && savedGame.SteamTagsFor().Contains("Space Sim"),
+                "Manual tags override the displayed tag list while Steam tags remain available");
+            var developerRule = new CollectionRule
+            {
+                Attribute = CollectionAttribute.Developer,
+                Operator = CollectionOperator.Contains,
+                Qualifier = "rockstar"
+            };
+            Check(developerRule.Matches(savedGame) &&
+                new CollectionRule { Attribute = CollectionAttribute.Publisher, Qualifier = "Rockstar Games" }.Matches(savedGame),
+                "Developer and publisher rules match persisted Steam details");
+            Check(savedGame.ReleaseDate?.Year == 2026 && savedGame.Scale == GameScale.AAA && saved.Preferences.DisablePlaytimeTracking,
+                "Game release date, scale and playtime preference survive reload");
+            savedGame.IsModded = true;
+            Check(new CollectionRule { Attribute = CollectionAttribute.Modded, Qualifier = "Yes" }.Matches(savedGame),
+                "Modded rules use the current managed installation status");
             Check(saved.UsageNoticeAccepted, "The first-run acknowledgement is stored between launches");
             Check(saved.Preferences.UsePreviewUpdates, "Next preview opt-in survives reload");
             Check(saved.Folder == root && saved.Games[0].CollectionIds.Single() == saved.Collections[0].Id, "Watched folder and collection membership survive reload");

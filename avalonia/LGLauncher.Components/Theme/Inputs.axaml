@@ -192,7 +192,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource LG.Line}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="{DynamicResource LG.ControlRadius}"/>
-        <Setter Property="BoxShadow" Value="0 7 20 #55000000"/>
+        <Setter Property="BoxShadow" Value="{DynamicResource LG.PopupShadow}"/>
         <Setter Property="Padding" Value="4"/>
     </Style>
     <Style Selector="ListBox.lg-search-results ListBoxItem">
@@ -246,6 +246,9 @@
     <Style Selector="ToggleSwitch">
         <Setter Property="KnobTransitions" Value="{x:Null}"/>
     </Style>
+    <Style Selector="ToggleSwitch.lg-compact /template/ Border#OuterBorder, ToggleSwitch.lg-compact /template/ Border#SwitchKnobBounds, ToggleSwitch.lg-compact /template/ Canvas#PART_SwitchKnob">
+        <Setter Property="Grid.ColumnSpan" Value="2"/>
+    </Style>
     <Style Selector=".lg-motion ToggleSwitch">
         <Setter Property="KnobTransitions" Value="{DynamicResource LG.SwitchMotion}"/>
     </Style>
@@ -275,6 +278,9 @@
     </Style>
     <Style Selector="MenuItem.lg-menu-item.destructive /template/ ContentPresenter#PART_HeaderPresenter">
         <Setter Property="Foreground" Value="{DynamicResource LG.Warning}"/>
+    </Style>
+    <Style Selector="MenuItem.lg-menu-item.web-file-delete.destructive /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource LG.Error}"/>
     </Style>
     <Style Selector="MenuItem.lg-menu-item:disabled, MenuFlyoutPresenter MenuItem:disabled">
         <Setter Property="Opacity" Value=".55"/>

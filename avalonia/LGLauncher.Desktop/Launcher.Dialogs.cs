@@ -377,6 +377,23 @@ internal sealed partial class Launcher
         };
         Field(body, "Genres", Beside(genreField, steamGenres));
         body.Children.Add(genreStatus);
+        var tagsField = ModalTextField(String.Join(", ", game.TagNames), "Tags");
+        tagsField.PlaceholderText = "Tags, separated by commas";
+        var originalTags = tagsField.Text;
+        var tagsStatus = Label("", muted: true);
+        tagsStatus.IsVisible = false;
+        (int Id, List<string> Values, string? Text)? fetchedTags = null;
+        var steamTags = new Button { Content = "Use Steam tags", Classes = { "lg" } };
+        steamTags.Click += (_, _) => _ = LoadSteamTags();
+        Field(body, "Tags", Beside(tagsField, steamTags));
+        body.Children.Add(tagsStatus);
+        var scale = game.Scale;
+        Field(body, "Scale", BuildChoicePicker("Game scale", Enum.GetValues<GameScale>(), scale,
+            choice => choice == GameScale.Unspecified ? "Unspecified" : choice.ToString(), choice =>
+            {
+                scale = choice;
+                return true;
+            }));
         var error = Label("", muted: true);
         AutomationProperties.SetLiveSetting(error, AutomationLiveSetting.Polite);
         body.Children.Add(error);
@@ -410,7 +427,8 @@ internal sealed partial class Launcher
             }
             var previousDetails = (game.Title, game.Path, game.Arguments, game.SteamId);
             var previousGenres = (game.Genres, game.ManualGenres, game.GenreSteamId, game.SteamGenresComplete);
-            var previousTags = (game.SteamTags, game.TagSteamId);
+            var previousTags = (game.SteamTags, game.TagSteamId, game.ManualTags);
+            var previousClassification = (game.Scale, game.AddedUtc);
             var previousIgnoredPaths = _library.IgnoredPaths;
             var previouslyUnsaved = _saveFailed;
             var steamIdChanged = game.SteamId != id;
@@ -445,8 +463,23 @@ internal sealed partial class Launcher
                 game.SteamTags = null;
                 game.TagSteamId = 0;
             }
+            if (fetchedTags is { } fetched && fetched.Id == id && tagsField.Text == fetched.Text)
+            {
+                game.SteamTags = fetched.Values;
+                game.TagSteamId = id;
+                game.ManualTags = null;
+            }
+            else if (tagsField.Text != originalTags && tagsField.Text != fetchedTags?.Text)
+            {
+                game.ManualTags = [.. ParseGenreInput(tagsField.Text)];
+            }
+            game.Scale = scale;
             game.SteamId = id;
-            if (adding) _library.Games.Add(game);
+            if (adding)
+            {
+                game.AddedUtc = DateTime.UtcNow;
+                _library.Games.Add(game);
+            }
             if (previousIgnoredPaths.Contains(path, StringComparer.OrdinalIgnoreCase))
                 _library.IgnoredPaths = previousIgnoredPaths.Where(item => !path.Equals(item, StringComparison.OrdinalIgnoreCase)).ToList();
 
@@ -454,7 +487,8 @@ internal sealed partial class Launcher
             {
                 (game.Title, game.Path, game.Arguments, game.SteamId) = previousDetails;
                 (game.Genres, game.ManualGenres, game.GenreSteamId, game.SteamGenresComplete) = previousGenres;
-                (game.SteamTags, game.TagSteamId) = previousTags;
+                (game.SteamTags, game.TagSteamId, game.ManualTags) = previousTags;
+                (game.Scale, game.AddedUtc) = previousClassification;
                 if (adding) _library.Games.Remove(game);
                 _library.IgnoredPaths = previousIgnoredPaths;
                 _saveFailed = previouslyUnsaved;
@@ -465,17 +499,59 @@ internal sealed partial class Launcher
 
             _discoveries.RemoveAll(item => path.Equals(item.Path, StringComparison.OrdinalIgnoreCase));
             if (retryGenres) _attemptedGenres.Remove(id);
-            if (steamIdChanged) _attemptedTags.Remove(id);
+            if (steamIdChanged)
+            {
+                _attemptedTags.Remove(id);
+                _attemptedGameDetails.Remove(id);
+            }
             Status(adding ? "Added " + name + " to your library." : "Game updated.");
             InvalidateEntry(game);
             dialog.Close(true);
         });
         dialog.InitialFocus = title;
         if (!await ShowModal(dialog)) return;
+        RefreshManagedGameStatus();
         if (adding) SelectGame(game); else Render();
         if (adding && game.SteamId == 0) TryMatch(game);
         else if (game.SteamId > 0 && (adding || game.SteamId != previousSteamId)) _ = EnsureHeader(game.SteamId, _background.Token);
         QueueSteamMetadata();
+
+        async Task LoadSteamTags()
+        {
+            tagsStatus.IsVisible = true;
+            if (!TrySteamAppId(app.Text, out var requestedId))
+            {
+                tagsStatus.Text = "Enter a positive Steam App ID to look up tags.";
+                return;
+            }
+            var submit = dialog.DefaultButton!;
+            if (!submit.IsEnabled) return;
+            var previousText = tagsField.Text;
+            steamGenres.IsEnabled = steamTags.IsEnabled = submit.IsEnabled = false;
+            tagsStatus.Text = "Loading Steam tags…";
+            try
+            {
+                var tags = requestedId == game.SteamId && game.HasSteamTags ? game.SteamTags :
+                    await _steam.GetStoreTags(requestedId, token);
+                if (token.IsCancellationRequested) return;
+                if (!TrySteamAppId(app.Text, out var currentId) || currentId != requestedId || tagsField.Text != previousText)
+                    tagsStatus.Text = "The App ID or tags changed. Use Steam tags again to refresh them.";
+                else if (tags == null)
+                    tagsStatus.Text = "Steam could not provide tags for this App ID.";
+                else
+                {
+                    tagsField.Text = String.Join(", ", tags);
+                    fetchedTags = (requestedId, tags, tagsField.Text);
+                    tagsStatus.IsVisible = false;
+                }
+            }
+            catch (HttpRequestException) { if (!token.IsCancellationRequested) tagsStatus.Text = "Steam is unavailable. Try again or enter tags manually."; }
+            catch (OperationCanceledException) { if (!token.IsCancellationRequested) tagsStatus.Text = "Steam tag lookup timed out. Try again."; }
+            finally
+            {
+                if (!token.IsCancellationRequested) steamGenres.IsEnabled = steamTags.IsEnabled = submit.IsEnabled = true;
+            }
+        }
     }
 
     private static bool TrySteamAppId(string? value, out int id) =>

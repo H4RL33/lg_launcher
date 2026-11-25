@@ -21,6 +21,7 @@ internal sealed partial class Launcher
     private async Task VerifyPreferences(Game game, string preview)
     {
         await VerifyArtworkAccent(preview);
+        await VerifyColourwaysAndWidgets(preview);
         var font = Setting<Button>("Base interface font size");
         var previousFontSize = EffectiveFontSize;
         var inheritedHeadingSize = PageTitle.FontSize;
@@ -119,10 +120,11 @@ internal sealed partial class Launcher
         Navigate(Page.LibrarySettings);
         UpdateLayout();
         var useLogos = Setting<ToggleSwitch>("Use Game Logos");
+        var playtime = Setting<ToggleSwitch>("Track playtime");
         var themeMusic = Setting<ToggleSwitch>("Theme music");
         var storeTags = Setting<ToggleSwitch>("Show Store Tags");
         var rssArticles = Setting<ToggleSwitch>("Display most-recent RSS articles on Home");
-        Require(useLogos.IsChecked == true && themeMusic.IsChecked == false && storeTags.IsChecked == true && rssArticles.IsChecked == true &&
+        Require(playtime.IsChecked == true && useLogos.IsChecked == true && themeMusic.IsChecked == false && storeTags.IsChecked == true && rssArticles.IsChecked == true &&
             !PageBody.GetVisualDescendants().OfType<ToggleSwitch>().Any(toggle => AutomationProperties.GetName(toggle) == "Unlimited Genres"),
             "An existing profile did not receive the expected library defaults.");
         useLogos.IsChecked = false;
@@ -134,11 +136,43 @@ internal sealed partial class Launcher
             "The library and Home preferences did not round-trip.");
         Capture(Path.Combine(Path.GetDirectoryName(preview)!, "library-settings.png"));
         var librarySize = (Width, Height);
+        var tileCaption = Setting<ToggleSwitch>("Show playtime caption");
+        var clearButton = Setting<Button>("Clear playtime data");
+        var dateFormatPicker = Setting<Button>("Date format");
         foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
         {
             (Width, Height) = size;
             await Task.Delay(85);
+            Require(clearButton.Parent is Grid row && clearButton.Content is SymbolIcon icon &&
+                Math.Abs(clearButton.Bounds.Width - (icon.Bounds.Width + clearButton.Padding.Left + clearButton.Padding.Right +
+                    clearButton.BorderThickness.Left + clearButton.BorderThickness.Right)) <= 1 &&
+                Math.Abs(clearButton.Bounds.Right - row.Bounds.Width) <= 1,
+                "Clear playtime did not use the compact, right-aligned symbolic delete button.");
+            var deleteEdge = clearButton.TranslatePoint(new Point(clearButton.Bounds.Width, 0), PageBody)!.Value.X;
+            var tracks = playtime.GetVisualDescendants().OfType<Border>()
+                .Where(border => border.Name is "OuterBorder" or "SwitchKnobBounds").ToArray();
+            Require(tracks.Length == 2 && tracks.All(track =>
+                Math.Abs(track.TranslatePoint(new Point(track.Bounds.Width, 0), PageBody)!.Value.X - deleteEdge) <= 1),
+                $"The playtime toggle tracks did not align with the delete button at {size.Item1}px.");
             Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"library-theme-music-{size.Item1}.png"));
+            tileCaption.BringIntoView();
+            UpdateLayout();
+            Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"library-game-tiles-{size.Item1}.png"));
+            Require(dateFormatPicker.Parent is Grid dateRow && dateFormatPicker.Bounds.Width is >= 112 and <= 136 &&
+                Math.Abs(dateFormatPicker.Bounds.Right - dateRow.Bounds.Width) <= 1,
+                "The Date format picker was not compact and right-aligned.");
+            var dateMenu = PreferenceMenu(dateFormatPicker);
+            dateFormatPicker.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await WaitFor(() => dateMenu.IsOpen && dateMenu.RevealProgress == 1, "The Date format menu did not open.");
+            dateMenu.UpdateLayout();
+            CaptureControl(dateMenu, Path.Combine(Path.GetDirectoryName(preview)!, $"library-date-format-menu-{size.Item1}.png"));
+            var dateMenuWidth = dateMenu.Bounds.Width / EffectiveInterfaceScale;
+            Require(dateMenuWidth >= dateFormatPicker.Bounds.Width - 1 && dateMenuWidth <= 160 &&
+                dateMenu.Items.OfType<MenuItem>().Select(item => item.Header).SequenceEqual(["Numeric", "Friendly"]),
+                $"The Date format menu did not fit both choices at a compact width ({dateMenuWidth:0} DIP).");
+            dateMenu.Close();
+            await WaitFor(() => !dateMenu.IsOpen, "The Date format menu did not close.");
+            ContentScroll.Offset = default;
         }
         (Width, Height) = librarySize;
         useLogos.IsChecked = true;
@@ -146,6 +180,47 @@ internal sealed partial class Launcher
         storeTags.IsChecked = true;
         rssArticles.IsChecked = true;
         Require(!_store.Load().Preferences.PlayThemeMusic, "Disabling theme music did not persist.");
+        playtime.IsChecked = false;
+        Require(_store.Load().Preferences.DisablePlaytimeTracking && !GameSortChoices().Contains(2), "Disabling playtime did not persist or hide its sort.");
+        SelectGame(game);
+        Require(!PlaytimeDetail.IsVisible, "Game details displayed playtime with tracking disabled.");
+        Navigate(Page.LibrarySettings);
+        UpdateLayout();
+        Setting<ToggleSwitch>("Track playtime").IsChecked = true;
+        var modIndicator = Setting<ToggleSwitch>("Show mod indicator");
+        var tilePlaytime = Setting<ToggleSwitch>("Show playtime caption");
+        var tileFixture = new Game { Title = "Modded portrait", IsModded = true, PlaySeconds = 120 };
+        Require(BuildGameCard(tileFixture) is { ShowPlaytime: true, IsModded: true }, "Tile preferences did not default on.");
+        modIndicator.IsChecked = tilePlaytime.IsChecked = false;
+        var tilePreferences = _store.Load().Preferences;
+        Require(tilePreferences.HideTileModIndicator && tilePreferences.HideTilePlaytime &&
+            BuildGameCard(tileFixture) is { ShowPlaytime: false, IsModded: false }, "The tile controls did not apply and save.");
+        modIndicator.IsChecked = tilePlaytime.IsChecked = true;
+
+        await ChoosePreference(Setting<Button>("Date format"), "Friendly");
+        var previousCulture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
+            var date = new DateTime(DateTime.Now.Year, 11, 22, 12, 0, 0, DateTimeKind.Local).ToUniversalTime();
+            Require(_store.Load().Preferences.FriendlyLaunchDates && FormatLastLaunched(date) == "Nov. 22" &&
+                FormatLastLaunched(date.AddYears(-1)) == $"Nov. 22, {DateTime.Now.Year - 1}" && FormatLastLaunched(null) == "Never",
+                "The friendly date format did not preserve the month, date, and older year.");
+        }
+        finally { System.Globalization.CultureInfo.CurrentCulture = previousCulture; }
+        await ChoosePreference(Setting<Button>("Date format"), "Numeric");
+        var previousTimes = _library.Games.Select(entry => (Game: entry, entry.PlaySeconds)).ToArray();
+        Setting<Button>("Clear playtime data").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(ActiveModDialog is { } clear && AutomationProperties.GetName(clear) == "Clear playtime data?",
+            "Clearing playtime did not require confirmation.");
+        DialogHost.DismissTop();
+        Require(previousTimes.All(entry => entry.Game.PlaySeconds == entry.PlaySeconds), "Cancelling clear playtime changed history.");
+        Setting<Button>("Clear playtime data").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        ActiveModDialog!.Footer.Children.OfType<Button>().Single(button => Equals(button.Content, "Clear playtime"))
+            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await WaitFor(() => _store.Load().Games.All(entry => entry.PlaySeconds == 0), "Confirmed playtime clearing did not save.");
+        foreach (var entry in previousTimes) entry.Game.PlaySeconds = entry.PlaySeconds;
+        Require(Save(), "The verification fixture could not restore its history.");
 
         var version = UpdateFeed.CurrentVersion;
         var releaseTag = UpdateFeed.ReleaseTag(version);
@@ -272,6 +347,129 @@ internal sealed partial class Launcher
             Require(body.FontWeight == FontWeight.Normal && body.FontFamily == FontFamily && heading.FontWeight == FontWeight.SemiBold,
                 $"Release note typography was {body.FontFamily.Name} {body.FontWeight} for body text and {heading.FontWeight} for the heading.");
         }
+    }
+
+    private async Task VerifyGameTileLayout(Game game, string preview)
+    {
+        var librarySize = (Width, Height);
+        Navigate(Page.LibrarySettings);
+        UpdateLayout();
+        var layoutPicker = Picker("Minimum width");
+        foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
+        {
+            (Width, Height) = size;
+            await Task.Delay(40);
+            layoutPicker.BringIntoView();
+            UpdateLayout();
+            Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"library-game-tile-layout-{size.Item1}.png"));
+        }
+        (Width, Height) = librarySize;
+
+        var columns = Picker("Columns");
+        columns.BringIntoView();
+        UpdateLayout();
+        var minimumWidth = Picker("Minimum width");
+        Require(AutomationProperties.GetHelpText(columns) == "Current value 6" && GameTileColumns == 6,
+            "Existing profiles did not default to six game tile columns.");
+        Require(AutomationProperties.GetHelpText(minimumWidth) == "Current value 120 px" && GameTileMinimumWidth == 120,
+            "Existing profiles did not default to a 120 px minimum tile width.");
+        await ChoosePreference(columns, "10");
+        minimumWidth.BringIntoView();
+        UpdateLayout();
+        await ChoosePreference(minimumWidth, "32 px");
+        Require(_store.Load().Preferences is { TileColumns: 10, TileMinimumWidth: 32 },
+            "Changing the game tile layout did not save both preferences.");
+        var collection = _library.Collections.First(candidate => candidate.Includes(game));
+        (Width, Height) = (730, 510);
+        Navigate(Page.Collections, collection);
+        UpdateLayout();
+        var members = _cardGrid;
+        Require(members is { Columns: 10 } && Math.Abs(members.Bounds.Width - PageBody.Bounds.Width) <= 1,
+            "Collection members did not fill the available space with ten columns.");
+        var playedTile = members!.Children.OfType<Border>().Select(host => host.Child).OfType<GameCard>().First(card => card.ShowPlaytime);
+        var caption = playedTile.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "PlaytimePill");
+        Require(caption.Bounds.Width > 0 && caption.Bounds.Width <= playedTile.Bounds.Width,
+            "A dense game tile's playtime caption overflowed the tile.");
+        Capture(Path.Combine(Path.GetDirectoryName(preview)!, "collection-game-columns-10-730.png"));
+        Navigate(Page.Home);
+        UpdateLayout();
+        var homeLibrary = PageBody.Children.OfType<ItemsControl>().Single(view => view.Name == "HomeLibraryGrid");
+        homeLibrary.BringIntoView();
+        await WaitFor(() => homeLibrary.GetVisualDescendants().OfType<UniformGrid>().Any(grid => grid.Columns == 10),
+            "The Home Library did not use the saved game column count.");
+        (Width, Height) = librarySize;
+        Navigate(Page.LibrarySettings);
+        UpdateLayout();
+        minimumWidth = Picker("Minimum width");
+        minimumWidth.BringIntoView();
+        UpdateLayout();
+        await ChoosePreference(minimumWidth, "160 px");
+        for (var count = 2; count <= 10; count++)
+        {
+            var threshold = count * 160 + (count - 1) * GameTileColumnSpacing;
+            Require(FittingGameTileColumns(threshold - 1) == count - 1 && FittingGameTileColumns(threshold) == count,
+                $"Tile sizing skipped the {count}-column threshold.");
+        }
+        (Width, Height) = (730, 510);
+        Navigate(Page.Collections, collection);
+        await WaitFor(() => _cardGrid?.Columns == 2, "The narrow collection did not reduce columns at the higher minimum tile width.");
+        (Width, Height) = librarySize;
+        await WaitFor(() => _cardGrid?.Columns > 2, "The collection did not restore columns at the wider size.");
+        Navigate(Page.LibrarySettings);
+        UpdateLayout();
+        await ChoosePreference(Picker("Columns"), "6");
+        await ChoosePreference(Picker("Minimum width"), "120 px");
+        Require(_store.Load().Preferences is { TileColumns: null, TileMinimumWidth: null }, "Restoring default tile settings did not persist.");
+        Navigate(Page.Home);
+
+        Button Picker(string name) => PageBody.GetVisualDescendants().OfType<Button>()
+            .Single(button => AutomationProperties.GetName(button) == name);
+    }
+
+    private async Task VerifyColourwaysAndWidgets(string preview)
+    {
+        var folder = Path.GetDirectoryName(preview)!;
+        var previousSize = (Width, Height);
+        Navigate(Page.Appearance);
+        UpdateLayout();
+        var picker = Setting<Button>("Colourway");
+        var accent = ((ISolidColorBrush)this.FindResource("LG.AccentFill")!).Color;
+        foreach (var palette in Colourways.Skip(1))
+        {
+            await ChoosePreference(picker, palette.Name);
+            Require(Background is ISolidColorBrush background && background.Color == Color.Parse(palette.Canvas) &&
+                MainArea.Background is ISolidColorBrush canvas && canvas.Color == background.Color &&
+                this.FindResource("LG.ArtworkFallback") is ISolidColorBrush &&
+                ((ISolidColorBrush)this.FindResource("LG.AccentFill")!).Color == accent &&
+                _store.Load().Preferences.Colourway == palette.Name, $"Changing to {palette.Name} did not apply and save its surface palette.");
+            Capture(Path.Combine(folder, $"colourway-{palette.Name.Replace(' ', '-').ToLowerInvariant()}.png"));
+        }
+        Navigate(Page.Widgets);
+        UpdateLayout();
+        await ChoosePreference(Setting<Button>("Corner radius"), "4 px");
+        await ChoosePreference(Setting<Button>("Shadow strength"), "Off");
+        Require(this.FindResource("LG.PanelRadius") is CornerRadius radius && radius == new CornerRadius(4) &&
+            this.FindResource("LG.ModalShadow") is BoxShadows shadow && shadow.Equals(default(BoxShadows)) &&
+            _store.Load().Preferences.WidgetRadius == 4 && _store.Load().Preferences.WidgetShadowStrength == 0,
+            "Widget preferences did not apply to shared resources or persist.");
+        foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
+        {
+            (Width, Height) = size;
+            await Task.Delay(85);
+            Capture(Path.Combine(folder, $"widget-customisation-{size.Item1}.png"));
+        }
+        (Width, Height) = previousSize;
+        await ChoosePreference(Setting<Button>("Corner radius"), "Default");
+        await ChoosePreference(Setting<Button>("Shadow strength"), "100%");
+        Navigate(Page.Appearance);
+        UpdateLayout();
+        await ChoosePreference(Setting<Button>("Colourway"), "Classic");
+        Require(MainArea.Background is RadialGradientBrush &&
+            this.FindResource("LG.ArtworkFallback") is LinearGradientBrush, "Classic did not restore its directional lighting.");
+        Capture(Path.Combine(folder, "colourway-classic.png"));
+
+        T Setting<T>(string name) where T : Control => PageBody.GetVisualDescendants().OfType<T>()
+            .Single(control => AutomationProperties.GetName(control) == name);
     }
 
     private async Task VerifyArtworkAccent(string preview)
@@ -431,7 +629,7 @@ internal sealed partial class Launcher
                 splash.Close();
             }
             Navigate(Page.Home);
-            Require(Accent() == custom && DiscoveryBadge.Background is ISolidColorBrush badge && badge.Color == custom,
+            Require(Accent() == custom,
                 "The default accent was not applied outside Appearance.");
             Require(await Open(cool) == teal && await Open(neutral) == custom && await Open(missing) == custom,
                 "Artwork colours did not override the custom default only when artwork supplied a usable colour.");
@@ -493,7 +691,7 @@ internal sealed partial class Launcher
                     _motion = false;
                     Require(await Open(cool) == start, "The starting palette did not apply immediately with motion disabled.");
                     var brush = (SolidColorBrush)PlayGame.Background!;
-                    var samples = new List<(Color Fill, Color Text, Color BadgeFill, Color BadgeText)>();
+                    var samples = new List<(Color Fill, Color Text)>();
                     var captured = false;
                     brush.PropertyChanged += Observe;
                     try
@@ -505,15 +703,13 @@ internal sealed partial class Launcher
                     finally { brush.PropertyChanged -= Observe; }
 
                     Require(captured && samples[^1].Fill == end && samples.All(sample =>
-                        sample.Text == ArtworkAccent.TextOn(sample.Fill) && ArtworkAccent.Contrast(sample.Fill, sample.Text) >= 4.5 &&
-                        sample.BadgeFill == sample.Fill && sample.BadgeText == sample.Text),
+                        sample.Text == ArtworkAccent.TextOn(sample.Fill) && ArtworkAccent.Contrast(sample.Fill, sample.Text) >= 4.5),
                         "The accent fill and foreground did not animate together with readable text.");
 
                     void Observe(object? sender, AvaloniaPropertyChangedEventArgs args)
                     {
                         if (args.Property != SolidColorBrush.ColorProperty) return;
-                        samples.Add((brush.Color, ((ISolidColorBrush)PlayGame.Foreground!).Color,
-                            ((ISolidColorBrush)DiscoveryBadge.Background!).Color, ((ISolidColorBrush)DiscoveryCount.Foreground!).Color));
+                        samples.Add((brush.Color, ((ISolidColorBrush)PlayGame.Foreground!).Color));
                         if (captured || brush.Color == start || brush.Color == end) return;
                         captured = true;
                         Capture(Path.Combine(folder, $"artwork-accent-transition-{size.Width}.png"));

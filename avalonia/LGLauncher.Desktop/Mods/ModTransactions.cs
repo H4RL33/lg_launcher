@@ -136,8 +136,16 @@ internal sealed class ModTransactions(string profile, Action<ModTransactionStep>
         ModPaths.RejectReparsePoints(folder);
         var existing = plan.ExistingInstallation is { } ? ReadState(folder)?.Installation : null;
         var incoming = plan.Packages.Select(package => package.Provider).ToHashSet();
+        var replacement = plan.ReplacingPackage;
+        if (replacement != null && (existing == null || !existing.Packages.Contains(replacement) || plan.Packages.Count != 1 ||
+            plan.Packages[0].Provider != replacement.Provider ||
+            !plan.Packages[0].Variant.Equals(replacement.Variant, StringComparison.OrdinalIgnoreCase) ||
+            plan.Changes.Any(change => change.Owner != replacement.Provider) ||
+            existing.InstalledDependentsOf(replacement.Provider).Any() && !HasWorkingDependency(existing,
+                new ModDependencyLink(replacement.Provider, replacement.Provider, replacement.Variant), token)))
+            throw new InvalidDataException("The managed package changed or needs review before updating.");
         if (plan.ExistingInstallation != null && (existing == null || !existing.Target.Matches(plan.Target) || ReadJournal(folder) != null ||
-            existing.Packages.Any(package => incoming.Contains(package.Provider))))
+            existing.Packages.Any(package => package != replacement && incoming.Contains(package.Provider))))
             throw new InvalidDataException("The managed installation changed after preview.");
         if (plan.ReShadeVulkan != null && (plan.ReShadeChain != null || plan.Packages.Count != 1 ||
             plan.Packages[0].Provider != ModProviderId.ReShade || plan.Changes.Count != 1 ||
@@ -175,7 +183,11 @@ internal sealed class ModTransactions(string profile, Action<ModTransactionStep>
             var prior = ModFileSnapshot.Read(destination);
             if (prior?.Hash != change.ExpectedHash) throw new InvalidDataException($"The file changed after preview: {relative}");
             var trackedIndex = files.FindIndex(file => file.Relative.Equals(relative, StringComparison.OrdinalIgnoreCase));
-            if (trackedIndex >= 0 && (prior == null || !relative.Equals(plan.ReShadeChain?.Configuration, StringComparison.OrdinalIgnoreCase) ||
+            var updatingOwnedFile = replacement != null && trackedIndex >= 0 && files[trackedIndex].Owner == replacement.Provider &&
+                files[trackedIndex].DeployedHash == prior?.Hash && !relative.EndsWith(".ini", StringComparison.OrdinalIgnoreCase);
+            if (replacement != null && !updatingOwnedFile)
+                throw new InvalidDataException($"The managed file cannot be updated: {relative}");
+            if (trackedIndex >= 0 && !updatingOwnedFile && (prior == null || !relative.Equals(plan.ReShadeChain?.Configuration, StringComparison.OrdinalIgnoreCase) ||
                 files[trackedIndex].Owner != ModProviderId.OptiScaler || change.Owner != ModProviderId.OptiScaler))
                 throw new InvalidDataException($"Another managed mod owns {relative}.");
             for (var parent = Path.GetDirectoryName(destination)!; parent != plan.Target.Root && !Directory.Exists(parent); parent = Path.GetDirectoryName(parent)!)
@@ -198,7 +210,8 @@ internal sealed class ModTransactions(string profile, Action<ModTransactionStep>
             AdvanceProgress();
         }
         var orderedDirectories = directories.OrderBy(path => path.Length).ToArray();
-        var record = new ModInstallationRecord(id, plan.Target, [.. existing?.Packages ?? [], .. plan.Packages], [.. files],
+        var retained = existing?.Packages.Where(package => package != replacement) ?? [];
+        var record = new ModInstallationRecord(id, plan.Target, [.. retained, .. plan.Packages], [.. files],
             [.. existing?.CreatedDirectories ?? [], .. orderedDirectories], existing?.RecipeId ?? plan.RecipeId,
             existing == null ? plan.Dependencies : existing.KnownDependencies().Concat(plan.Dependencies ?? []).Distinct().ToArray(),
             plan.ReShadeChain ?? existing?.ReShadeChain, plan.ReShadeVulkan != null || existing?.ReShadeVulkan == true);
@@ -206,7 +219,7 @@ internal sealed class ModTransactions(string profile, Action<ModTransactionStep>
             plan.ReShadeVulkan is { } layer ? () => Vulkan.Ensure(layer) : null);
         ReportProgress(100);
         var name = plan.Packages.FirstOrDefault()?.Provider ?? ModProviderId.OptiScaler;
-        return new($"{ModPackageStore.Name(name)} installed.");
+        return new($"{ModPackageStore.Name(name)} {(replacement == null ? "installed" : "updated")}.");
 
         void AdvanceProgress()
         {

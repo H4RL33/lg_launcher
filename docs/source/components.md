@@ -14,9 +14,11 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 ## `avalonia/LGLauncher.Components/Widgets.cs`
 
+`GameCard.IsModded` toggles a white wrench in an opaque, bordered badge at the portrait's top-right corner. The `:compact` state reduces the badge size and playtime padding below 64 DIP. The playtime pill stays within the card width.
+
 [Source](../../avalonia/LGLauncher.Components/Widgets.cs)
 
-- **Purpose** — Defines the bindable contracts for `StatusIndicator`, `LibraryRow`, `GameCard`, `CollectionCard`, and `ArtworkToolbar`. Library rows accept a bitmap or a symbolic icon in the same rounded icon slot. The widgets derive portrait height from arranged width and the icon radius from its bounds. Feature actions belong to the host.
+- **Purpose** — Defines the bindable contracts for `StatusIndicator`, `LibraryRow`, `GameCard`, `CollectionCard`, and `ArtworkToolbar`. Library rows accept a bitmap or a symbolic icon in the same rounded icon slot. Game cards derive portrait height from their tile width. Home supplies the known column width before measurement, and every card updates when its arranged width changes. Library rows derive the icon radius from its bounds. Feature actions belong to the host.
 - **Depends on** — Avalonia styled properties, rendering types, and `ICommand`. Visual templates live in `Theme/Components.axaml`.
 - **Used by** — The Desktop window and its home, collections, search, artwork, and status views. Gallery also demonstrates the shared controls.
 
@@ -64,15 +66,15 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 [Source](../../avalonia/LGLauncher.Components/FrostedContextMenu.cs)
 
-- **Purpose** — Owns backdrop sampling and the reveal/collapse lifecycle for the launcher menu. Captures a small image of the owning window for frosted glass, clips the presenter during motion, and releases its snapshot on close.
-- **Depends on** — Avalonia popup and bitmap APIs and the shared top-down animation in `ViewMotion.cs`. Its theme in `Inputs.axaml` supplies named template parts. Host classes `lg-motion` and `lg-opaque` control motion and translucency.
+- **Purpose** — Owns backdrop sampling and the reveal/collapse lifecycle for the launcher menu. Captures a small image of the owning window for frosted glass and releases its snapshot on close. Clips the presenter from the bottom when the popup is placed above its pointer or trigger, and from the top otherwise.
+- **Depends on** — Avalonia popup and bitmap APIs and the shared easing in `ViewMotion.cs`. Its theme in `Inputs.axaml` supplies named template parts. Host classes `lg-motion` and `lg-opaque` control motion and translucency.
 - **Used by** — `LauncherMenus.Create`, Desktop artwork pointer handling, and menu smoke checks. Hosts should construct it through the shared factory.
 
 ## `avalonia/LGLauncher.Components/ModalHost.cs`
 
 [Source](../../avalonia/LGLauncher.Components/ModalHost.cs)
 
-- **Purpose** — Defines `ModalHost` and `ModalDialog` so prompts remain inside the launcher window. Manages nested dialogs, underlay input, default and dismiss actions, focus restoration, and the accepted result. A dialog can show trailing content vertically centred beside the heading, additional header content below it, leading footer content alongside the actions, or a custom body control that manages its own scrolling.
+- **Purpose** — Defines `ModalHost` and `ModalDialog` so prompts remain inside the launcher window. Manages nested dialogs, underlay input, default and dismiss actions, focus restoration, and the accepted result. A dialog can show trailing content vertically centred beside the heading, additional header content below it, leading footer content alongside the actions, or a custom body control that manages its own scrolling. An empty title omits the heading. Callers can supply a border that wraps the footer and can name a titleless dialog for accessibility. The dialog clips its content to the inner edge of the themed frame, keeping its corner stroke and shadow visible.
 - **Depends on** — Avalonia panels, focus, routed keyboard events, and UI dispatch. Backdrop and dialog shell styles come from `Theme/Components.axaml`.
 - **Used by** — The Desktop window and its dialog, collection, settings, startup, and update flows. Desktop modal smoke checks call the host directly.
 
@@ -96,9 +98,9 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 [Source](../../avalonia/LGLauncher.Components/ViewMotion.cs)
 
-- **Purpose** — Provides a reusable easing curve for revealing a new view. Supports opacity alone or opacity with a small vertical translation. Reordered tiles update their temporary transform on animation frames using the same cubic ease-out as view translation. The helper clears the transform after it reaches zero offset or when the host cancels the movement. The artwork palette uses the same duration as the fade. Context menus and the warning expander share a cubic ease-out for their 180 ms reveal and 105 ms collapse.
+- **Purpose** — Provides a reusable easing curve for revealing a new view. Supports opacity alone or opacity with a small vertical translation. Reordered tiles update their temporary transform on animation frames using the same cubic ease-out as view translation. The helper clears the transform after it reaches zero offset or when the host cancels the movement. The artwork palette uses the same duration as the fade. Context menus, the warning expander, and the sidebar sections share a cubic ease-out for their 180 ms reveal and 105 ms collapse.
 - **Depends on** — Avalonia keyframes, transforms, and cancellation. The caller owns when to animate and how to reset after a cancelled view transition.
-- **Used by** — Desktop navigation and collection sorting, dialogs, startup, artwork, context menus, and the warning expander.
+- **Used by** — Desktop navigation, sidebar sections and collection sorting, dialogs, startup, artwork, context menus, and the warning expander.
 
 ## `avalonia/LGLauncher.Components/WarningExpander.cs`
 
@@ -116,6 +118,10 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 - **Depends on** — `Widgets.cs`, `SymbolIcon.cs`, Fluent Theme, and the sibling `Tokens.axaml`, `Icons.axaml`, and `Inputs.axaml` resources.
 - **Used by** — Desktop and Gallery application styles. Shared style changes can affect both hosts and several features at once.
 
+The Web tables use `web-table-row` for the row background and select it with the accent tint. `LG.WebFileRowItem` gives the file viewer a plain item presenter so the table row owns the highlight.
+
+Shared single-line text fields center text and placeholders vertically. Shared text boxes use the darker `LG.FieldHover` fill and a white border on pointer hover. Under `lg-motion`, both brushes transition over 150 ms. Focused fields retain their focus treatment. Desktop derives the hover fill from the canvas for each non-Classic colourway.
+
 ## `avalonia/LGLauncher.Components/Theme/Inputs.axaml`
 
 [Source](../../avalonia/LGLauncher.Components/Theme/Inputs.axaml)
@@ -124,7 +130,11 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 - **Depends on** — Fluent control templates and named parts, `FrostedContextMenu.cs`, `SymbolIcon.cs`, and the sibling tokens and icons. Desktop supplies runtime font and motion values.
 - **Used by** — Both theme hosts through `Components.axaml`. Consumer views opt in via control classes or the shared factories. When changing a Fluent template selector, verify it against the configured Avalonia version.
 
+Caption-free `ToggleSwitch.lg-compact` controls lay the track and knob across Fluent's spacer column. This removes the trailing gap and aligns the track with neighbouring buttons without changing input handling or knob motion.
+
 ## `avalonia/LGLauncher.Components/Theme/Tokens.axaml`
+
+Classic provides the directional gradient through `LG.MainBackground`. Other Desktop colourways replace that brush and the artwork fallback with solid palette colours. The game detail shade remains a gradient over artwork. The shared small, popup, and modal shadow resources and corner-radius tokens support live overrides from Desktop Appearance settings.
 
 [Source](../../avalonia/LGLauncher.Components/Theme/Tokens.axaml)
 

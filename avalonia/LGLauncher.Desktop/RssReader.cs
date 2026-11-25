@@ -8,15 +8,20 @@ using System.Xml.Linq;
 
 namespace LGLauncher;
 
-internal sealed record RssArticle(string Title, string? Link, string Text, DateTimeOffset? Published, RssBlock[]? Blocks = null);
-internal sealed record RssSnapshot(string Title, RssArticle[] Articles, string? ETag = null, DateTimeOffset? Modified = null);
+internal sealed record RssArticle(string Title, string? Link, string Text, DateTimeOffset? Published,
+    RssBlock[]? Blocks = null, string[]? Transfers = null);
+internal sealed record RssSnapshot(string Title, RssArticle[] Articles, string? ETag = null, DateTimeOffset? Modified = null,
+    int MarkupVersion = 0);
 internal sealed record RssSource(string Location, string? Name = null, bool IsFile = false);
 
-internal sealed class RssReader(string profile, HttpClient? client = null)
+internal sealed class RssReader(string profile, HttpClient? client = null, long maximumCacheBytes = RssReader.MaximumCacheBytes)
 {
     internal const int DefaultMinutes = 30;
     internal const int MaximumMinutes = 1440;
+    internal const int MaximumArticleEnclosures = 16;
+    private const int CurrentMarkupVersion = 1;
     private const int MaximumFeedBytes = 4 * 1024 * 1024;
+    private const long MaximumCacheBytes = 6L * MaximumFeedBytes;
     private static readonly HttpClient Client = new(new HttpClientHandler
     {
         AutomaticDecompression = DecompressionMethods.All,
@@ -55,6 +60,18 @@ internal sealed class RssReader(string profile, HttpClient? client = null)
             TryWebAddress(resolved.AbsoluteUri, out var web) ? web : null;
     }
 
+    internal static Uri? ResolveTransferAddress(string? address, Uri? origin = null)
+    {
+        var candidate = address?.Trim();
+        if (String.IsNullOrEmpty(candidate) || candidate.Length > 8192 || candidate.Any(Char.IsControl)) return null;
+        if (candidate.StartsWith("magnet:", StringComparison.OrdinalIgnoreCase))
+            return Uri.TryCreate(candidate, UriKind.Absolute, out var magnet) && WebTransfers.IsMagnetLink(magnet.AbsoluteUri)
+                ? magnet : null;
+
+        return ResolveWebAddress(candidate, origin) is { } web && WebTransfers.HasTorrentExtension(web)
+            ? new UriBuilder(web) { Fragment = "" }.Uri : null;
+    }
+
     internal static RssSource[] Import(string path)
     {
         var root = ReadFile(path);
@@ -82,7 +99,7 @@ internal sealed class RssReader(string profile, HttpClient? client = null)
             {
                 if (!TryWebAddress(feed.Location, out var address)) throw new InvalidDataException("Enter an HTTP or HTTPS feed URL.");
                 using var request = new HttpRequestMessage(HttpMethod.Get, address);
-                if (saved?.Articles.All(article => article.Blocks != null) == true)
+                if (saved?.MarkupVersion == CurrentMarkupVersion)
                 {
                     if (EntityTagHeaderValue.TryParse(saved.ETag, out var etag)) request.Headers.IfNoneMatch.Add(etag);
                     request.Headers.IfModifiedSince = saved.Modified;
@@ -155,15 +172,17 @@ internal sealed class RssReader(string profile, HttpClient? client = null)
                 var published = DateTimeOffset.TryParse(date, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var time)
                     ? (DateTimeOffset?)time : null;
                 var link = ArticleLink(item, atom, origin);
-                var articleOrigin = link == null ? origin : new Uri(link);
+                var articleOrigin = TryWebAddress(link, out var web) ? web : origin;
                 var bodyOrigin = ElementWebBase(body ?? item, origin) ?? articleOrigin;
                 var blocks = RssMarkup.Read(body, !atom || (string?)body?.Attribute("type") == "html", bodyOrigin);
                 if (!blocks.Any(block => block.Image != null) && ArticleImage(item, atom, origin ?? articleOrigin) is { } image)
                     blocks = [.. blocks, image];
+                var transfers = ArticleTransfers(item, atom, origin ?? articleOrigin)
+                    .Where(address => address != link).Distinct(StringComparer.Ordinal).Take(MaximumArticleEnclosures).ToArray();
                 return new RssArticle(title.Length == 0 ? "Untitled article" : title,
-                    link, RssMarkup.PlainText(blocks), published, blocks);
+                    link, RssMarkup.PlainText(blocks), published, blocks, transfers.Length > 0 ? transfers : null);
             }).ToArray();
-        return new RssSnapshot(FeedText(Child(channel, "title"), false), articles);
+        return new RssSnapshot(FeedText(Child(channel, "title"), false), articles, MarkupVersion: CurrentMarkupVersion);
     }
 
     private static XElement? Child(XElement parent, string name) => parent.Elements().FirstOrDefault(element => element.Name.LocalName == name);
@@ -184,7 +203,21 @@ internal sealed class RssReader(string profile, HttpClient? client = null)
         var link = atom ? item.Elements().FirstOrDefault(node => node.Name.LocalName == "link" &&
             (string?)node.Attribute("rel") is null or "alternate" && node.Attribute("href") != null) : Child(item, "link");
         var address = atom ? (string?)link?.Attribute("href") : link?.Value;
-        return ResolveWebAddress(address, ElementWebBase(link ?? item, origin) ?? origin)?.AbsoluteUri;
+        var linkOrigin = ElementWebBase(link ?? item, origin) ?? origin;
+        return (ResolveTransferAddress(address, linkOrigin) ?? ResolveWebAddress(address, linkOrigin))?.AbsoluteUri;
+    }
+
+    private static IEnumerable<string> ArticleTransfers(XElement item, bool atom, Uri? origin)
+    {
+        foreach (var element in item.Elements())
+        {
+            var target = atom
+                ? element.Name.LocalName == "link" && (string?)element.Attribute("rel") == "enclosure"
+                    ? (string?)element.Attribute("href") : null
+                : element.Name.LocalName == "enclosure" ? (string?)element.Attribute("url") : null;
+            if (ResolveTransferAddress(target, ElementWebBase(element, origin) ?? origin) is { } address)
+                yield return address.AbsoluteUri;
+        }
     }
 
     private static Uri? ElementWebBase(XElement element, Uri? origin)
@@ -226,7 +259,7 @@ internal sealed class RssReader(string profile, HttpClient? client = null)
         try
         {
             var file = new FileInfo(CachePath(id));
-            if (!file.Exists || file.Length > 6L * MaximumFeedBytes) return null;
+            if (!file.Exists || file.Length > maximumCacheBytes) return null;
             using var stream = file.OpenRead();
             var saved = JsonSerializer.Deserialize<RssSnapshot>(stream);
             return saved?.Articles != null ? saved : null;
@@ -238,9 +271,36 @@ internal sealed class RssReader(string profile, HttpClient? client = null)
     {
         var path = CachePath(id);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temp = path + ".tmp";
-        using (var stream = File.Create(temp)) JsonSerializer.Serialize(stream, snapshot);
-        File.Move(temp, path, overwrite: true);
+        var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var stream = new CacheWriteStream(temporary, maximumCacheBytes)) JsonSerializer.Serialize(stream, snapshot);
+            File.Move(temporary, path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+
+    private sealed class CacheWriteStream(string path, long limit) : FileStream(path, FileMode.CreateNew, FileAccess.Write)
+    {
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            CheckSize(buffer.Length);
+            base.Write(buffer);
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            CheckSize(count);
+            base.Write(buffer, offset, count);
+        }
+
+        private void CheckSize(int count)
+        {
+            if (count > limit - Position) throw new IOException("The offline RSS snapshot exceeds the cache size limit.");
+        }
     }
 
     internal void RemoveCache(Guid id)

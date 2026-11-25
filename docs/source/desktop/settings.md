@@ -14,6 +14,8 @@ Performance contains the Windows hardware rendering and process priority prefere
 
 Miscellaneous contains Reset first-usage prompts, which clears the usage acknowledgement and automatic-update opt-in in the same save. The running launcher updates the Automatic updates switch and cancels any automatic update download before handoff. The reset row uses the shared disabled preference style while both prompts are pending.
 
+Miscellaneous also contains **Always open Magnet links**, off by default. The Magnet confirmation’s **Always open** checkbox enables the same preference after adding the transfer. Turning the setting off restores the confirmation for Magnet links opened in the browser. [Web workspace](web.md)
+
 Miscellaneous also contains **Contribution reminders**, enabled by default. Turning it off suppresses the first and recurring prompts. The saved return count continues to advance, and reminders skipped while disabled are not queued.
 
 The main window reuses `RestoreWindow` to restore and activate the launcher when the final tracked game exits.
@@ -27,11 +29,21 @@ The main window reuses `RestoreWindow` to restore and activate the launcher when
 
 Renders Appearance, Library, and About. About places release notes for the installed version below the release-channel picker and update controls. The settings code applies font size, interface scale, translucency, and motion to the live shell. Reusable preference rows disable overridden choices, expose the reason, and keep the underlying preference available for restoration. For example, Reduce Motion overrides Interactive Artwork Shift.
 
+`CompactToggle` builds caption-free switches for settings, mod dialogs, and RSS subscription rows. The switch track occupies the full width of the control so it aligns with neighbouring buttons at the end of a row.
+
 Library → Game Details contains the Windows **Theme music** toggle, off by default. When enabled, game details play a local custom or matched Steam soundtrack track while the launcher is active. [Theme music](steam.md)
+
+Library → General enables playtime tracking on new and existing profiles by default. Turning it off hides duration statistics and playtime sorts while keeping launch dates. The compact trash button sits at the right edge and shares the symbolic delete styling used in Mods. It opens the shared destructive confirmation and saves the cleared durations as one profile change.
+
+Library → Game Tiles controls the mod indicator and playtime caption independently. Both default to visible. Disabling playtime tracking hides the caption and temporarily disables its visibility switch. Columns sets a maximum of one through ten. Minimum width selects a tile-width threshold from 32 to 256 px. Fresh and existing profiles default to six columns and 120 px. The layout subtracts a column at each successive threshold and restores columns as the view widens. At extremely narrow widths one tile can use the available space.
+
+Library → Game Details → Date format uses a compact, right-aligned picker. It defaults to Numeric and applies to Last Launched. Friendly uses the local date and an abbreviated month with the day, adding the year for earlier calendar years.
 
 Appearance uses `BuildChoicePicker` for the font family, font size, and scale. Its button displays the current value, and its scrollable menu uses the same frosted surface, spacing, and motion as context menus. The menu aligns to the button's left edge and switches to its right edge if the measured menu would extend past the launcher. Font families keep keyboard text search. The preference applies after the menu closes so changes to typography and scale leave the closing animation aligned with its trigger. Collections use the same picker for member sorting and rule matching, attributes, and operators. Mods use it for OptiScaler’s DLL name and DXGI spoofing, the ReShade graphics API, and RenoDX add-on variants.
 
 Theme includes a Default accent colour picker for the launcher palette. Its dialog shows colour-only preset buttons and a square live preview the same height as the six-digit hex field. Apply saves the selection and updates the launcher immediately. Selecting the first purple swatch restores the built-in palette. The Artwork accent colour switch is enabled by default and uses the selected game's artwork colour on Game Details when available.
+
+Colourway maps the interface's surface and foreground roles to Classic, dark Adwaita, Catppuccin Mocha, Everforest dark medium, and Tokyo Night. Classic retains its directional background lighting. The other colourways use solid canvas and placeholder colours. Accent resources are applied afterward and keep the existing default and artwork controls. The Widget Customisation subpage overrides the shared control, panel, and artwork radii and scales the opacity of existing small, popup, and dialog shadows. Defaults use each original radius and full shadow strength. [Adwaita CSS variables](https://github.com/GNOME/libadwaita/blob/main/doc/css-variables.md) · [Catppuccin Mocha palette](https://catppuccin.com/palette/) · [Everforest palette](https://github.com/sainnhe/everforest/blob/master/palette.md) · [Tokyo Night palette](https://github.com/folke/tokyonight.nvim/blob/main/lua/tokyonight/colors/night.lua)
 
 `BindPreferenceAvailability` gives disabled preference rows the same muted treatment and exposes the reason on hover and through accessibility metadata. Interactive Artwork Shift and Reset first-usage prompts use it.
 
@@ -41,6 +53,12 @@ The scale picker offers presets and a Custom dialog that accepts any whole perce
 - **Used by** the main render dispatcher, the constructor and activation hooks, `Launcher.Behaviour.cs` to notify preference listeners, and `Launcher.Settings.Verification.cs`.
 
 [Desktop settings source](../../../avalonia/LGLauncher.Desktop/Launcher.Settings.cs) · [Steam and artwork](steam.md)
+
+## `avalonia/LGLauncher.Desktop/Launcher.Web.Settings.cs`
+
+Builds the Browser, Transfer Manager, and File Viewer pages using the shared preference rows, choice menus, and dialogs. Browser defaults to an empty homepage, no search provider, a visible tab strip, and enabled uBO Lite and pop-up blocking. The homepage and search template are inline fields. Search providers have icons, and the template enables when Custom is selected. Transfer Manager defaults to IPv4, all addresses, DHT on, and a stop ratio of 1.0. Bind, protocol, and DHT are read when the torrent engine starts. The shared number spinner saves on step, Enter, or focus loss and applies the ratio live. File Viewer shows hidden items and filename extensions by default. Its Quick Access section changes the launcher downloads directory through the folder picker. The profile stores saved settings and retains previous values if saving fails.
+
+[Web settings source](../../../avalonia/LGLauncher.Desktop/Launcher.Web.Settings.cs) · [Web workspace](web.md)
 
 ## `avalonia/LGLauncher.Desktop/Launcher.ReleaseNotes.cs`
 
@@ -56,6 +74,8 @@ Loads installed release notes when their About section attaches. It reuses succe
 Centralises modal opening and field layout, font selection and popup font resources, first-run usage acknowledgement, confirmation and notice dialogs, native pickers, folder and game editing, and shared game menu actions. Editing and asynchronous Steam lookups stay inside the modal until the user saves or cancels.
 
 When a game save fails, Add game and Edit game keep the draft open and show a retry message in the form. The previous library and ignored paths are restored, and the discovery list and Steam retry state change only after a successful save.
+
+The Tags field saves a manual override or uses Steam tags scoped to the App ID shown in the form. The Scale picker saves an optional library classification.
 
 **Manage metadata** opens from the game context menu and the left side of the **Edit game** footer. Opening it from Edit game preserves the parent form and returns focus there when the child dialog closes. [Game media](steam.md)
 

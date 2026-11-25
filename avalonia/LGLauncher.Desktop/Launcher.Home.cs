@@ -10,12 +10,15 @@ namespace LGLauncher;
 
 internal sealed partial class Launcher
 {
+    private const int GameTileColumnSpacing = 12;
+
     private void RenderHome()
     {
         PageTitle.Text = "Home";
         RenderHomeRss();
-        var games = _library.Games.OrderBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase).ToArray();
-        var recent = games.Where(game => game.LastPlayedUtc.HasValue).OrderByDescending(game => game.LastPlayedUtc).Take(3).ToArray();
+        var games = SortedGames(_library.Games, _librarySort).ToArray();
+        var recent = _library.Games.Where(game => game.LastPlayedUtc.HasValue).OrderByDescending(game => game.LastPlayedUtc)
+            .ThenBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase).Take(3).ToArray();
         var collections = _library.Collections.OrderBy(collection => collection.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
 
         if (recent.Length == 0)
@@ -23,7 +26,8 @@ internal sealed partial class Launcher
             PageBody.Children.Add(Heading("Recently played"));
             PageBody.Children.Add(Label("Launch a game to see it here.", muted: true));
         }
-        else AddHomeShelf("Recently played", "RecentlyPlayedRow", recent.Select(game => BuildGameCard(game, showPlaytime: false)), 182);
+        else AddHomeShelf("Recently played", "RecentlyPlayedRow", recent.Select(game => BuildGameCard(game, showPlaytime: false)), 182,
+            sizeGameTiles: true);
 
         if (collections.Length == 0)
         {
@@ -33,20 +37,30 @@ internal sealed partial class Launcher
         else AddHomeShelf("Collections", "HomeCollectionsRow", collections.Select(CollectionBrowseCard), 200,
             scrollbar: ScrollBarVisibility.Hidden);
 
-        PageBody.Children.Add(Heading("Library"));
         if (games.Length == 0)
         {
+            PageBody.Children.Add(Heading("Library"));
             PageBody.Children.Add(Label("Add a game or watch a folder to get started.", muted: true));
             PageBody.Children.Add(Actions(ActionButton("Add game", AddFromFile, "primary"),
                 ActionButton("Choose library folder", ChooseFolder)));
         }
-        else PageBody.Children.Add(HomeLibraryGrid(games));
+        else
+        {
+            var title = Heading("Library");
+            title.VerticalAlignment = VerticalAlignment.Center;
+            PageBody.Children.Add(new Grid
+            {
+                Name = "HomeLibraryHeader", ColumnDefinitions = ColumnDefinitions.Parse("Auto,*"), ColumnSpacing = 12,
+                Children = { title, HomeLibrarySortPicker() }
+            });
+            PageBody.Children.Add(HomeLibraryGrid());
+        }
     }
 
     private void AddHomeShelf(string title, string name, IEnumerable<Control> cards, double cardWidth, Panel? host = null,
-        ScrollBarVisibility scrollbar = ScrollBarVisibility.Auto, Control? headerContent = null)
+        ScrollBarVisibility scrollbar = ScrollBarVisibility.Auto, Control? headerContent = null, bool sizeGameTiles = false)
     {
-        const int spacing = 12;
+        const int spacing = GameTileColumnSpacing;
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = spacing, Margin = new Thickness(0, 4, 0, 4) };
         foreach (var card in cards)
         {
@@ -66,6 +80,16 @@ internal sealed partial class Launcher
         headerContent.VerticalAlignment = VerticalAlignment.Center;
         var heading = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), Children = { headerContent, arrows } };
         Grid.SetColumn(arrows, 1);
+        if (sizeGameTiles)
+        {
+            viewer.SizeChanged += (_, args) =>
+            {
+                if (!args.WidthChanged || args.NewSize.Width <= 0) return;
+                var columns = FittingGameTileColumns(args.NewSize.Width);
+                cardWidth = Math.Max(1, (args.NewSize.Width - (columns - 1) * spacing) / columns);
+                foreach (var card in row.Children) card.Width = cardWidth;
+            };
+        }
         viewer.ScrollChanged += (_, args) =>
         {
             if (args.Source != viewer) return;
@@ -97,30 +121,61 @@ internal sealed partial class Launcher
         }
     }
 
-    private ItemsControl HomeLibraryGrid(Game[] games)
+    private Button HomeLibrarySortPicker()
     {
-        const double columnSpacing = 12;
-        const double minimumCardWidth = 145;
-        var columns = 0;
+        var picker = BuildLibrarySortPicker();
+        picker.HorizontalAlignment = HorizontalAlignment.Left;
+        Grid.SetColumn(picker, 1);
+        return picker;
+    }
+
+    private void RefreshHomeLibrarySort(bool fromSidebar)
+    {
+        if (PageBody.Children.OfType<ItemsControl>().FirstOrDefault(view => view.Name == "HomeLibraryGrid") is not { } library) return;
+        var scroll = ContentScroll.Offset;
+        PopulateHomeLibrary(library, library.Bounds.Width > 0 ? FittingGameTileColumns(library.Bounds.Width) : GameTileColumns);
+        if (fromSidebar && PageBody.Children.OfType<Grid>().FirstOrDefault(grid => grid.Name == "HomeLibraryHeader") is { } header)
+            header.Children[1] = HomeLibrarySortPicker();
+
+        // New virtualized rows can temporarily shrink the extent while their portraits are sized.
+        if (scroll.Y <= 0) return;
+        ContentScroll.UpdateLayout();
+        ContentScroll.Offset = scroll;
+    }
+
+    private void PopulateHomeLibrary(ItemsControl library, int columns) =>
+        library.ItemsSource = SortedGames(_library.Games, _librarySort).Chunk(columns).ToArray();
+
+    private ItemsControl HomeLibraryGrid()
+    {
+        var columns = GameTileColumns;
         var library = new ItemsControl
         {
             Name = "HomeLibraryGrid",
-            ItemsPanel = new FuncTemplate<Panel>(() => new VirtualizingStackPanel()),
-            ItemTemplate = new FuncDataTemplate<Game[]>((row, _) =>
-            {
-                if (row == null) return null;
-                var grid = new UniformGrid { Columns = columns, ColumnSpacing = columnSpacing, Margin = new Thickness(0, 4, 0, 10) };
-                foreach (var game in row) grid.Children.Add(BuildGameCard(game));
-                return grid;
-            })
+            ItemsPanel = new FuncTemplate<Panel>(() => new VirtualizingStackPanel())
         };
+        library.ItemTemplate = new FuncDataTemplate<Game[]>((row, _) =>
+        {
+            if (row == null) return null;
+            var grid = new UniformGrid { Columns = columns, ColumnSpacing = GameTileColumnSpacing, Margin = new Thickness(0, 4, 0, 10) };
+            // Use the laid-out column width so a sort keeps the scroll extent while it realizes new rows.
+            var tileWidth = (library.Bounds.Width - (columns - 1) * GameTileColumnSpacing) / columns;
+            foreach (var game in row)
+            {
+                var card = BuildGameCard(game);
+                card.SizeArtworkForWidth(tileWidth);
+                grid.Children.Add(card);
+            }
+            return grid;
+        });
+        PopulateHomeLibrary(library, columns);
         library.SizeChanged += (_, args) =>
         {
             if (!args.WidthChanged || args.NewSize.Width <= 0) return;
-            var next = Math.Max(1, (int)((args.NewSize.Width + columnSpacing) / (minimumCardWidth + columnSpacing)));
-            if (columns == next) return;
-            columns = next;
-            library.ItemsSource = games.Chunk(columns).ToArray();
+            var fitting = FittingGameTileColumns(args.NewSize.Width);
+            if (columns == fitting) return;
+            columns = fitting;
+            PopulateHomeLibrary(library, columns);
         };
         return library;
     }

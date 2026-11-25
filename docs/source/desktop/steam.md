@@ -10,6 +10,8 @@ The desktop decoder checks source dimensions before rasterising artwork. It acce
 
 Steam card artwork requests are shared by App ID and image type. The launcher's background token controls the download and decode, so gameplay and shutdown can still pause artwork work. Leaving Game Details cancels that view's wait and lets cards awaiting the same header receive the result.
 
+Modded tiles show a white wrench on a small bordered surface above the artwork. The shared `GameCard` template draws the indicator independently of the artwork crop or colour.
+
 The artwork sample supplies an optional accent alongside framing and glass. On Game Details the main window applies it to the accent and selection resources when the preference is enabled. A game-to-game switch holds the previous palette until the next artwork supplies an accent or its load finishes without one. The configured default accent applies everywhere else and returns immediately when leaving Game Details. Both custom and artwork accents tint the selected Library row, input focus and text selection, and enabled switches. The switch knob and track use paired contrast colours in each interactive state.
 
 When motion is enabled, an artwork-to-artwork palette change uses the artwork fade's duration and easing. On every animation frame, the launcher updates the text and icon contrast against that frame's fill. An interrupted transition starts from the displayed colour, and reduced motion applies the target palette immediately.
@@ -87,7 +89,7 @@ Coordinates automatic Steam genre backfill, parses commas in genre entry fields,
 
 ## `avalonia/LGLauncher.Desktop/Launcher.SteamTags.cs`
 
-Starts the genre and tag queues together, prioritises the selected game's missing tags, and persists tags against their Steam App ID. Tag changes trigger updates when dynamic collection membership changes. The display preference hides the detail labels while saved tags remain available for collection rules.
+Starts the genre, tag, and Steam details queues together. It prioritises the selected game's missing tags and persists tags, developer, publisher, and release date against their Steam App ID. Changes refresh affected views and dynamic collections. The display preference hides tag labels while saved tags remain searchable. Manual tags take precedence for display.
 
 - **Depends on** `SteamCatalog.GetStoreTags`, the profile tag fields and rule evaluation, the genre queue, launcher save/cancellation state, and the `StoreTags` layout host.
 - **Used by** the main window after startup or a game session, Edit game after saving, manual Steam refresh, game detail rendering, and the metadata smoke tests.
@@ -96,7 +98,7 @@ Starts the genre and tag queues together, prioritises the selected game's missin
 
 ## `avalonia/LGLauncher.Desktop/Launcher.SteamRefresh.cs`
 
-Implements the explicit refresh action for a matched game. It fetches genre, tag, hero, header, portrait, icon, and logo data concurrently, then updates the corresponding caches and affected views. It guards duplicate refreshes for the same ID and leaves manual genres, artwork selection, and framing intact.
+Implements the explicit refresh action for a matched game. It fetches genres, tags, Steam details, hero, header, portrait, icon, and logo data concurrently, then updates the corresponding caches and affected views. It guards duplicate refreshes for the same ID and preserves manual genres, manual tags, artwork selection, and framing.
 
 - **Depends on** `SteamCatalog`, the genre and tag save helpers, artwork and logo cache methods, and the current window, selection, and game session state.
 - **Used by** the game details refresh button, the game context menu, and the metadata verification that checks action availability.

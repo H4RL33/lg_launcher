@@ -19,19 +19,24 @@ internal sealed partial class Launcher
     private Button SettingsRow(string title, string icon, Action open, TextBlock? description = null) =>
         SettingsRow(title, Symbol(icon, 19), open, description);
 
-    private Button SettingsRow(string title, SymbolIcon icon, Action open, TextBlock? description = null)
+    private Button SettingsRow(string title, SymbolIcon icon, Action open, TextBlock? description = null, SymbolIcon? indicator = null)
     {
         var arrow = Symbol("LG.Icon.Chevron");
         Control text = description == null ? Label(title) : new StackPanel { Spacing = 2, Children = { Label(title), description } };
         text.VerticalAlignment = VerticalAlignment.Center;
         var row = new Grid
         {
-            ColumnDefinitions = ColumnDefinitions.Parse("22,*,18"),
+            ColumnDefinitions = ColumnDefinitions.Parse(indicator == null ? "22,*,18" : "22,*,Auto,18"),
             ColumnSpacing = 11,
             Children = { icon, text, arrow }
         };
         Grid.SetColumn(text, 1);
-        Grid.SetColumn(arrow, 2);
+        Grid.SetColumn(arrow, indicator == null ? 2 : 3);
+        if (indicator != null)
+        {
+            Grid.SetColumn(indicator, 2);
+            row.Children.Add(indicator);
+        }
         var button = ActionButton(title, open);
         AutomationProperties.SetName(button, title);
         button.Classes.Add("settings-row");
@@ -39,9 +44,9 @@ internal sealed partial class Launcher
         return button;
     }
 
-    private Button SettingsBack()
+    private Button SettingsBack(Page destination = Page.Settings, string name = "Settings")
     {
-        var back = IconButton("Settings", "LG.Icon.Back", () => Navigate(Page.Settings), "quiet");
+        var back = IconButton(name, "LG.Icon.Back", () => Navigate(destination), "quiet");
         back.HorizontalAlignment = HorizontalAlignment.Left;
         back.Padding = new Thickness(0, 5, 11, 5);
         return back;
@@ -113,12 +118,15 @@ internal sealed partial class Launcher
             {
                 if (prefs.DisableContributionReminders) _contributionReminderPending = false;
             });
-        sections.Children.Add(Section("Miscellaneous", new StackPanel { Spacing = 10, Children = { row, contributions } }));
+        var magnetLinks = PreferenceToggle("Always open Magnet links",
+            "Skip the Magnet link confirmation. You’ll still choose a download folder.",
+            prefs.AlwaysOpenMagnetLinks, value => prefs.AlwaysOpenMagnetLinks = value);
+        sections.Children.Add(Section("Miscellaneous", new StackPanel { Spacing = 10, Children = { row, contributions, magnetLinks } }));
         return sections;
 
         Action<bool> AddToggle(string name, string help, bool selected, Action<bool> update, bool system = false)
         {
-            var toggle = new ToggleSwitch { IsChecked = selected, OnContent = "", OffContent = "", VerticalAlignment = VerticalAlignment.Center };
+            var toggle = CompactToggle(selected);
             Avalonia.Automation.AutomationProperties.SetName(toggle, name);
             toggle.IsEnabled = !system || (OperatingSystem.IsWindows() && !_verification);
             var row = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 12 };

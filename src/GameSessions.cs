@@ -11,7 +11,7 @@ namespace LGLauncher
         private sealed class Session
         {
             public Process Process;
-            public Stopwatch Clock = Stopwatch.StartNew();
+            public Stopwatch Clock;
         }
 
         private readonly Dictionary<string, Session> active = new Dictionary<string, Session>();
@@ -22,7 +22,7 @@ namespace LGLauncher
         public int Count { get { lock (gate) return active.Count; } }
         public bool IsRunning(string id) { lock (gate) return active.ContainsKey(id); }
 
-        public void Launch(string id, string path, string arguments, bool setProcessPriority = false)
+        public void Launch(string id, string path, string arguments, bool setProcessPriority = false, bool trackPlaytime = true)
         {
             if (!File.Exists(path)) throw new FileNotFoundException("The executable could not be found. Edit the game to update its location.", path);
             lock (gate)
@@ -40,7 +40,7 @@ namespace LGLauncher
                 {
                     process.Exited += (sender, args) => Finish(id, process);
                     if (!process.Start()) throw new InvalidOperationException("Windows did not return a game process.");
-                    active.Add(id, new Session { Process = process });
+                    active.Add(id, new Session { Process = process, Clock = trackPlaytime ? Stopwatch.StartNew() : null });
                     if (setProcessPriority && Environment.OSVersion.Platform == PlatformID.Win32NT)
                         TrySetHighPriority(process);
                     process.EnableRaisingEvents = true;
@@ -69,9 +69,9 @@ namespace LGLauncher
             {
                 Session session;
                 if (!active.TryGetValue(id, out session) || session.Process != process) return;
-                seconds = (long)session.Clock.Elapsed.TotalSeconds;
+                seconds = session.Clock == null ? 0 : (long)session.Clock.Elapsed.TotalSeconds;
                 active.Remove(id);
-                completed[id] = seconds;
+                if (session.Clock != null) completed[id] = seconds;
                 process.Dispose();
             }
             var handler = Ended;
@@ -84,12 +84,33 @@ namespace LGLauncher
             {
                 var result = new Dictionary<string, long>(completed);
                 foreach (var pair in active)
-                    result[pair.Key] = (long)pair.Value.Clock.Elapsed.TotalSeconds;
+                    if (pair.Value.Clock != null) result[pair.Key] = (long)pair.Value.Clock.Elapsed.TotalSeconds;
                 return result;
             }
         }
 
-        public void Acknowledge(string id) { lock (gate) completed.Remove(id); }
+        public long Acknowledge(string id)
+        {
+            lock (gate) return completed.Remove(id, out var seconds) ? seconds : 0;
+        }
+
+        public void StopTrackingPlaytime()
+        {
+            lock (gate)
+            {
+                foreach (var session in active.Values) session.Clock = null;
+                completed.Clear();
+            }
+        }
+
+        public void ResetPlaytime()
+        {
+            lock (gate)
+            {
+                foreach (var session in active.Values) session.Clock?.Restart();
+                completed.Clear();
+            }
+        }
 
         public void Dispose()
         {
