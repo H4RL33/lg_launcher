@@ -5,6 +5,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -129,14 +130,9 @@ internal sealed partial class Launcher
             IsVisible = false,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
-        var linkAnchor = new Border
-        {
-            Width = 1, Height = 1, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom,
-            IsHitTestVisible = false
-        };
-        _webLinkPreviewPopup = BuildWebLinkPreview(linkAnchor);
+        _webLinkPreviewPopup = BuildWebLinkPreview(_webNativeHost);
         _webLinkPreviewPopup.Bind(MaxWidthProperty, _webNativeHost.GetObservable(BoundsProperty, bounds => Math.Clamp(bounds.Width, 1, 480)));
-        var viewport = WebChromePanel(new Grid { Children = { _webNativeHost, _webBookmarkPanel, linkAnchor, _webLinkPreviewPopup } },
+        var viewport = WebChromePanel(new Grid { Children = { _webNativeHost, _webBookmarkPanel, _webLinkPreviewPopup } },
             "LG.Canvas", default);
         _webBrowserChrome = chrome;
 
@@ -160,7 +156,7 @@ internal sealed partial class Launcher
         return panel;
     }
 
-    private Popup BuildWebLinkPreview(Control anchor)
+    private Popup BuildWebLinkPreview(Control viewport)
     {
         _webLinkPreview = Label("", muted: true);
         _webLinkPreview.Name = "WebLinkPreview";
@@ -173,8 +169,10 @@ internal sealed partial class Launcher
         return new Popup
         {
             Child = tooltip,
-            PlacementTarget = anchor,
-            Placement = PlacementMode.TopEdgeAlignedLeft,
+            PlacementTarget = viewport,
+            Placement = PlacementMode.AnchorAndGravity,
+            PlacementAnchor = PopupAnchor.BottomLeft,
+            PlacementGravity = PopupGravity.TopRight,
             ShouldUseOverlayLayer = false,
             TakesFocusFromNativeControl = false,
             IsHitTestVisible = false,

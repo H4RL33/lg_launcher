@@ -1156,39 +1156,60 @@ internal sealed partial class Launcher
             first.Select.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             browser.Navigate(root + "/one");
             await WaitFor(() => browser.DocumentTitle == "Web fixture one", "The browser did not return from the pop-up fixture.");
-            UpdateLayout();
-            var host = _webNativeHost!;
-            var rendererSize = host.Bounds.Size;
-            var bottom = new Point(0, rendererSize.Height);
-            Require(host.TranslatePoint(bottom, _webBrowser!) is { Y: var edge } &&
-                Math.Abs(edge - _webBrowser!.Bounds.Height) < 1, "The renderer left a gap at the bottom of Browser.");
-            var position = await browser.ExecuteScriptAsync(
-                "(() => { const r = document.querySelector('a').getBoundingClientRect(); return [r.x + 8, r.y + 6]; })()");
-            var point = JsonSerializer.Deserialize<double[]>(position)!;
-            await browser.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent",
-                JsonSerializer.Serialize(new { type = "mouseMoved", x = point[0], y = point[1] }));
-            await WaitFor(() => _webLinkPreview?.Text?.EndsWith("/two", StringComparison.Ordinal) == true,
-                "The link preview did not show the hovered link in Browser.");
-            var popup = _webLinkPreviewPopup!;
-            await WaitFor(() => popup.IsOpen && popup.Child?.Bounds.Height > 0, "The link preview overlay did not open.");
-            UpdateLayout();
-            var preview = popup.Child!;
-            var previewBottom = preview.PointToScreen(new Point(0, preview.Bounds.Height));
-            var hostBottom = host.PointToScreen(bottom);
-            Require(!popup.IsUsingOverlayLayer && !popup.IsHitTestVisible && host.Bounds.Size == rendererSize &&
-                previewBottom.X == hostBottom.X && Math.Abs(previewBottom.Y - hostBottom.Y) < 4,
-                "The link preview was not a click-through overlay at the renderer's bottom edge.");
-            CaptureControl(preview, Path.Combine(captures, "web-link-preview.png"));
-            SelectWebView(WebView.Files);
-            Require(_webLinkPreviewPopup?.IsOpen == false && _webLinkPreview?.Text == null,
-                "The link preview remained visible when switching to Files.");
-            SelectWebView(WebView.Browser);
+            await VerifyWebLinkPreview(browser, captures);
         }
         finally
         {
             preferences.WebHomepage = preferences.WebSearchEngine = preferences.WebSearchTemplate = null;
             preferences.DisableWebAdBlocker = preferences.DisableWebPopupBlocking = false;
             ApplyWebBrowserPreferences();
+        }
+    }
+
+    private async Task VerifyWebLinkPreview(CoreWebView2 browser, string captures)
+    {
+        var originalSize = (Width, Height);
+        var host = _webNativeHost!;
+        var popup = _webLinkPreviewPopup!;
+        var preview = popup.Child!;
+        try
+        {
+            var position = await browser.ExecuteScriptAsync(
+                "(() => { const r = document.querySelector('a').getBoundingClientRect(); return [r.x + 8, r.y + 6]; })()");
+            var point = JsonSerializer.Deserialize<double[]>(position)!;
+            foreach (var (width, height) in new[] { (730, 510), (1230, 805), (1600, 900) })
+            {
+                Width = width;
+                Height = height;
+                await Task.Delay(160);
+                UpdateLayout();
+                var rendererSize = host.Bounds.Size;
+                await browser.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent", "{\"type\":\"mouseMoved\",\"x\":0,\"y\":0}");
+                await browser.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent",
+                    JsonSerializer.Serialize(new { type = "mouseMoved", x = point[0], y = point[1] }));
+                await WaitFor(() => popup.IsOpen && preview.IsAttachedToVisualTree() && preview.Bounds.Height > 0 &&
+                    _webLinkPreview?.Text?.EndsWith("/two", StringComparison.Ordinal) == true,
+                    $"At {width} dips, the link preview did not show the hovered link in Browser.");
+                Require(!popup.IsUsingOverlayLayer && !popup.IsHitTestVisible && host.Bounds.Size == rendererSize,
+                    "The link preview was not a click-through overlay over the full-size renderer.");
+                var bottom = new Point(0, host.Bounds.Height);
+                var hostBottom = host.PointToScreen(bottom);
+                var previewBottom = preview.PointToScreen(new Point(0, preview.Bounds.Height));
+                Require(host.TranslatePoint(bottom, _webBrowser!) is { Y: var edge } &&
+                    Math.Abs(edge - _webBrowser!.Bounds.Height) < 1, "The renderer left a gap at the bottom of Browser.");
+                Require(previewBottom == hostBottom,
+                    $"At {width} dips, the link preview was not flush with the renderer's bottom-left edge " +
+                    $"({previewBottom} vs. {hostBottom}).");
+                CaptureControl(preview, Path.Combine(captures, $"web-link-preview-{width}.png"));
+            }
+
+            SelectWebView(WebView.Files);
+            Require(!popup.IsOpen && _webLinkPreview?.Text == null, "The link preview remained visible when switching to Files.");
+            SelectWebView(WebView.Browser);
+        }
+        finally
+        {
+            (Width, Height) = originalSize;
         }
     }
 
