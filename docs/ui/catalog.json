@@ -118,6 +118,7 @@
         "Artwork",
         "ArtworkStretch",
         "ArtworkHeight",
+        "SizeArtworkForWidth",
         "ArtworkBackground",
         "OpenCommand"
       ],
@@ -1097,7 +1098,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Home.cs",
-      "summary": "Builds Home's virtualised game grid with the configured tile-width threshold and column limit, and its sort picker shared with the sidebar. Recently played uses the same sizing.",
+      "summary": "Builds Home's virtualised game grid with the configured tile-width threshold and column limit, and its sort picker shared with the sidebar. Sorting from either picker preserves Home's vertical scroll position. Recently played uses the same sizing.",
       "symbols": [
         "HomeLibraryGrid",
         "HomeLibraryHeader",
@@ -1304,11 +1305,12 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Rss.cs",
-      "summary": "Displays RSS articles with selectable text, paragraphs, headings, quotes, code styling, and optional inline images and external link actions. The About release notes reuse the native text blocks.",
+      "summary": "Displays RSS articles with selectable text, headings, quotes, code, and inline images. Magnet and .torrent links are clickable in article content, the main link, and enclosures. About release notes reuse the native text blocks.",
       "symbols": [
         "RenderRssArticle",
         "ArticleText",
-        "BuildRssParagraph"
+        "BuildRssParagraph",
+        "RssTransferButton"
       ],
       "related": [
         "component.desktop.rss-image"
@@ -1319,7 +1321,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Rss.cs",
-      "summary": "Groups feed URL input and import, an autosaving refresh interval, the internal-browser preference, subscription switches, and per-feed feedback.",
+      "summary": "Groups feed URL input and import, an autosaving refresh interval, independent browser and transfer routing preferences, subscription switches, and per-feed feedback.",
       "symbols": [
         "BuildRssSettings",
         "BuildRssFeedRow",
@@ -2169,6 +2171,7 @@
       "summary": "Uses shared canvas, line, radius, and text size. Unfocused text fields darken and show a white border on hover, with brush transitions when motion is enabled.",
       "selectors": [
         "TextBox.lg",
+        "TextBox.lg[AcceptsReturn=False]",
         "TextBox.lg:pointerover:not(:focus):not(:disabled) /template/ Border#PART_BorderElement",
         ".lg-motion TextBox.lg /template/ Border#PART_BorderElement"
       ],

@@ -113,11 +113,14 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
     private const int MaximumStageExtensionLength = 16;
     private static readonly StringComparer PathComparer = StringComparer.OrdinalIgnoreCase;
     private static readonly TimeSpan MetadataTimeout = TimeSpan.FromMinutes(2);
-    private static readonly HttpClient TorrentDescriptorClient = new()
+    private const int MaximumTorrentDescriptorBytes = 8 * 1024 * 1024;
+    private const int MaximumTorrentRedirects = 5;
+    private static readonly TimeSpan TorrentDescriptorTimeout = TimeSpan.FromSeconds(20);
+    private static readonly HttpClient TorrentDescriptorClient = new(new HttpClientHandler
     {
-        MaxResponseContentBufferSize = 8 * 1024 * 1024,
-        Timeout = TimeSpan.FromSeconds(20),
-    };
+        AllowAutoRedirect = false,
+        UseCookies = false,
+    });
     private static readonly TimeSpan StopTimeout = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(3);
     private static readonly char[] Separators = ['/', '\\'];
@@ -281,26 +284,69 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
             return;
         }
 
-        var url = ParseTorrentUrl(address);
-        byte[] descriptor;
+        var (_, torrent) = await DownloadTorrentDescriptorAsync(ParseTorrentUrl(address), CancellationToken.None);
+        await AddTorrentAsync(torrent, destination);
+    }
+
+    internal Task AddTorrentAsync(Torrent torrent, string? destination = null) =>
+        AddTorrentDownload(torrent.InfoHashes, torrent.Name, link: null, torrent, destination);
+
+    internal static async Task<(byte[] Bytes, Torrent Torrent)> DownloadTorrentDescriptorAsync(Uri url,
+        CancellationToken token, HttpClient? client = null)
+    {
+        if (!IsTorrentWebAddress(url) || !HasTorrentExtension(url))
+            throw new ArgumentException("Enter a valid HTTP or HTTPS .torrent URL.");
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(TorrentDescriptorTimeout);
         try
         {
-            descriptor = await TorrentDescriptorClient.GetByteArrayAsync(url);
+            for (var redirects = 0; ; redirects++)
+            {
+                using var response = await (client ?? TorrentDescriptorClient)
+                    .GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+                if (IsTorrentRedirect(response.StatusCode))
+                {
+                    var location = response.Headers.Location;
+                    if (redirects >= MaximumTorrentRedirects || location == null ||
+                        !Uri.TryCreate(url, location, out var next) || !IsTorrentWebAddress(next) ||
+                        url.Scheme == Uri.UriSchemeHttps && next.Scheme != Uri.UriSchemeHttps)
+                        throw new IOException("The .torrent URL redirected to an unsupported address.");
+
+                    url = next;
+                    continue;
+                }
+
+                response.EnsureSuccessStatusCode();
+                await response.Content.LoadIntoBufferAsync(MaximumTorrentDescriptorBytes, timeout.Token).ConfigureAwait(false);
+                var descriptor = await response.Content.ReadAsByteArrayAsync(timeout.Token).ConfigureAwait(false);
+                if (!Torrent.TryLoad(descriptor, out var torrent) || torrent == null)
+                    throw new ArgumentException("The URL did not return a valid .torrent file.");
+
+                ValidatePaths(torrent.Files.Select(file => file.Path));
+                return (descriptor, torrent);
+            }
         }
         catch (HttpRequestException error)
         {
             throw new IOException("Could not download the .torrent file. Check its URL and try again.", error);
         }
-        catch (OperationCanceledException error)
+        catch (OperationCanceledException error) when (!token.IsCancellationRequested)
         {
             throw new TimeoutException("The .torrent file did not respond in time.", error);
         }
-
-        if (!Torrent.TryLoad(descriptor, out var torrent) || torrent == null)
-            throw new ArgumentException("The URL did not return a valid .torrent file.");
-        ValidatePaths(torrent.Files.Select(file => file.Path));
-        await AddTorrentDownload(torrent.InfoHashes, torrent.Name, link: null, torrent, destination);
     }
+
+    private static bool IsTorrentRedirect(HttpStatusCode status) =>
+        status is HttpStatusCode.MovedPermanently or HttpStatusCode.Redirect or HttpStatusCode.SeeOther or
+            HttpStatusCode.TemporaryRedirect or HttpStatusCode.PermanentRedirect;
+
+    private static bool IsTorrentWebAddress(Uri address) =>
+        address.IsAbsoluteUri && address.Scheme is "http" or "https" &&
+        address.Host.Length != 0 && address.UserInfo.Length == 0;
+
+    internal static bool HasTorrentExtension(Uri address) =>
+        address.AbsolutePath.EndsWith(".torrent", StringComparison.OrdinalIgnoreCase);
 
     internal Task AddMagnetAsync(string input, string? destination = null)
     {
@@ -309,19 +355,19 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         return AddTorrentDownload(link.InfoHashes, link.Name, link, torrent: null, destination);
     }
 
-    private static MagnetLink ParseMagnet(string address)
-    {
-        if (!address.StartsWith("magnet:?", StringComparison.OrdinalIgnoreCase) || address.Length > 8192 ||
-            !MagnetLink.TryParse(address, out var link) || link == null)
-            throw new ArgumentException("Enter a magnet link with a valid BitTorrent info hash.");
+    internal static bool IsMagnetLink(string address) => TryParseMagnet(address) != null;
 
-        return link;
-    }
+    private static MagnetLink? TryParseMagnet(string address) =>
+        address.Length <= 8192 && address.StartsWith("magnet:?", StringComparison.OrdinalIgnoreCase) &&
+        MagnetLink.TryParse(address, out var link) ? link : null;
+
+    private static MagnetLink ParseMagnet(string address) =>
+        TryParseMagnet(address) ?? throw new ArgumentException("Enter a magnet link with a valid BitTorrent info hash.");
 
     private static Uri ParseTorrentUrl(string address)
     {
         if (!Uri.TryCreate(address, UriKind.Absolute, out var url) || url.Scheme != Uri.UriSchemeHttps ||
-            !url.AbsolutePath.EndsWith(".torrent", StringComparison.OrdinalIgnoreCase))
+            !IsTorrentWebAddress(url) || !HasTorrentExtension(url))
             throw new ArgumentException("Enter a valid magnet link or an HTTPS .torrent URL.");
 
         return url;

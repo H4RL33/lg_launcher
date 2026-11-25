@@ -31,6 +31,7 @@ internal sealed partial class Launcher
     private readonly HashSet<Guid> _rssCacheToRemove = [];
     private bool _rssRefreshing;
     private bool _rssRefreshPending;
+    private bool _rssOpeningTransfer;
     private DateTimeOffset? _rssLastChecked;
     private StackPanel? _rssFeedRows;
     private StackPanel? _homeRssHost;
@@ -189,9 +190,19 @@ internal sealed partial class Launcher
                     Classes = { "lg-panel" }, Padding = new Thickness(18),
                     Child = new StackPanel { Spacing = 8, Children = { intervalRow, intervalNotice } }
                 },
-                Section("External tools", PreferenceToggle("Open links in internal browser",
-                    "Applies to the Open original action in articles.", preferences.OpenRssLinksInInternalBrowser,
-                    value => preferences.OpenRssLinksInInternalBrowser = value)),
+                Section("External tools", new StackPanel
+                {
+                    Spacing = 8,
+                    Children =
+                    {
+                        PreferenceToggle("Open links in internal browser",
+                            "Applies to the Open original action in articles.", preferences.OpenRssLinksInInternalBrowser,
+                            value => preferences.OpenRssLinksInInternalBrowser = value),
+                        PreferenceToggle("Open transfers in internal download manager",
+                            "Open magnet and .torrent links in Downloads. Turn off to use your system's default torrent app.",
+                            preferences.OpenRssTransfersInternally, value => preferences.OpenRssTransfersInternally = value)
+                    }
+                }),
                 Section("Feeds", _rssFeedRows)
             }
         };
@@ -373,7 +384,9 @@ internal sealed partial class Launcher
         PageTitle.Text = entry.Article.Title;
         var back = IconButton("RSS", "LG.Icon.Back", () => Navigate(Page.Rss), "quiet");
         var actions = Actions(back);
-        if (RssReader.TryWebAddress(entry.Article.Link, out var original))
+        if (RssReader.ResolveTransferAddress(entry.Article.Link) is { } transfer)
+            actions.Children.Add(ActionButton("Open transfer", () => _ = OpenRssTransfer(transfer)));
+        else if (RssReader.TryWebAddress(entry.Article.Link, out var original))
         {
             actions.Children.Add(ActionButton("Open original", () =>
             {
@@ -382,10 +395,20 @@ internal sealed partial class Launcher
                     OpenRssLinkInWebBrowser(original);
                     return;
                 }
-                try { Process.Start(new ProcessStartInfo(original.AbsoluteUri) { UseShellExecute = true })?.Dispose(); }
+                try { OpenRssWithShell(original.AbsoluteUri); }
                 catch (Exception error) when (error is Win32Exception or InvalidOperationException)
                 { Status("Could not open the article in your browser."); }
             }));
+        }
+        foreach (var address in entry.Article.Transfers ?? [])
+        {
+            if (RssReader.ResolveTransferAddress(address) is { } enclosure)
+            {
+                var action = ActionButton(enclosure.Scheme == "magnet" ? "Open magnet link" : "Open .torrent file",
+                    () => _ = OpenRssTransfer(enclosure));
+                ToolTip.SetTip(action, enclosure.Scheme == "magnet" ? "Open magnet link" : enclosure.AbsolutePath);
+                actions.Children.Add(action);
+            }
         }
         PageBody.Children.Add(actions);
         PageBody.Children.Add(Label(RssArticleCaption(entry.FeedTitle, entry.Article), muted: true));
@@ -393,9 +416,15 @@ internal sealed partial class Launcher
         foreach (var block in entry.Article.Blocks ?? [])
         {
             if (RssReader.TryWebAddress(block.Image, out var image))
-                body.Children.Add(new RssArticleImage(image, block.Alt, CanFetch, _background.Token));
+            {
+                var picture = new RssArticleImage(image, block.Alt, CanFetch, _background.Token);
+                body.Children.Add(RssReader.ResolveTransferAddress(block.Transfer) is { } target
+                    ? RssTransferButton(block.Alt is { Length: > 0 } alt ? "Open transfer for " + alt : "Open transfer",
+                        target, picture)
+                    : picture);
+            }
             else if (block.Runs is { Length: > 0 })
-                body.Children.Add(BuildRssParagraph(block));
+                body.Children.Add(BuildRssParagraph(block, allowTransfers: true));
         }
         if (body.Children.Count == 0)
         {
@@ -410,6 +439,109 @@ internal sealed partial class Launcher
         PageBody.Children.Add(body);
     }
 
+    private async Task OpenRssTransfer(Uri address)
+    {
+        if (_closed || _rssOpeningTransfer || DialogHost.HasModal) return;
+        _rssOpeningTransfer = true;
+        var token = _background.Token;
+        try
+        {
+            if (_library.Preferences.OpenRssTransfersInternally)
+            {
+                var destination = await PickWebDownloadFolder();
+                if (destination == null || _closed) return;
+                if (address.Scheme == "magnet") await WebTransferQueue.AddMagnetAsync(address.AbsoluteUri, destination);
+                else
+                {
+                    var (_, torrent) = await WebTransfers.DownloadTorrentDescriptorAsync(address, token);
+                    if (_closed) return;
+                    await WebTransferQueue.AddTorrentAsync(torrent, destination);
+                }
+                if (_closed) return;
+                Navigate(Page.Web);
+                SelectWebView(WebView.Downloads);
+            }
+            else if (address.Scheme == "magnet") OpenRssWithShell(address.AbsoluteUri);
+            else
+            {
+                var (descriptor, _) = await WebTransfers.DownloadTorrentDescriptorAsync(address, token);
+                await OpenRssTorrentFile(descriptor, token, OpenRssWithShell);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error) when (error is Win32Exception or PlatformNotSupportedException)
+        {
+            if (!_closed) Status("Could not open the transfer in your system's default torrent app.");
+        }
+        catch (Exception error) when (error is ArgumentException or IOException or InvalidOperationException or
+            UnauthorizedAccessException or TimeoutException or FormatException or MonoTorrent.TorrentException)
+        {
+            if (!_closed) Status(error.Message);
+        }
+        finally
+        {
+            _rssOpeningTransfer = false;
+        }
+    }
+
+    private static void OpenRssWithShell(string target) =>
+        Process.Start(new ProcessStartInfo(target) { UseShellExecute = true })?.Dispose();
+
+    private static async Task OpenRssTorrentFile(byte[] descriptor, CancellationToken token, Action<string> open)
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"LGLauncher-RSS-{Guid.NewGuid():N}.torrent");
+        var created = false;
+        var opened = false;
+        try
+        {
+            await using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                bufferSize: 16_384, FileOptions.Asynchronous))
+            {
+                created = true;
+                await stream.WriteAsync(descriptor, token);
+            }
+            token.ThrowIfCancellationRequested();
+            open(path);
+            opened = true;
+        }
+        finally
+        {
+            // The associated app may consume the file after the shell returns.
+            if (created && !opened)
+            {
+                try { File.Delete(path); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+            }
+        }
+    }
+
+    private Button RssTransferButton(string label, Uri address, Control content)
+    {
+        var button = content is TextBlock text ? new RssInlineTransferButton(text) : new Button();
+        button.Classes.Add("lg");
+        button.Classes.Add("quiet");
+        Click(button, () => _ = OpenRssTransfer(address));
+        button.Content = content;
+        button.MinHeight = 0;
+        button.Padding = new Thickness(2, 0);
+        AutomationProperties.SetName(button, label);
+        ToolTip.SetTip(button, address.Scheme == "magnet" ? "Open magnet link" : address.AbsolutePath);
+        return button;
+    }
+
+    private sealed class RssInlineTransferButton(TextBlock label) : Button
+    {
+        protected override Type StyleKeyOverride => typeof(Button);
+
+        protected override Size MeasureOverride(Size availableSize)
+        {
+            var size = base.MeasureOverride(availableSize);
+            // Align the label's first text baseline with the surrounding article text.
+            TextBlock.SetBaselineOffset(this, label.TextLayout.TextLines[0].Baseline + BorderThickness.Top + Padding.Top);
+            return size;
+        }
+    }
+
     private static readonly FontFamily RssCodeFont = new("Consolas");
 
     private SelectableTextBlock ArticleText()
@@ -418,7 +550,7 @@ internal sealed partial class Launcher
         return new SelectableTextBlock { TextWrapping = TextWrapping.Wrap, LineHeight = 22 + difference, FontSize = 15 + difference };
     }
 
-    private Control BuildRssParagraph(RssBlock block)
+    private Control BuildRssParagraph(RssBlock block, bool allowTransfers = false)
     {
         var paragraph = ArticleText();
         if (block.Style == RssBlockStyle.Heading)
@@ -428,20 +560,31 @@ internal sealed partial class Launcher
             paragraph.FontWeight = FontWeight.SemiBold;
         }
         if (block.Style == RssBlockStyle.Code) paragraph.FontFamily = RssCodeFont;
-        foreach (var part in block.Runs!)
+        var parts = block.Runs ?? [];
+        for (var index = 0; index < parts.Length;)
         {
-            var run = new Run(part.Text);
-            if ((part.Style & RssTextStyle.Bold) != 0) run.FontWeight = FontWeight.Bold;
-            if ((part.Style & RssTextStyle.Italic) != 0) run.FontStyle = FontStyle.Italic;
-            if ((part.Style & RssTextStyle.Code) != 0) run.FontFamily = RssCodeFont;
-            var decorations = part.Style & (RssTextStyle.Underline | RssTextStyle.Strike);
-            if (decorations != RssTextStyle.Normal)
+            var part = parts[index];
+            if (!allowTransfers || RssReader.ResolveTransferAddress(part.Transfer) is not { } target)
             {
-                run.TextDecorations = new TextDecorationCollection();
-                if ((decorations & RssTextStyle.Underline) != 0) run.TextDecorations.Add(TextDecorations.Underline[0]);
-                if ((decorations & RssTextStyle.Strike) != 0) run.TextDecorations.Add(TextDecorations.Strikethrough[0]);
+                paragraph.Inlines!.Add(BuildRssRun(part));
+                index++;
+                continue;
             }
-            paragraph.Inlines!.Add(run);
+
+            // Allow a wrapped anchor to grow the line instead of clipping it at the ordinary paragraph line height.
+            paragraph.LineHeight = Double.NaN;
+            paragraph.LineSpacing = 3;
+            var first = index;
+            var label = new TextBlock
+            {
+                FontSize = paragraph.FontSize, FontWeight = paragraph.FontWeight,
+                TextWrapping = TextWrapping.Wrap, LineHeight = Double.NaN
+            };
+            label.Bind(TextBlock.ForegroundProperty, this.GetResourceObservable("LG.Accent"));
+            do { label.Inlines!.Add(BuildRssRun(parts[index++], underline: true)); }
+            while (index < parts.Length && parts[index].Transfer == part.Transfer);
+            var name = String.Concat(parts[first..index].Select(run => run.Text));
+            paragraph.Inlines!.Add(new InlineUIContainer(RssTransferButton(name, target, label)));
         }
         return block.Style == RssBlockStyle.Quote
             ? new Border
@@ -450,6 +593,23 @@ internal sealed partial class Launcher
                 BorderThickness = new Thickness(2, 0, 0, 0), Padding = new Thickness(12, 2, 0, 2)
             }
             : paragraph;
+    }
+
+    private static Run BuildRssRun(RssRun part, bool underline = false)
+    {
+        var run = new Run(part.Text);
+        if ((part.Style & RssTextStyle.Bold) != 0) run.FontWeight = FontWeight.Bold;
+        if ((part.Style & RssTextStyle.Italic) != 0) run.FontStyle = FontStyle.Italic;
+        if ((part.Style & RssTextStyle.Code) != 0) run.FontFamily = RssCodeFont;
+        var decorations = part.Style & (RssTextStyle.Underline | RssTextStyle.Strike);
+        if (underline) decorations |= RssTextStyle.Underline;
+        if (decorations != RssTextStyle.Normal)
+        {
+            run.TextDecorations = new TextDecorationCollection();
+            if ((decorations & RssTextStyle.Underline) != 0) run.TextDecorations.Add(TextDecorations.Underline[0]);
+            if ((decorations & RssTextStyle.Strike) != 0) run.TextDecorations.Add(TextDecorations.Strikethrough[0]);
+        }
+        return run;
     }
 
     private IEnumerable<ArticleView> RecentRssArticles() => RssSubscriptions

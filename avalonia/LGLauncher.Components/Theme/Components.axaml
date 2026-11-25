@@ -421,6 +421,9 @@
         <Setter Property="MinHeight" Value="36"/>
         <Setter Property="FontSize" Value="{DynamicResource LG.Font.13}"/>
     </Style>
+    <Style Selector="TextBox.lg[AcceptsReturn=False]">
+        <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
     <Style Selector="TextBox.lg:pointerover:not(:focus):not(:disabled) /template/ Border#PART_BorderElement">
         <Setter Property="Background" Value="{DynamicResource LG.FieldHover}"/>
         <Setter Property="BorderBrush" Value="White"/>

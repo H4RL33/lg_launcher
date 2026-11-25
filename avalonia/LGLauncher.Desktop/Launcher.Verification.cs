@@ -728,15 +728,36 @@ internal sealed partial class Launcher
                 menu.Close();
                 await WaitFor(() => !menu.IsOpen, "The Home Library sort menu did not close.");
             }
+            sort.Focus(NavigationMethod.Pointer);
+            UpdateLayout();
+            var homeScroll = ContentScroll.Offset.Y;
+            Require(homeScroll > 0, "The Home sort fixture did not reach the Library heading.");
             await ChoosePreference(sort, "Title Z–A");
+            UpdateLayout();
             Require(library.Items.Cast<Game[]>().SelectMany(row => row).SequenceEqual(SortedGames(_library.Games, 3)) &&
                 _shownEntries.Select(entry => entry.Game).SequenceEqual(SortedGames(_library.Games, 3)) &&
                 shelves.All(PageBody.Children.Contains), "Sorting Home did not update the library and sidebar together.");
+            Require(Math.Abs(ContentScroll.Offset.Y - homeScroll) < 1,
+                $"Sorting from Home moved the page from {homeScroll} to {ContentScroll.Offset.Y}.");
+
+            _library.Preferences.TileColumns = 1;
+            Render();
+            library = PageBody.Children.OfType<ItemsControl>().Single(view => view.Name == "HomeLibraryGrid");
+            UpdateLayout();
+            ContentScroll.Offset = new Vector(0, ContentScroll.ScrollBarMaximum.Y * .985);
+            UpdateLayout();
+            var sidebarScroll = ContentScroll.Offset.Y;
+            Require(sidebarScroll > homeScroll, "The sidebar sort fixture did not scroll into the Library grid.");
             var sidebarSort = ((Grid)LibrarySectionHeader.Content!).Children.OfType<Button>().Last();
+            sidebarSort.Focus(NavigationMethod.Pointer);
             await ChoosePreference(sidebarSort, "Title A–Z");
+            UpdateLayout();
             Require(AutomationProperties.GetHelpText(HomeSortPicker()) == "Current value Title A–Z" &&
                 library.Items.Cast<Game[]>().SelectMany(row => row).SequenceEqual(SortedGames(_library.Games, 0)),
                 "Changing the sidebar sort did not update Home's sort picker and library rows.");
+            Require(Math.Abs(ContentScroll.Offset.Y - sidebarScroll) < 1,
+                $"Sorting from the sidebar moved Home from {sidebarScroll} to {ContentScroll.Offset.Y}.");
+            Capture(Path.Combine(reports, "home-library-sorted-scroll.png"));
         }
         finally
         {
