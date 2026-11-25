@@ -123,11 +123,14 @@ internal sealed partial class Launcher
         });
     }
 
+    private Button BuildLibrarySortPicker() => BuildChoicePicker("Sort library", GameSortChoices(), _librarySort,
+        index => GameSortLabels[index], index => SetLibrarySort(index, fromSidebar: false));
+
     private bool SetLibrarySort(int index, bool fromSidebar)
     {
         _librarySort = index;
-        if (_page == Page.Home) Render();
-        else RenderSidebar();
+        RenderSidebar();
+        if (_page == Page.Home) RefreshHomeLibrarySort(fromSidebar);
         if (!fromSidebar) PreferencesChanged?.Invoke();
         return true;
     }

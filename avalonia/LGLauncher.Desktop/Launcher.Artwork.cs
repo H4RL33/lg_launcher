@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
@@ -577,68 +576,6 @@ internal sealed partial class Launcher
         if (picture == null) return;
         if (fromHeader) card.ArtworkStretch = Stretch.Uniform;
         card.Artwork = picture;
-        if (card.IsModded)
-        {
-            card.SizeChanged += (_, args) =>
-            {
-                if (args.WidthChanged) UpdateModIndicatorContrast(card, picture);
-            };
-            UpdateModIndicatorContrast(card, picture);
-        }
-    }
-
-    private void UpdateModIndicatorContrast(GameCard card, Bitmap picture)
-    {
-        const int sampleSize = 12;
-        const double opacity = .7;
-        var width = card.Bounds.Width - 2;
-        var height = card.ArtworkHeight;
-        if (width < 36 || height < 36) return;
-
-        var source = picture.Size;
-        var scale = card.ArtworkStretch == Stretch.Uniform
-            ? Math.Min(width / source.Width, height / source.Height)
-            : Math.Max(width / source.Width, height / source.Height);
-        var drawn = new Rect((width - source.Width * scale) / 2, (height - source.Height * scale) / 2,
-            source.Width * scale, source.Height * scale);
-        // Sample the portion behind the template's 18 DIP wrench and 8 DIP inset.
-        var area = new Rect(width - 26, 8, 18, 18);
-        var visible = area.Intersect(drawn);
-        if (visible.Width <= 0 || visible.Height <= 0)
-        {
-            card.ModIndicatorBrush = Brushes.White;
-            return;
-        }
-
-        var size = new PixelSize(sampleSize, sampleSize);
-        var dpi = new Vector(96, 96);
-        using var sample = new RenderTargetBitmap(size, dpi);
-        using (var drawing = sample.CreateDrawingContext())
-        {
-            var surface = (IBrush?)this.FindResource("LG.Surface") ?? Brushes.Black;
-            drawing.FillRectangle(surface, new Rect(0, 0, sampleSize, sampleSize));
-            var crop = new Rect((visible.X - drawn.X) / scale, (visible.Y - drawn.Y) / scale, visible.Width / scale, visible.Height / scale);
-            var factor = sampleSize / area.Width;
-            drawing.DrawImage(picture, crop, new Rect((visible.X - area.X) * factor, (visible.Y - area.Y) * factor,
-                visible.Width * factor, visible.Height * factor));
-        }
-        using var readable = new WriteableBitmap(size, dpi, PixelFormat.Bgra8888, AlphaFormat.Premul);
-        using var pixels = readable.Lock();
-        sample.CopyPixels(pixels);
-        double black = 0;
-        double white = 0;
-        for (var y = 0; y < sampleSize; y++)
-        {
-            for (var x = 0; x < sampleSize; x++)
-            {
-                var offset = y * pixels.RowBytes + x * 4;
-                var fill = Color.FromRgb(Marshal.ReadByte(pixels.Address, offset + 2), Marshal.ReadByte(pixels.Address, offset + 1),
-                    Marshal.ReadByte(pixels.Address, offset));
-                black += ArtworkAccent.Contrast(fill, ArtworkAccent.Mix(fill, Colors.Black, opacity));
-                white += ArtworkAccent.Contrast(fill, ArtworkAccent.Mix(fill, Colors.White, opacity));
-            }
-        }
-        card.ModIndicatorBrush = black > white ? Brushes.Black : Brushes.White;
     }
 
     private async Task<(Bitmap? Picture, bool FromHeader)> ResolveCardArtwork(Game game, CancellationToken token)

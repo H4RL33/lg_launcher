@@ -27,7 +27,7 @@ The game-return fixture checks the first contribution prompt, an ordinary return
 - **Depends on** the actual `Launcher` window and named controls, Avalonia layout/rendering and simulated input, shared UI components, and the isolated profile and artwork fixtures.
 - **Used by** `App.axaml.cs` through the `--verify-migration`, `--verify-existing`, and `--verify-setup` arguments. The other launcher verification partials use its helpers.
 
-The sidebar fixture checks heading and sort label sizes, weight and alignment, and intermediate clipping as both sections open and close at 730, 1230, and 1600 pixels wide. It also checks the tile wrench on bright and dark portraits. The game menu fixture verifies that a menu placed above its button clips from the bottom. The search and RSS URL fixtures check the shared hover fill, border, and transitions.
+The sidebar fixture checks heading and sort label sizes, weight and alignment, and intermediate clipping as both sections open and close at 730, 1230, and 1600 pixels wide. It captures the white wrench badge on bright and dark portraits. The Home fixture checks the shared Library sort options and order and captures the picker at those widths. It checks the column count and tile width against the measured viewport at each size, including when the display limits the requested width. The game menu fixture verifies that a menu placed above its button clips from the bottom. The search and RSS URL fixtures check the shared hover fill, border, and transitions.
 
 [Main smoke source](../../../avalonia/LGLauncher.Desktop/Launcher.Verification.cs) · [Migration harness](../../../tests/Verify-AvaloniaMigration.ps1)
 
@@ -57,7 +57,9 @@ Checks that preferences apply and persist, that older scale values map to the dr
 
 The About fixture switches from Stable to Next preview and back. It checks that both choices save and captures the shared picker and its open menu at 730, 1230, and 1600 pixels wide.
 
-The Library settings fixture checks that Theme music starts off and saves both switch states. It checks both Game Tiles switches and exercises Numeric and Friendly Last Launched dates, including the earlier-year format. It checks the width and right alignment of the playtime trash button and captures the Library settings at 730, 1230, and 1600 pixels wide.
+The Library settings fixture checks that Theme music starts off and saves both switch states. It checks both Game Tiles switches and exercises Numeric and Friendly Last Launched dates, including the earlier-year format. It compares the playtime switch tracks with the trash button and captures the Library settings and open Date format menu at 730, 1230, and 1600 pixels wide.
+
+The game tile layout fixture captures both layout settings at those widths, checks setting and restoring both values, and exercises the width boundary for each column. It checks that collection members and Home use the selected settings.
 
 The Appearance fixture switches among all five colourways, checks palette changes independently of the accent, and captures the alternatives. It checks the shared widget radius and shadow resources and captures Widget Customisation at 730, 1230, and 1600 pixels wide. The Library fixture also checks that disabling playtime persists and hides the details statistic and playtime sort.
 

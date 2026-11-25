@@ -126,7 +126,7 @@ internal sealed partial class Launcher
 
         Action<bool> AddToggle(string name, string help, bool selected, Action<bool> update, bool system = false)
         {
-            var toggle = new ToggleSwitch { IsChecked = selected, OnContent = "", OffContent = "", VerticalAlignment = VerticalAlignment.Center };
+            var toggle = CompactToggle(selected);
             Avalonia.Automation.AutomationProperties.SetName(toggle, name);
             toggle.IsEnabled = !system || (OperatingSystem.IsWindows() && !_verification);
             var row = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 12 };

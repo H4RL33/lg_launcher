@@ -237,7 +237,7 @@ internal sealed partial class Launcher
         var name = Label("");
         var error = Label("", muted: true);
         var info = new StackPanel { Spacing = 3, Children = { name, Label(caption, muted: true), error } };
-        var toggle = new ToggleSwitch { IsChecked = feed.Enabled, OnContent = "", OffContent = "" };
+        var toggle = CompactToggle(feed.Enabled);
         toggle.IsCheckedChanged += (_, _) =>
         {
             if (!SetRssEnabled(feed, toggle.IsChecked == true)) toggle.IsChecked = feed.Enabled;

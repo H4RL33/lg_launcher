@@ -83,7 +83,7 @@ The collection list wires realized rows to the shared context menu so users can 
 
 Coordinates the main window. Its constructor wires the shared shell and initializes services from the loaded profile. The window title displays the installed stable or Next preview tag. It owns startup and disposal hooks. When the usage notice is pending, startup runs the first-usage prompts before allowing automatic installation. The render dispatcher selects page content, updates the sidebar lists and their selections, builds game cards and collection member grids, and updates Discoveries and game details. It also starts folder watches, scans local executables, matches games to Steam, and records play sessions.
 
-Home hosts the complete library in a virtualised grid and collection members use the paged portrait grid. The sidebar exposes Home, Collections, Web, and RSS. The status bar leads to Discoveries. The window stops transfers and releases browser controllers when it closes. Game details display playtime according to the saved setting and show Modded status from managed installations.
+Home hosts the complete library in a virtualised grid. Home and collection member grids fit the available width up to the saved tile column limit and use the minimum tile width and gaps. The sidebar exposes Home, Collections, Web, and RSS. The status bar leads to Discoveries. The window stops transfers and releases browser controllers when it closes. Game details display playtime according to the saved setting and show Modded status from managed installations.
 
 When the last tracked game exits, `EndSession` saves the game-return count with playtime and uses the normal tray restore path to show and activate the launcher. It then checks whether a contribution reminder is due.
 

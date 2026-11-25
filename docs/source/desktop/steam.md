@@ -10,7 +10,7 @@ The desktop decoder checks source dimensions before rasterising artwork. It acce
 
 Steam card artwork requests are shared by App ID and image type. The launcher's background token controls the download and decode, so gameplay and shutdown can still pause artwork work. Leaving Game Details cancels that view's wait and lets cards awaiting the same header receive the result.
 
-For a tile marked as modded, the artwork renderer samples the area under the top-right wrench using the artwork's current crop and the tile background. It compares black and white at 70% opacity using the shared contrast helper and chooses the more legible foreground. The sample is refreshed after artwork loads and when tile dimensions change.
+Modded tiles show a white wrench on a small bordered surface above the artwork. The shared `GameCard` template draws the indicator independently of the artwork crop or colour.
 
 The artwork sample supplies an optional accent alongside framing and glass. On Game Details the main window applies it to the accent and selection resources when the preference is enabled. A game-to-game switch holds the previous palette until the next artwork supplies an accent or its load finishes without one. The configured default accent applies everywhere else and returns immediately when leaving Game Details. Both custom and artwork accents tint the selected Library row, input focus and text selection, and enabled switches. The switch knob and track use paired contrast colours in each interactive state.
 

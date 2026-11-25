@@ -86,6 +86,8 @@ internal sealed partial class Launcher
             "Framing saved before zoom support changed.");
         Require(game.ArtworkPosition.X == .71 && game.ArtworkPosition.Y == .39 && game.ArtworkPosition.Zoom == 2.4,
             "The manual crop was not loaded.");
+        await VerifyGameTileLayout(game, preview);
+        UpdateLayout();
         var homeViews = PageBody.GetVisualDescendants().OfType<Control>().ToArray();
         Require(PageBody.Children.Select(child => child is TextBlock text ? text : (child as Grid)?.Children.FirstOrDefault() as TextBlock)
             .OfType<TextBlock>().Select(heading => heading.Text)
@@ -128,6 +130,7 @@ internal sealed partial class Launcher
         var collectionAction = recentCard.ContextMenu!.Items.OfType<MenuItem>()
             .Single(item => Equals(item.Header, "Add to collection"));
         recentCard.ContextMenu.Close();
+        await WaitFor(() => !recentCard.ContextMenu.IsOpen, "The portrait menu did not close before opening its dialog.");
         collectionAction.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await WaitFor(() => DialogHost.HasModal, "The game menu did not open its collection picker.");
         UpdateLayout();
@@ -174,6 +177,7 @@ internal sealed partial class Launcher
             "A multi-term search did not match a title and a genre together.");
         Require(HandleSearchKey(Key.Escape) && !SearchDropdown.IsVisible, "Escape did not dismiss the dropdown.");
         await VerifySearchMotion();
+        SearchBox.Focus();
         SearchBox.Text = "no such game";
         await WaitFor(() => SearchDropdown.IsVisible && SearchEmpty.IsVisible, "Search did not show its empty state.");
         SearchBox.Text = "legacy";
@@ -649,6 +653,8 @@ internal sealed partial class Launcher
     private async Task VerifyHomeOverflow(string preview)
     {
         var originalWidth = Width;
+        var originalSort = _librarySort;
+        var originalColumns = _library.Preferences.TileColumns;
         var extraGames = Enumerable.Range(1, 32).Select(index => new Game
         {
             Title = $"Sample game {index:00}", LastPlayedUtc = index <= 2 ? DateTime.UnixEpoch.AddDays(index) : null,
@@ -660,24 +666,36 @@ internal sealed partial class Launcher
         try
         {
             Width = MinWidth;
+            _library.Preferences.TileColumns = 2;
+            Render();
+            var overflowShelves = PageBody.Children.OfType<ScrollViewer>().ToArray();
+            await WaitFor(() => overflowShelves.All(view => view.Extent.Width > view.Viewport.Width),
+                "The two-column recent shelf or the collection shelf did not overflow.");
+            var reports = Path.GetDirectoryName(preview)!;
+            await VerifySmoothHomeScrolling(overflowShelves, preview);
+
+            _library.Preferences.TileColumns = originalColumns;
             Render();
             var library = PageBody.Children.OfType<ItemsControl>().Single(view => view.Name == "HomeLibraryGrid");
             var shelves = PageBody.Children.OfType<ScrollViewer>().ToArray();
             await WaitFor(() => library.Items.Cast<Game[]>().SelectMany(row => row).Count() == _library.Games.Count &&
-                shelves.All(view => view.Extent.Width > view.Viewport.Width), "The narrow Home layout clipped rows or omitted library games.");
-            var narrowColumns = ((Game[])library.Items[0]!).Length;
-            var reports = Path.GetDirectoryName(preview)!;
+                library.GetVisualDescendants().OfType<GameCard>().Any(card => card.Bounds.Width > 0),
+                "The narrow Home layout clipped rows or omitted library games.");
+            var recentShelf = shelves[0];
+            var recentCard = recentShelf.GetVisualDescendants().OfType<GameCard>().First();
+            await WaitFor(() => TilesFitViewport(library, recentShelf, recentCard),
+                "Home did not fit its game tiles to the narrow viewport.");
             Capture(Path.Combine(reports, "home-sections.png"));
-            await VerifySmoothHomeScrolling(shelves, preview);
             foreach (var width in new[] { 1230, 1600 })
             {
                 Width = width;
                 await Task.Delay(85);
+                UpdateLayout();
+                await WaitFor(() => TilesFitViewport(library, recentShelf, recentCard),
+                    $"Home did not fit its game tiles to the viewport at the requested {width}px window width.");
                 Capture(Path.Combine(reports, $"home-sections-{width}.png"));
             }
             Width = originalWidth;
-            await WaitFor(() => ((Game[])library.Items[0]!).Length > narrowColumns,
-                "The Library did not fit more portrait columns at a wider window size.");
             Require(!PageBody.GetVisualDescendants().OfType<Button>()
                 .Single(button => button.Name == "RecentlyPlayedRowNext").IsEffectivelyVisible,
                 "The recent shelf showed arrows when all cards fit.");
@@ -692,14 +710,59 @@ internal sealed partial class Launcher
                 "The Home library showed a playtime pill for a session under one minute.");
             Require(library.GetVisualDescendants().OfType<GameCard>().Count() < _library.Games.Count,
                 "The scrollable Library realized every portrait at once.");
+
+            var sort = HomeSortPicker();
+            foreach (var width in new[] { 730, 1230, 1600 })
+            {
+                Width = width;
+                await Task.Delay(40);
+                sort.BringIntoView();
+                UpdateLayout();
+                var menu = PreferenceMenu(sort);
+                sort.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await WaitFor(() => menu.IsOpen && menu.RevealProgress == 1, "The Home Library sort menu did not open.");
+                Require(menu.Items.OfType<MenuItem>().Select(item => item.Header).SequenceEqual(GameSortChoices().Select(index => GameSortLabels[index])),
+                    "The Home Library did not offer the configured library sort options.");
+                Capture(Path.Combine(reports, $"home-library-sort-{width}.png"));
+                CaptureControl(menu, Path.Combine(reports, $"home-library-sort-menu-{width}.png"));
+                menu.Close();
+                await WaitFor(() => !menu.IsOpen, "The Home Library sort menu did not close.");
+            }
+            await ChoosePreference(sort, "Title Z–A");
+            Require(library.Items.Cast<Game[]>().SelectMany(row => row).SequenceEqual(SortedGames(_library.Games, 3)) &&
+                _shownEntries.Select(entry => entry.Game).SequenceEqual(SortedGames(_library.Games, 3)) &&
+                shelves.All(PageBody.Children.Contains), "Sorting Home did not update the library and sidebar together.");
+            var sidebarSort = ((Grid)LibrarySectionHeader.Content!).Children.OfType<Button>().Last();
+            await ChoosePreference(sidebarSort, "Title A–Z");
+            Require(AutomationProperties.GetHelpText(HomeSortPicker()) == "Current value Title A–Z" &&
+                library.Items.Cast<Game[]>().SelectMany(row => row).SequenceEqual(SortedGames(_library.Games, 0)),
+                "Changing the sidebar sort did not update Home's sort picker and library rows.");
         }
         finally
         {
             Width = originalWidth;
+            _librarySort = originalSort;
+            _library.Preferences.TileColumns = originalColumns;
             _library.Games.RemoveAll(extraGames.Contains);
             _library.Collections.RemoveAll(extraCollections.Contains);
             Render();
+            PreferencesChanged?.Invoke();
             ContentScroll.Offset = default;
+        }
+
+        Button HomeSortPicker() => PageBody.GetVisualDescendants().OfType<Button>()
+            .Single(button => AutomationProperties.GetName(button) == "Sort library");
+
+        bool TilesFitViewport(ItemsControl library, ScrollViewer recentShelf, GameCard recentCard)
+        {
+            if (library.Bounds.Width <= 0 || recentShelf.Bounds.Width <= 0 || library.Items[0] is not Game[] firstRow) return false;
+            var recentColumns = ExpectedColumns(recentShelf.Bounds.Width);
+            var tileWidth = (recentShelf.Bounds.Width - (recentColumns - 1) * GameTileColumnSpacing) / recentColumns;
+            return firstRow.Length == ExpectedColumns(library.Bounds.Width) &&
+                Math.Abs(recentCard.Bounds.Width - tileWidth) <= 1;
+
+            int ExpectedColumns(double availableWidth) => Enumerable.Range(1, GameTileColumns).Last(columns =>
+                columns == 1 || columns * GameTileMinimumWidth + (columns - 1) * GameTileColumnSpacing <= availableWidth);
         }
     }
 
@@ -999,18 +1062,25 @@ internal sealed partial class Launcher
             {
                 (Width, Height) = size;
                 await Task.Delay(40);
+                UpdateLayout();
                 var tile = _cardGrid!.Children.OfType<Border>().Single(host => host.Tag == played).Child as GameCard;
                 Require(tile is { IsModded: true }, "The modded portrait did not show its indicator.");
-                var icon = tile!.GetVisualDescendants().OfType<SymbolIcon>().Single(symbol => symbol.Name == "ModdedWrench");
+                var badge = tile!.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "ModdedBadge");
                 using var bright = MakePortrait(Brushes.White);
                 using var dark = MakePortrait(Brushes.Black);
-                UpdateModIndicatorContrast(tile, dark);
-                Require(icon.Foreground is ISolidColorBrush { Color: var light } && light == Colors.White && icon.Opacity == .7,
-                    "The dark portrait did not use a 70% white wrench.");
+                tile.Artwork = dark;
+                CaptureControl(tile, Path.Combine(Path.GetDirectoryName(preview)!, $"modded-portrait-dark-{size.Item1}.png"));
                 tile.Artwork = bright;
-                UpdateModIndicatorContrast(tile, bright);
-                Require(icon.Foreground is ISolidColorBrush { Color: var ink } && ink == Colors.Black,
-                    "The bright portrait did not use a black wrench.");
+                CaptureControl(tile, Path.Combine(Path.GetDirectoryName(preview)!, $"modded-portrait-light-{size.Item1}.png"));
+                var wrench = (SymbolIcon)badge.Child!;
+                Require(badge is
+                {
+                    IsVisible: true, IsHitTestVisible: false, Background: ISolidColorBrush { Color.A: 255 },
+                    BorderBrush: not null, BorderThickness.Top: > 0
+                } && wrench.Foreground is ISolidColorBrush { Color: var colour } && colour == Colors.White && wrench.Opacity == 1 &&
+                    Math.Abs(badge.Bounds.Width - (tile.Bounds.Width < 64 ? 22 : 26)) <= 1,
+                    $"The modded portrait did not show the bordered white wrench. Badge {badge.Bounds.Size}, " +
+                    $"tile {tile.Bounds.Width:0.##}, fill {badge.Background}, border {badge.BorderBrush}, icon {wrench.Foreground}.");
                 Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"modded-collection-{size.Item1}.png"));
                 tile.Artwork = null;
             }

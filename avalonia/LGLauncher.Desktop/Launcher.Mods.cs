@@ -1892,7 +1892,7 @@ internal sealed partial class Launcher
 
     private static ToggleSwitch ModToggle(string title, out Control row)
     {
-        var toggle = new ToggleSwitch { OnContent = "", OffContent = "" };
+        var toggle = CompactToggle();
         AutomationProperties.SetName(toggle, title);
         row = PreferenceRow(title, toggle);
         return toggle;
