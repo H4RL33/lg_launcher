@@ -27,7 +27,7 @@ The game-return fixture checks the first contribution prompt, an ordinary return
 - **Depends on** the actual `Launcher` window and named controls, Avalonia layout/rendering and simulated input, shared UI components, and the isolated profile and artwork fixtures.
 - **Used by** `App.axaml.cs` through the `--verify-migration`, `--verify-existing`, and `--verify-setup` arguments. The other launcher verification partials use its helpers.
 
-The sidebar fixture checks heading and sort label sizes, weight and alignment, and intermediate clipping as both sections open and close at 730, 1230, and 1600 pixels wide. It captures the white wrench badge on bright and dark portraits. The Home fixture checks the shared Library sort options and order and captures the picker at those widths. It checks the column count and tile width against the measured viewport at each size, including when the display limits the requested width. The game menu fixture verifies that a menu placed above its button clips from the bottom. The search and RSS URL fixtures check the shared hover fill, border, and transitions.
+The sidebar fixture checks heading and sort label sizes, weight and alignment, and intermediate clipping as both sections open and close at 730, 1230, and 1600 pixels wide. It captures the white wrench badge on bright and dark portraits. The Home fixture checks the shared Library sort options and order and captures the picker at those widths. It verifies that sorting keeps the Library heading in view and that changing the sidebar sort preserves the scroll position near the bottom of a one-column Library. It checks the column count and tile width against the measured viewport at each size, including when the display limits the requested width. The game menu fixture verifies that a menu placed above its button clips from the bottom. The search and RSS URL fixtures check the shared hover fill, border, and transitions.
 
 [Main smoke source](../../../avalonia/LGLauncher.Desktop/Launcher.Verification.cs) · [Migration harness](../../../tests/Verify-AvaloniaMigration.ps1)
 
@@ -130,7 +130,9 @@ The theme playback fixture uses a silent WAV to check the selection delay, inter
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Rss.Verification.cs`
 
-Tests RSS settings, file and OPML import, enablement, automatic refresh-interval saves, persisted internal-browser routing, offline reuse, the Home shelf, article history, rendering, and image viewport loading. Local data and injected HTTP responses exercise Atom and RSS parsing, conditional requests, restricted web links, and bounded markup.
+Tests RSS settings, file and OPML import, enablement, automatic refresh-interval saves, persisted browser and transfer routing, offline reuse, the Home shelf, article history, rendering, and image viewport loading. Local data and injected HTTP responses exercise Atom and RSS parsing, conditional requests, restricted web links, and bounded markup.
+
+The transfer fixture covers HTML and Atom XHTML anchors, primary links, deduplicated enclosures, offline cache compatibility, and cancellation of the existing destination picker. It validates safe redirects, the descriptor size limit, and the temporary .torrent file provided to an injected association handler. No torrent app is launched.
 
 The image fixture opens game details from a scrolled article, checks that the decoded image detaches, then returns to the article through history and captures it at narrow, typical, and wider widths.
 

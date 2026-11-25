@@ -397,11 +397,13 @@ internal sealed partial class Launcher
                     .SingleOrDefault(control => AutomationProperties.GetName(control) == label);
                 Require(toggle?.IsChecked == true, $"{label} was not on by default.");
             }
+            var inputs = PageBody.GetVisualDescendants().OfType<TextBox>().ToArray();
+            Require(inputs.All(field => field.VerticalContentAlignment == Avalonia.Layout.VerticalAlignment.Center),
+                $"The text in {name} settings fields was not vertically centered.");
             if (name == "Browser")
             {
-                var fields = PageBody.GetVisualDescendants().OfType<TextBox>().ToArray();
-                var homepage = fields.Single(field => AutomationProperties.GetName(field) == "Default homepage");
-                var custom = fields.Single(field => AutomationProperties.GetName(field) == "Custom search URL");
+                var homepage = inputs.Single(field => AutomationProperties.GetName(field) == "Default homepage");
+                var custom = inputs.Single(field => AutomationProperties.GetName(field) == "Custom search URL");
                 Require(custom.IsEffectivelyVisible && !custom.IsEffectivelyEnabled,
                     "The custom URL field was hidden or enabled by default.");
                 homepage.Text = "example.test";
