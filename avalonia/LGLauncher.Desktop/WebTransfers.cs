@@ -103,6 +103,7 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
 {
     internal const string StagingDirectoryName = ".transfers";
     private const string StageOwnerFileName = ".owner";
+    private const int StageSessionVersion = 2;
     private const string SessionPrefix = "session-";
     private const string PartialStageSeparator = ".lg-transfer-";
     private const string PartialStageSuffix = ".part";
@@ -451,7 +452,8 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         var network = networkSettings?.Invoke() ?? (true, null, null);
         var listeners = TorrentListenEndPoints(network.BindAddress, network.Protocol);
         var dhtEndPoint = network.EnableDht ? listeners.GetValueOrDefault("ipv4") : null;
-        var cache = CreateStageDirectory();
+        EnsureRegularDirectory(dataDirectory);
+        var cache = CreateStageDirectory(dataDirectory);
         try
         {
             var settings = new EngineSettingsBuilder
@@ -853,6 +855,8 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         if (transfer.Stage is { } remaining) await Task.Run(() => DeleteTransferStage(remaining));
         if (deleteFiles && transfer.RetainedStage is { } retained)
             await Task.Run(() => DeleteTransferStage(retained));
+        else if (transfer.RetainedStage is { } preserved)
+            await Task.Run(() => ReleaseTransferStage(preserved));
 
         if (_magnetDownloads.Remove(transfer, out var removed)) removed.Cancellation?.Dispose();
         transfer.ReleaseCommands();
@@ -926,7 +930,14 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         if (!copy)
         {
             MoveOwnedDirectory(guard, destination);
-            if (_stageOwners.TryRemove(stage, out var owner)) _stageOwners[destination] = owner;
+            lock (_stageMarker)
+            {
+                if (_stageOwners.TryRemove(stage, out var owner))
+                {
+                    _stageOwners[destination] = owner with { Claim = null };
+                    DeleteStageClaim(stage, _stageSessions[targetDirectory], owner.Claim);
+                }
+            }
             return destination;
         }
 
@@ -956,7 +967,7 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         if (!Directory.Exists(stage))
         {
             if (Path.Exists(stage)) MarkStageChanged(stage);
-            _stageOwners.TryRemove(stage, out _);
+            ReleaseTransferStage(stage);
             return;
         }
 
@@ -976,13 +987,43 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
             }
         }
         DeleteByHandle(guard, isDirectory: true);
-        _stageOwners.TryRemove(stage, out _);
+        guard.Dispose();
+        ReleaseTransferStage(stage);
     }
 
     private void RegisterTransferStage(string stage)
     {
         var stamp = CaptureFile(stage) ?? throw new IOException("Could not verify the download staging directory.");
         _stageOwners[stage] = new(stamp.Identity);
+    }
+
+    private void ReleaseTransferStage(string stage)
+    {
+        lock (_stageMarker)
+        {
+            if (!_stageOwners.TryRemove(stage, out var owner)) return;
+            var destination = GetStageDestination(stage);
+            if (destination == null || !_stageSessions.TryGetValue(destination, out var session)) return;
+            DeleteStageClaim(stage, session, owner.Claim);
+            if (_stageOwners.Keys.Any(other => PathComparer.Equals(GetStageDestination(other), destination))) return;
+
+            // Drop the last handle in a destination so Files can rename or move the folder on Windows.
+            CloseStageSession(session);
+            _stageSessions.Remove(destination);
+        }
+    }
+
+    private static void DeleteStageClaim(string stage, StageSession session, FileStamp? claim)
+    {
+        if (claim == null) return;
+        try
+        {
+            DeletePublishedPath(Path.Combine(session.Path, Path.GetFileName(stage)), session.Path, claim, isDirectory: false);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // The session lock still distinguishes a live transfer from stale bookkeeping.
+        }
     }
 
     private void SetExpectedStageEntries(string stage, IEnumerable<string> paths)
@@ -1037,14 +1078,81 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         return root != null && PathComparer.Equals(Path.GetFileName(root), StagingDirectoryName) ? Path.GetDirectoryName(root) : null;
     }
 
-    internal static bool IsIncompletePath(string path)
+    internal static bool IsIncompletePath(string path) => IsIncompletePath(path, out _);
+
+    internal static bool IsIncompletePath(string path, out bool insideVisibleStage)
     {
+        insideVisibleStage = false;
         for (var folder = path; folder != null; folder = Path.GetDirectoryName(folder))
         {
-            if (IsVisibleStageName(Path.GetFileName(folder))) return true;
+            if (!IsVisibleStageName(Path.GetFileName(folder))) continue;
+            insideVisibleStage = true;
+            if (HasLiveStageClaim(folder)) return true;
         }
         return false;
     }
+
+    private static bool HasLiveStageClaim(string stage)
+    {
+        if (Path.GetDirectoryName(stage) is not { } destination) return false;
+        var root = Path.Combine(destination, StagingDirectoryName);
+        try
+        {
+            CheckRegularPath(root);
+            foreach (var session in Directory.EnumerateDirectories(root, SessionPrefix + "*"))
+            {
+                if (!TryGetStageSessionId(session, out var id)) continue;
+                try
+                {
+                    CheckRegularPath(session);
+                    var ownerPath = Path.Combine(session, StageOwnerFileName);
+                    CheckRegularPath(ownerPath);
+                    try
+                    {
+                        using var idle = new FileStream(ownerPath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+                        continue;
+                    }
+                    catch (IOException error) when (IsSharingViolation(error))
+                    {
+                        // The session's writer is still open. Read the marker with compatible sharing.
+                    }
+
+                    try
+                    {
+                        using var owner = new FileStream(ownerPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                        if (owner.Length != 0 && !MatchesMarker(owner, StageOwnerMarker(id))) continue;
+                    }
+                    catch (IOException error) when (IsSharingViolation(error))
+                    {
+                        // An older launcher locks its marker exclusively and has no per-stage claims.
+                        return true;
+                    }
+
+                    var claimPath = Path.Combine(session, Path.GetFileName(stage));
+                    CheckRegularPath(claimPath);
+                    using var claim = new FileStream(claimPath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+                    var stamp = CaptureFile(stage);
+                    if (stamp == null || MatchesMarker(claim, StageClaimMarker(stamp.Identity))) return true;
+                }
+                catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException)
+                {
+                    // An absent marker or claim provides no evidence of a live stage.
+                }
+            }
+        }
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException)
+        {
+            // Legacy partial directories can remain without a staging root or session marker.
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // Keep the path protected when access fails and ownership cannot be ruled out.
+            return true;
+        }
+        return false;
+    }
+
+    private static bool IsSharingViolation(IOException error) => (error.HResult & 0xffff) == 32;
 
     private static bool IsVisibleStageName(string name)
     {
@@ -1295,19 +1403,22 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         }
     }
 
-    private string CreateStageDirectory(string? targetDirectory = null, string? visibleLabel = null)
+    private string CreateStageDirectory(string destination, string? visibleLabel = null)
     {
-        var destination = targetDirectory ?? _directory;
-        StageSession session;
         lock (_stageMarker)
         {
-            if (!_stageSessions.TryGetValue(destination, out session!))
+            if (!_stageSessions.TryGetValue(destination, out var session))
             {
                 session = StartStageSession(destination);
                 _stageSessions.Add(destination, session);
             }
-        }
 
+            return CreateStageDirectory(destination, session, visibleLabel);
+        }
+    }
+
+    private string CreateStageDirectory(string destination, StageSession session, string? visibleLabel)
+    {
         CheckRegularPath(destination);
         CheckRegularPath(Path.Combine(destination, StagingDirectoryName));
         CheckRegularPath(session.Path);
@@ -1324,16 +1435,23 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         if (char.IsHighSurrogate(visibleLabel[labelLength - 1])) labelLength--;
         var label = SafeName(visibleLabel[..labelLength], "Download");
         var visibleStage = Path.Combine(destination, label + PartialStageSeparator + id + PartialStageSuffix);
+        FileStamp? claim = null;
         try
         {
             using var handle = GuardTransferStage(stage, canDelete: true);
+            var owner = _stageOwners[stage];
+            var claimPath = Path.Combine(session.Path, Path.GetFileName(visibleStage));
+            using (var marker = new FileStream(claimPath, FileMode.CreateNew, FileAccess.Write))
+                marker.Write(StageClaimMarker(owner.Identity));
+            claim = CaptureFile(claimPath) ?? throw new IOException("Could not verify the visible staging claim.");
             MoveOwnedDirectory(handle, visibleStage);
-            if (_stageOwners.TryRemove(stage, out var owner))
-                _stageOwners[visibleStage] = owner with { ExpectedEntries = new HashSet<string>(PathComparer) };
+            _stageOwners[visibleStage] = owner with { ExpectedEntries = new HashSet<string>(PathComparer), Claim = claim };
+            _stageOwners.TryRemove(stage, out _);
             return visibleStage;
         }
         catch
         {
+            DeleteStageClaim(visibleStage, session, claim);
             DeleteStage(stage);
             throw;
         }
@@ -1355,7 +1473,7 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         FileStream? owner = null;
         try
         {
-            owner = new FileStream(markerPath, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            owner = new FileStream(markerPath, FileMode.CreateNew, FileAccess.Write, FileShare.Read);
             owner.Write(StageOwnerMarker(sessionId));
             owner.Flush();
         }
@@ -1370,7 +1488,27 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         return new StageSession(session, identity, owner);
     }
 
-    private static byte[] StageOwnerMarker(string sessionId) => Encoding.ASCII.GetBytes($"LG Launcher web transfers 1\n{sessionId}\n");
+    private static byte[] StageOwnerMarker(string sessionId, int version = StageSessionVersion) =>
+        Encoding.ASCII.GetBytes($"LG Launcher web transfers {version}\n{sessionId}\n");
+
+    private static byte[] StageClaimMarker(FileIdentity identity) =>
+        Encoding.ASCII.GetBytes($"LG Launcher visible transfer 1\n{identity.Volume:x8}{identity.IndexHigh:x8}{identity.IndexLow:x8}{identity.Created:x16}\n");
+
+    private static bool MatchesMarker(FileStream stream, byte[] expected)
+    {
+        if (stream.Length != expected.Length) return false;
+        stream.Position = 0;
+        Span<byte> contents = stackalloc byte[expected.Length];
+        stream.ReadExactly(contents);
+        return contents.SequenceEqual(expected);
+    }
+
+    private static bool TryGetStageSessionId(string path, out string id)
+    {
+        var name = Path.GetFileName(path);
+        id = name.StartsWith(SessionPrefix, StringComparison.Ordinal) ? name[SessionPrefix.Length..] : "";
+        return Guid.TryParseExact(id, "N", out var parsed) && id == parsed.ToString("N");
+    }
 
     private void ReclaimStaleStages(string stagingRoot, string currentSession)
     {
@@ -1378,9 +1516,7 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         {
             foreach (var directory in Directory.EnumerateDirectories(stagingRoot, SessionPrefix + "*"))
             {
-                var name = Path.GetFileName(directory);
-                if (PathComparer.Equals(directory, currentSession) || !name.StartsWith(SessionPrefix, StringComparison.Ordinal) ||
-                    !Guid.TryParseExact(name[SessionPrefix.Length..], "N", out var id) || name != SessionPrefix + id.ToString("N")) continue;
+                if (PathComparer.Equals(directory, currentSession) || !TryGetStageSessionId(directory, out var id)) continue;
 
                 try
                 {
@@ -1389,11 +1525,7 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
                     CheckRegularPath(markerPath);
                     using (var marker = new FileStream(markerPath, FileMode.Open, FileAccess.Read, FileShare.None))
                     {
-                        var expected = StageOwnerMarker(id.ToString("N"));
-                        if (marker.Length != expected.Length) continue;
-                        var actual = new byte[expected.Length];
-                        marker.ReadExactly(actual);
-                        if (!actual.AsSpan().SequenceEqual(expected)) continue;
+                        if (!MatchesMarker(marker, StageOwnerMarker(id)) && !MatchesMarker(marker, StageOwnerMarker(id, version: 1))) continue;
                     }
 
                     // A live launcher keeps the marker locked until its transfers stop.
@@ -1427,9 +1559,8 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
                 // The move itself checks the destination again if another transfer wins this name.
                 if (isDirectory)
                 {
-                    using var guard = GuardTransferStage(source, canDelete: true);
-                    MoveOwnedDirectory(guard, destination);
-                    _stageOwners.TryRemove(source, out _);
+                    using (var guard = GuardTransferStage(source, canDelete: true)) MoveOwnedDirectory(guard, destination);
+                    ReleaseTransferStage(source);
                 }
                 else File.Move(source, destination);
                 return destination;
@@ -1568,7 +1699,7 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
         }
         catch (OperationCanceledException) when (deadline.IsCancellationRequested)
         {
-            // Any remaining stage stays owned until this process exits. A future session can reclaim it.
+            // Ownership lasts until the process exits. Visible bytes remain available for manual recovery.
         }
     }
 
@@ -1599,7 +1730,9 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
 
     private void ReleaseStageSession()
     {
-        foreach (var (destination, entry) in _stageSessions)
+        KeyValuePair<string, StageSession>[] sessions;
+        lock (_stageMarker) sessions = _stageSessions.ToArray();
+        foreach (var (destination, entry) in sessions)
         {
             foreach (var stage in _stageOwners.Keys.Where(stage =>
                 PathComparer.Equals(Path.GetDirectoryName(stage), entry.Path) ||
@@ -1610,32 +1743,37 @@ internal sealed class WebTransfers(string directory, string dataDirectory,
 
             lock (_stageMarker)
             {
-                try
-                {
-                    using var session = OpenArtifact(entry.Path, canDelete: true);
-                    var owned = !session.IsInvalid && ReadStamp(session) is { } stamp && stamp.Identity == entry.Identity;
-                    var empty = owned && Directory.EnumerateFileSystemEntries(entry.Path)
-                        .All(path => Path.GetFileName(path) == StageOwnerFileName);
-                    if (!empty && entry.Owner.CanWrite) entry.Owner.SetLength(0);
-                    entry.Owner.Dispose();
-                    if (!empty) continue;
-
-                    File.Delete(Path.Combine(entry.Path, StageOwnerFileName));
-                    DeleteByHandle(session, isDirectory: true);
-                }
-                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-                {
-                    // A folder can become unavailable independently of the other destinations.
-                }
-                finally
-                {
-                    entry.Owner.Dispose();
-                }
+                if (_stageSessions.Remove(destination)) CloseStageSession(entry);
             }
         }
     }
 
-    private sealed record StageOwner(FileIdentity Identity, IReadOnlySet<string>? ExpectedEntries = null);
+    private static void CloseStageSession(StageSession entry)
+    {
+        try
+        {
+            using var session = OpenArtifact(entry.Path, canDelete: true);
+            var owned = !session.IsInvalid && ReadStamp(session) is { } stamp && stamp.Identity == entry.Identity;
+            var empty = owned && Directory.EnumerateFileSystemEntries(entry.Path)
+                .All(path => Path.GetFileName(path) == StageOwnerFileName);
+            if (!empty && entry.Owner.CanWrite) entry.Owner.SetLength(0);
+            entry.Owner.Dispose();
+            if (!empty) return;
+
+            File.Delete(Path.Combine(entry.Path, StageOwnerFileName));
+            DeleteByHandle(session, isDirectory: true);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // A folder can become unavailable independently of the other destinations.
+        }
+        finally
+        {
+            entry.Owner.Dispose();
+        }
+    }
+
+    private sealed record StageOwner(FileIdentity Identity, IReadOnlySet<string>? ExpectedEntries = null, FileStamp? Claim = null);
 
     private sealed record StageSession(string Path, FileIdentity Identity, FileStream Owner);
 

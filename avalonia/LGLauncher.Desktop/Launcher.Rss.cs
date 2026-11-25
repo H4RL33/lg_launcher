@@ -400,7 +400,7 @@ internal sealed partial class Launcher
                 { Status("Could not open the article in your browser."); }
             }));
         }
-        foreach (var address in entry.Article.Transfers ?? [])
+        foreach (var address in (entry.Article.Transfers ?? []).Take(RssReader.MaximumArticleEnclosures))
         {
             if (RssReader.ResolveTransferAddress(address) is { } enclosure)
             {

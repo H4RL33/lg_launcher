@@ -118,6 +118,7 @@ internal sealed partial class Launcher
             await VerifyModDownloadProgress(previews);
             await VerifyModPreviewPreparation(game, previews);
             await VerifySetupModDownload(game, previews);
+            await VerifyGuidedSetupUsesCachedPackages(previews);
             await VerifyManagedMod(previews);
             await VerifyNewGameModRows(previews);
         }
@@ -672,6 +673,7 @@ internal sealed partial class Launcher
                     new("dinput8.dll", null, "dependency fixture"u8.ToArray(), framework.Provider)], [key, framework]);
             SelectGame(fixture);
             await VerifyModInstallDialog(plan, previews);
+            await VerifyManageWithUnreadablePackageCache(fixture, previews);
             await VerifyCachedModDelete(fixture, key, previews);
             await VerifyManagedModsSettings(fixture, previews);
             SelectGame(fixture);
@@ -781,6 +783,114 @@ internal sealed partial class Launcher
             DialogHost.DismissTop();
         }
         finally { _library.Games.Remove(fixture); }
+    }
+
+    private async Task VerifyManageWithUnreadablePackageCache(Game game, string previews)
+    {
+        var entry = Directory.CreateDirectory(Path.Combine(Program.DataDirectory, "mods", "packages", new string('A', 64)));
+        var marker = Path.Combine(entry.FullName, "package.json");
+        try
+        {
+            using (File.Create(marker))
+            {
+                SelectGame(game);
+                var list = ShowGameMods(game);
+                if (list.IsCompleted) await list;
+                Require(AutomationProperties.GetName(ActiveModDialog!) == "Mods", "A locked package marker prevented opening Mods.");
+                var opti = ActiveModDialog!.Body.Children.OfType<Button>()
+                    .Single(button => AutomationProperties.GetName(button) == "OptiScaler");
+                opti.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                var manager = ActiveModDialog!;
+                UpdateLayout();
+                Require(AutomationProperties.GetName(manager) == "Manage OptiScaler" &&
+                    ManagedAction(manager, "Uninstall OptiScaler").IsVisible,
+                    "A locked package marker prevented managing an installed mod.");
+                var windowSize = (Width, Height);
+                try
+                {
+                    foreach (var size in new[] { (730, 510), (1230, 805), (1600, 900) })
+                    {
+                        (Width, Height) = size;
+                        await Task.Delay(40);
+                        Capture(Path.Combine(previews, $"mods-cache-unreadable-{size.Item1}.png"));
+                    }
+                }
+                finally { (Width, Height) = windowSize; }
+                DialogHost.DismissTop();
+                DialogHost.DismissTop();
+                await list;
+            }
+        }
+        finally
+        {
+            DialogHost.CloseAll();
+            File.Delete(marker);
+            Directory.Delete(entry.FullName);
+        }
+        await OpenModsList();
+        DialogHost.DismissTop();
+    }
+
+    private async Task VerifyGuidedSetupUsesCachedPackages(string previews)
+    {
+        var root = Directory.CreateDirectory(Path.Combine(Program.DataDirectory, "guided-cache-game")).FullName;
+        var executable = Path.Combine(root, "streetfighter6.exe");
+        File.Copy(Path.Combine(Environment.SystemDirectory, "cmd.exe"), executable);
+        var game = new Game { Title = "Guided cache fixture", Path = executable };
+        _library.Games.Add(game);
+        try
+        {
+            SelectGame(game);
+            var opti = await OpenModsList();
+            var list = ActiveModDialog!;
+            var framework = list.Body.Children.OfType<Button>().Single(button => AutomationProperties.GetName(button) == "REFramework");
+            foreach (var (provider, newer, row) in new[]
+            {
+                (ModProviderId.OptiScaler, "v99.0.0", opti), (ModProviderId.ReFramework, "nightly-99999", framework)
+            })
+            {
+                var approved = ModPackageStore.Approved(provider);
+                SeedCachedModPackage(approved.Key, approved.Files.ToDictionary(member => member, member =>
+                    member == "OptiScaler.ini" ? "[Spoofing]\nDxgi=auto\n"u8.ToArray() : "fixture payload"u8.ToArray()));
+                _checkedModDownloads[provider] = approved with { Key = approved.Key with { Version = newer } };
+                try
+                {
+                    var name = ModPackageStore.Name(provider);
+                    row.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    if (provider == ModProviderId.OptiScaler)
+                    {
+                        await WaitFor(() => AutomationProperties.GetName(ActiveModDialog!) == name, "OptiScaler compatibility did not open.");
+                        ActiveModDialog!.Footer.Children.OfType<Button>().Single(button => Equals(button.Content, "Guided setup"))
+                            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    }
+                    await WaitFor(() => ActiveModDialog?.Footer.Children.OfType<Button>()
+                        .Any(button => Equals(button.Content, "Preview install")) == true, $"{name} setup did not open.");
+                    var setup = ActiveModDialog!;
+                    UpdateLayout();
+                    setup.GetVisualDescendants().OfType<ToggleSwitch>().Single().IsChecked = true;
+                    setup.Footer.Children.OfType<Button>().Single(button => Equals(button.Content, "Preview install"))
+                        .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    await WaitFor(() => ActiveModDialog != setup, $"{name} setup did not show a preview or download prompt.");
+                    var preview = ActiveModDialog!;
+                    Require(AutomationProperties.GetName(preview) == $"Install {name}" && preview.Body.GetVisualDescendants()
+                        .OfType<TextBlock>().Any(label => label.Text?.Contains($"{name} {approved.Key.Version}", StringComparison.Ordinal) == true),
+                        $"{name} setup did not preview the approved cached package while a newer download was available.");
+                    Capture(Path.Combine(previews, $"mods-{name.ToLowerInvariant()}-cached-preview.png"));
+                    DialogHost.DismissTop();
+                    await Task.Yield();
+                }
+                finally
+                {
+                    _checkedModDownloads.Remove(provider);
+                    await _modPackages.DeleteAsync(approved.Key, CancellationToken.None);
+                }
+            }
+        }
+        finally
+        {
+            DialogHost.CloseAll();
+            _library.Games.Remove(game);
+        }
     }
 
     private async Task VerifyGameModWarnings(ModalDialog dialog, string previews)
@@ -930,12 +1040,20 @@ internal sealed partial class Launcher
         }
     }
 
-    private static void SeedCachedModPackage(ModPackageKey key)
+    private static void SeedCachedModPackage(ModPackageKey key, IReadOnlyDictionary<string, byte[]>? payloads = null)
     {
         var entry = Path.Combine(Program.DataDirectory, "mods", "packages", key.StoreId);
         Directory.CreateDirectory(entry);
+        var files = new Dictionary<string, string>();
+        foreach (var (member, bytes) in payloads ?? new Dictionary<string, byte[]>())
+        {
+            var path = ModPaths.Within(Path.Combine(entry, "files"), member);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, bytes);
+            files.Add(member, ModFileSnapshot.For(bytes).Hash);
+        }
         File.WriteAllText(Path.Combine(entry, "package.json"),
-            System.Text.Json.JsonSerializer.Serialize(new { Key = key, Files = new Dictionary<string, string>() }));
+            System.Text.Json.JsonSerializer.Serialize(new { Key = key, Files = files }));
     }
 
     private static Button ManagedAction(ModalDialog dialog, string name) => dialog.GetVisualDescendants().OfType<Button>()

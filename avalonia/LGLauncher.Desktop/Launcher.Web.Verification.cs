@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
@@ -21,6 +22,7 @@ internal sealed partial class Launcher
 {
     internal async Task VerifyWeb(string preview)
     {
+        VerifyWebDownloadInterruptions();
         var captures = Path.GetDirectoryName(preview)!;
         VerifyModalCorners(captures);
         await VerifyWebSettings(captures);
@@ -36,6 +38,8 @@ internal sealed partial class Launcher
             "Returning to Home did not show the Library section.");
         web.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
+        await VerifyWebTransferStaging();
+
         using var lifetime = new CancellationTokenSource();
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -45,9 +49,7 @@ internal sealed partial class Launcher
         {
             var first = _activeWebTab!;
             FocusWebAddress();
-            GoTo(root + "/redirect");
-            await WaitFor(() => first.Core?.DocumentTitle == "Web fixture one",
-                $"The native browser did not open the loopback page ({first.Status}).");
+            await VerifyWebStartupRecovery(root, first);
             Require(_webAddress!.Text == root + "/one", "The address bar did not retain the opened URL.");
 
             _webShowBookmarks!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -72,6 +74,7 @@ internal sealed partial class Launcher
             SendWebRendererHistoryButton(forward: false);
             await WaitFor(() => first.Core?.DocumentTitle == "Web fixture one", "The mouse Back button did not work over the native WebView2 renderer.");
             await VerifyWebBrowserOptions(root, first);
+            await VerifyWebProcessRecovery(first);
 
             AddWebTab();
             var second = _activeWebTab!;
@@ -520,6 +523,105 @@ internal sealed partial class Launcher
         var saved = await File.ReadAllBytesAsync(slow!.Snapshot.OutputPath!);
         Require(saved.Length == WebFixtureSlowBytes && saved.All(value => value == 65),
             "The resumed WebView2 download did not contain the expected bytes.");
+    }
+
+    private async Task VerifyWebTransferStaging()
+    {
+        var destination = Directory.CreateDirectory(Path.Combine(WebDataDirectory, "Transfer staging fixture")).FullName;
+        var queue = new WebTransfers(destination, WebDataDirectory);
+        var entry = new WebFileEntry(destination, Path.GetFileName(destination), IsFolder: true);
+        var downloads = WebDownloadDirectory;
+
+        try
+        {
+            var path = queue.ReserveBrowserPath("fixture.txt");
+            var staging = Path.GetDirectoryName(path)!;
+            var state = WebDownloadState.Active;
+            queue.TrackBrowserDownload(path, () => new WebDownloadProgress(12, 12, state), () => state = WebDownloadState.Cancelled);
+            Require(IsWebDownloadIncomplete(staging) && BlocksFileOperation(entry),
+                "Files did not protect a live transfer staging directory and its destination.");
+            var stagingRoot = Path.Combine(destination, WebTransfers.StagingDirectoryName);
+            var claim = Path.Combine(Directory.EnumerateDirectories(stagingRoot).Single(), Path.GetFileName(staging));
+            using (var heldClaim = new FileStream(claim, FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                Require(IsWebDownloadIncomplete(staging), "A temporarily unreadable claim exposed a live staging directory.");
+            }
+
+            var abandoned = Directory.CreateDirectory(Path.Combine(destination, "legacy.lg-transfer-0123456789abcdef.part")).FullName;
+            var recovered = Path.Combine(abandoned, "file.zip.crdownload");
+            await File.WriteAllTextAsync(recovered, "Recovered bytes");
+            var abandonedEntry = new WebFileEntry(abandoned, Path.GetFileName(abandoned), IsFolder: true);
+            Require(!BlocksFileOperation(abandonedEntry), "An unrelated live transfer blocked recovery of a legacy staging directory.");
+
+            await File.WriteAllTextAsync(path, "Fixture data");
+            state = WebDownloadState.Completed;
+            queue.PollBrowserDownloads();
+            Require(queue.Items.Single().Snapshot.Progress.State == WebDownloadState.Completed,
+                "The staging fixture did not publish its completed download.");
+            Require(!BlocksFileOperation(entry), "Transfer bookkeeping still blocked file operations on a completed destination.");
+            Require(!BlocksFileOperation(abandonedEntry) && ResolveWebFilePath(recovered, downloads) == recovered,
+                "Files still blocked recovery of an abandoned legacy partial directory.");
+            Require(await File.ReadAllTextAsync(recovered) == "Recovered bytes", "Recovery changed the partial download bytes.");
+
+            var renamed = destination + " renamed";
+            MoveWebFile(destination, renamed, folder: true);
+            Require(File.Exists(Path.Combine(renamed, "fixture.txt")), "Renaming the completed destination lost its download.");
+            MoveWebFile(renamed, destination, folder: true);
+
+            var keptPath = queue.ReserveBrowserPath("keep.zip");
+            await File.WriteAllTextAsync(keptPath + ".crdownload", "Retained bytes");
+            var keptState = WebDownloadState.Stopped;
+            queue.TrackBrowserDownload(keptPath, () => new WebDownloadProgress(14, 48, keptState),
+                () => keptState = WebDownloadState.Cancelled);
+            var kept = queue.Items.Single(item => item.Snapshot.Name == "keep.zip");
+            await queue.RemoveAsync(kept, deleteFiles: false);
+            await queue.StopAsync();
+            var retained = Directory.EnumerateFiles(Path.Combine(stagingRoot, "retained"), "*.partial", SearchOption.AllDirectories).Single();
+            Require(!Directory.Exists(Path.GetDirectoryName(keptPath)) && await File.ReadAllTextAsync(retained) == "Retained bytes",
+                "Removing and shutting down did not preserve the retained browser partial.");
+        }
+        finally
+        {
+            await queue.StopAsync();
+        }
+
+        var legacy = Directory.CreateDirectory(Path.Combine(WebDataDirectory, "Legacy staging fixture")).FullName;
+        var legacyPartial = Directory.CreateDirectory(Path.Combine(legacy, "pending.lg-transfer-aaaaaaaaaaaaaaaa.part")).FullName;
+        var legacySessionId = Guid.NewGuid().ToString("N");
+        var legacySession = Directory.CreateDirectory(Path.Combine(legacy, WebTransfers.StagingDirectoryName, "session-" + legacySessionId)).FullName;
+        var legacyQueue = new WebTransfers(legacy, WebDataDirectory);
+        try
+        {
+            using (var legacyOwner = new FileStream(Path.Combine(legacySession, ".owner"), FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await legacyOwner.WriteAsync(Encoding.ASCII.GetBytes($"LG Launcher web transfers 1\n{legacySessionId}\n"));
+                await legacyOwner.FlushAsync();
+                Require(IsWebDownloadIncomplete(legacyPartial), "Files exposed a partial directory from a live previous-version launcher.");
+            }
+
+            var scratch = legacyQueue.ReserveBrowserPath("cleanup.txt");
+            await WaitFor(() => !Directory.Exists(legacySession), "A later session did not clean an abandoned private staging directory.");
+            legacyQueue.ReleaseBrowserPath(scratch);
+            Require(Directory.Exists(legacyPartial) && !IsWebDownloadIncomplete(legacyPartial),
+                "Stale cleanup did not leave the visible legacy directory available for recovery.");
+        }
+        finally
+        {
+            await legacyQueue.StopAsync();
+        }
+
+        bool BlocksFileOperation(WebFileEntry source)
+        {
+            try
+            {
+                _ = ValidateWebFileOperationSource(source, downloads);
+                return false;
+            }
+            catch (WebFileInProgressException)
+            {
+                return true;
+            }
+        }
     }
 
     private async Task VerifyWebFileActions(string captures)
@@ -1101,6 +1203,61 @@ internal sealed partial class Launcher
     [DllImport("user32.dll", EntryPoint = "PostMessageW")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+
+    private static void VerifyWebDownloadInterruptions()
+    {
+        const CoreWebView2DownloadState interrupted = CoreWebView2DownloadState.Interrupted;
+        const CoreWebView2DownloadInterruptReason disconnected = CoreWebView2DownloadInterruptReason.NetworkDisconnected;
+        const CoreWebView2DownloadInterruptReason userCancelled = CoreWebView2DownloadInterruptReason.UserCanceled;
+        Require(BrowserDownloadState(interrupted, disconnected, canResume: true, paused: false, cancelRequested: false) == WebDownloadState.Stopped,
+            "A resumable network interruption was treated as a terminal download failure.");
+        Require(BrowserDownloadState(interrupted, disconnected, canResume: false, paused: false, cancelRequested: false) == WebDownloadState.Failed,
+            "A terminal network interruption was retained as a resumable download.");
+        Require(BrowserDownloadState(interrupted, userCancelled, canResume: false, paused: true, cancelRequested: false) == WebDownloadState.Stopped &&
+            BrowserDownloadState(interrupted, userCancelled, canResume: true, paused: true, cancelRequested: true) == WebDownloadState.Cancelled,
+            "A paused and an explicitly cancelled browser download did not have distinct states.");
+    }
+
+    private async Task VerifyWebStartupRecovery(string root, BrowserTab tab)
+    {
+        Directory.CreateDirectory(WebDataDirectory);
+        var runtime = Path.Combine(WebDataDirectory, "Runtime");
+        await File.WriteAllTextAsync(runtime, "The fixture temporarily blocks the runtime directory.");
+        try
+        {
+            NavigateWebAddress(tab, new Uri(root + "/redirect"));
+            await WaitFor(() => tab.Browser == null && !tab.Starting && tab.Status.Contains("could not start"),
+                "A WebView2 initialization failure did not clear the failed control or report the error.");
+        }
+        finally
+        {
+            File.Delete(runtime);
+        }
+
+        Require(_webReload?.IsEnabled == true, "The failed browser tab did not offer a retry.");
+        _webReload!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await WaitFor(() => tab.Core?.DocumentTitle == "Web fixture one",
+            "The native browser did not open the loopback page after retrying initialization.");
+    }
+
+    private async Task VerifyWebProcessRecovery(BrowserTab tab)
+    {
+        var previous = tab.Core!;
+        var address = previous.Source;
+        // This controller uses the unique profile created for this verification run.
+        Require(String.Equals(previous.Environment.UserDataFolder, Path.Combine(WebDataDirectory, "Runtime"), StringComparison.OrdinalIgnoreCase),
+            "The WebView2 runtime did not use the isolated fixture profile.");
+        using var browser = Process.GetProcessById((int)previous.BrowserProcessId);
+        Require(browser.ProcessName == "msedgewebview2", "The fixture browser PID did not identify its WebView2 process.");
+        browser.Kill();
+        await WaitFor(() => tab.Core == null && tab.Browser == null,
+            "The launcher kept the controller after its fixture WebView2 process exited.");
+        Require(_activeWebTab == tab && _webReload?.IsEnabled == true && _webAddress?.Text == address,
+            "The launcher lost the failed tab's address or retry action.");
+        _webReload!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await WaitFor(() => tab.Core is { } core && core != previous && core.Source == address && core.DocumentTitle == "Web fixture one",
+            "Retrying a failed Browser process did not recreate its controller and page.");
+    }
 
     private async Task VerifyWebBrowserOptions(string root, BrowserTab first)
     {
