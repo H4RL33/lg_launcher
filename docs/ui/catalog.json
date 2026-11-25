@@ -1097,7 +1097,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Home.cs",
-      "summary": "Builds Home's virtualised game grid with the configured tile-width threshold and column limit, plus the full Library's sort picker. Recently played uses the same sizing.",
+      "summary": "Builds Home's virtualised game grid with the configured tile-width threshold and column limit, and its sort picker shared with the sidebar. Recently played uses the same sizing.",
       "symbols": [
         "HomeLibraryGrid",
         "HomeLibraryHeader",
@@ -1319,7 +1319,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Rss.cs",
-      "summary": "Groups feed URL input and file import, refresh interval with number spinner, subscription switches, and per-feed feedback.",
+      "summary": "Groups feed URL input and import, an autosaving refresh interval, the internal-browser preference, subscription switches, and per-feed feedback.",
       "symbols": [
         "BuildRssSettings",
         "BuildRssFeedRow",
@@ -1359,12 +1359,12 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.axaml",
-      "summary": "Shows top-level navigation and Settings. Library and Collections share semibold headings, smaller light sort labels, and animated list clips with plus-leading Add new actions.",
+      "summary": "Shows Home, Collections, Web, RSS, and Settings. Library and Collections share semibold headings, smaller light sort labels, and animated list clips with plus-leading Add new actions.",
       "symbols": [
         "LibrarySurface",
         "HomeNav",
         "CollectionsNav",
-        "LibraryNav",
+        "WebNav",
         "RssNav",
         "SidebarLists",
         "LibrarySectionHeader",
@@ -1392,6 +1392,122 @@
         "avalonia/LGLauncher.Desktop/Launcher.axaml.cs",
         "avalonia/LGLauncher.Desktop/Launcher.Artwork.cs"
       ]
+    },
+    {
+      "id": "pattern.desktop.web-workspace",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.cs",
+      "summary": "Animates switches among Browser, Downloads, and Files through a symbolic right rail while keeping browser tabs attached for state and transfers.",
+      "symbols": [
+        "RenderWebWorkspace",
+        "SelectWebView",
+        "ShowWebFiles"
+      ],
+      "related": [
+        "pattern.desktop.sidebar",
+        "pattern.desktop.web-browser",
+        "pattern.desktop.web-downloads",
+        "pattern.desktop.web-files"
+      ]
+    },
+    {
+      "id": "pattern.desktop.web-browser",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Browser.cs",
+      "summary": "Places the square address field and New tab icon above a full-height, evenly divided tab strip. Each tab contains its own close icon. The bookmark icon opens the saved list and current-page action. Opens the native WebView2 page on first navigation. Mouse Back and Forward follow the active tab’s history. The Magnet confirmation offers an Always open checkbox. Browser preferences control single-tab visibility, the homepage, address bar searches, ad blocking, and pop-ups. The link preview overlays the full-height page.",
+      "symbols": [
+        "BuildWebBrowser",
+        "WebAddress",
+        "WebTabStrip",
+        "WebAddressBar",
+        "WebNewTab",
+        "WebBookmarkList",
+        "WebNativeHost",
+        "WebLinkPreview"
+      ],
+      "related": [
+        "pattern.desktop.web-workspace",
+        "style.button.selected",
+        "style.text-box",
+        "component.modal-dialog"
+      ]
+    },
+    {
+      "id": "pattern.desktop.web-downloads",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Transfers.cs",
+      "summary": "Shows browser and BitTorrent transfers with left-aligned, resizable columns for text-only progress, size, speeds, ETA, and ratio. The flush top bar accepts Magnet and HTTPS .torrent links. The table scrolls horizontally when needed. Every cell and gap in a row opens the animated menu with Start, Stop, Remove, Open target folder, and Open in Files for completed downloads. A timed amber warning appears below the address bar for invalid submissions. Rows highlight on hover and use an accent tint while the menu is open.",
+      "symbols": [
+        "BuildWebTransfers",
+        "WebMagnetInput",
+        "WebAddMagnet",
+        "WebTransferList"
+      ],
+      "related": [
+        "pattern.desktop.web-workspace",
+        "pattern.desktop.web-files",
+        "style.text-box"
+      ]
+    },
+    {
+      "id": "pattern.desktop.web-files",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Files.cs",
+      "summary": "Browses local folders in a table with left-aligned, resizable name, type, size, and modification columns. The top path bar has symbolic actions. The left Quick Access sidebar lists Downloads and user-pinned folders. Mouse Back and Forward follow the current session’s folder history. Directory navigation slides the listing across. Rows use the Transfers tint for selections and open context menus. Empty space or Escape clears the selection. Hidden and cut entries are dimmed, and folder icons use the active colourway’s yellow.",
+      "symbols": [
+        "BuildWebFiles",
+        "WebFilesPath",
+        "WebFilesEntries",
+        "WebFilesOpen"
+      ],
+      "related": [
+        "pattern.desktop.web-workspace",
+        "pattern.desktop.web-downloads",
+        "style.text-box",
+        "component.modal-dialog"
+      ]
+    },
+    {
+      "id": "style.web-table-row",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Draws the same hover and selection fills for transfers and files. File list items let the table row draw the highlight.",
+      "selectors": ["Border.web-table-row", "ListBox.web-file-list ListBoxItem"],
+      "classes": ["web-table-row", "web-file-list"],
+      "resourceKeys": ["LG.WebFileRowItem", "LG.WebRowContextTint"],
+      "related": ["pattern.desktop.web-files", "pattern.desktop.web-downloads"]
+    },
+    {
+      "id": "pattern.desktop.web-file-actions",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Files.Operations.cs",
+      "summary": "Provides item and background menus for file operations. Holding Shift switches Delete to the red Destroy command with a confirmation. Executables can be run after confirmation.",
+      "symbols": ["WebFileRowMenu", "WebFileListingMenu", "WebFileDelete", "WebFilesPaste", "WebFilesNewDirectory", "WebFilesGoBack"],
+      "related": ["pattern.desktop.web-files", "helper.launcher-menus", "component.modal-dialog"]
+    },
+    {
+      "id": "pattern.desktop.web-settings",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Settings.cs",
+      "summary": "Adds settings pages with browser privacy and single-tab controls, inline homepage and search URL, provider icons, torrent connection and ratio controls, file visibility, and a folder picker for the downloads directory.",
+      "symbols": ["BuildBrowserSettings", "BuildTransferSettings", "BuildFileViewerSettings"],
+      "related": ["pattern.desktop.web-browser", "pattern.desktop.web-downloads", "pattern.desktop.web-files"]
+    },
+    {
+      "id": "pattern.desktop.web-quick-access",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Files.QuickAccess.cs",
+      "summary": "Shows Downloads and saved folder pins in Files. Shared animated menus add a folder or remove its pin.",
+      "symbols": ["BuildWebQuickAccess", "WebFilesQuickAccess", "WebFilesQuickAccessDownloads", "WebFilesQuickAccessPin"],
+      "related": ["pattern.desktop.web-files", "helper.launcher-menus", "style.button.nav"]
     },
     {
       "id": "pattern.desktop.store-tags",

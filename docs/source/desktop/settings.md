@@ -14,6 +14,8 @@ Performance contains the Windows hardware rendering and process priority prefere
 
 Miscellaneous contains Reset first-usage prompts, which clears the usage acknowledgement and automatic-update opt-in in the same save. The running launcher updates the Automatic updates switch and cancels any automatic update download before handoff. The reset row uses the shared disabled preference style while both prompts are pending.
 
+Miscellaneous also contains **Always open Magnet links**, off by default. The Magnet confirmation’s **Always open** checkbox enables the same preference after adding the transfer. Turning the setting off restores the confirmation for Magnet links opened in the browser. [Web workspace](web.md)
+
 Miscellaneous also contains **Contribution reminders**, enabled by default. Turning it off suppresses the first and recurring prompts. The saved return count continues to advance, and reminders skipped while disabled are not queued.
 
 The main window reuses `RestoreWindow` to restore and activate the launcher when the final tracked game exits.
@@ -51,6 +53,12 @@ The scale picker offers presets and a Custom dialog that accepts any whole perce
 - **Used by** the main render dispatcher, the constructor and activation hooks, `Launcher.Behaviour.cs` to notify preference listeners, and `Launcher.Settings.Verification.cs`.
 
 [Desktop settings source](../../../avalonia/LGLauncher.Desktop/Launcher.Settings.cs) · [Steam and artwork](steam.md)
+
+## `avalonia/LGLauncher.Desktop/Launcher.Web.Settings.cs`
+
+Builds the Browser, Transfer Manager, and File Viewer pages using the shared preference rows, choice menus, and dialogs. Browser defaults to an empty homepage, no search provider, a visible tab strip, and enabled uBO Lite and pop-up blocking. The homepage and search template are inline fields. Search providers have icons, and the template enables when Custom is selected. Transfer Manager defaults to IPv4, all addresses, DHT on, and a stop ratio of 1.0. Bind, protocol, and DHT are read when the torrent engine starts. The shared number spinner saves on step, Enter, or focus loss and applies the ratio live. File Viewer shows hidden items and filename extensions by default. Its Quick Access section changes the launcher downloads directory through the folder picker. The profile stores saved settings and retains previous values if saving fails.
+
+[Web settings source](../../../avalonia/LGLauncher.Desktop/Launcher.Web.Settings.cs) · [Web workspace](web.md)
 
 ## `avalonia/LGLauncher.Desktop/Launcher.ReleaseNotes.cs`
 

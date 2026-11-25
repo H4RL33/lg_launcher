@@ -41,7 +41,7 @@ internal sealed partial class Launcher
                 }
                 if (details == null || !CanFetch || _steamRefreshes.Contains(id)) continue;
                 if (!SaveGameDetails(id, details, refresh: false)) break;
-                if (_page is Page.Home or Page.Collections or Page.Library || SearchDropdown.IsVisible) Render();
+                if (_page is Page.Home or Page.Collections || SearchDropdown.IsVisible) Render();
                 else RenderSidebar();
             }
         }

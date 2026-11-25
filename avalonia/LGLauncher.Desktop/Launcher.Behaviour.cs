@@ -118,7 +118,10 @@ internal sealed partial class Launcher
             {
                 if (prefs.DisableContributionReminders) _contributionReminderPending = false;
             });
-        sections.Children.Add(Section("Miscellaneous", new StackPanel { Spacing = 10, Children = { row, contributions } }));
+        var magnetLinks = PreferenceToggle("Always open Magnet links",
+            "Skip the Magnet link confirmation. You’ll still choose a download folder.",
+            prefs.AlwaysOpenMagnetLinks, value => prefs.AlwaysOpenMagnetLinks = value);
+        sections.Children.Add(Section("Miscellaneous", new StackPanel { Spacing = 10, Children = { row, contributions, magnetLinks } }));
         return sections;
 
         Action<bool> AddToggle(string name, string help, bool selected, Action<bool> update, bool system = false)

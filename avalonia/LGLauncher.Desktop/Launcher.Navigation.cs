@@ -47,7 +47,27 @@ internal sealed partial class Launcher
         };
         if (direction == 0) return;
         args.Handled = true;
-        if (!_updateHandoff && !DialogHost.HasModal) MoveInHistory(direction);
+        NavigateHistoryButton(direction);
+    }
+
+    private void NavigateHistoryButton(int direction)
+    {
+        if (_closed || _updateHandoff || DialogHost.HasModal) return;
+        if (_page == Page.Web)
+        {
+            switch (_webView)
+            {
+                case WebView.Browser:
+                    MoveInWebHistory(direction);
+                    return;
+                case WebView.Files:
+                    MoveInWebFileHistory(direction);
+                    return;
+                case WebView.Downloads when MoveInWebFileHistory(direction):
+                    return;
+            }
+        }
+        MoveInHistory(direction);
     }
 
     private void MoveInHistory(int direction)
@@ -106,6 +126,8 @@ internal sealed partial class Launcher
             ContentScroll.UpdateLayout();
             ContentScroll.Offset = entry.Scroll;
         }
-        if (animate) AnimateView(_page == Page.Game ? GameInfo : ContentScroll);
+        if (!animate) return;
+        if (_page == Page.Web) AnimateWebWorkspace();
+        else AnimateView(_page == Page.Game ? GameInfo : ContentScroll);
     }
 }

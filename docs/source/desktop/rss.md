@@ -6,6 +6,8 @@
 
 Owns feed settings, subscription persistence, refresh scheduling, and the RSS, article, and Home views. It refreshes enabled feeds with bounded concurrency, reconciles removed feeds and offline snapshots, and creates native text and image controls. About release notes reuse `BuildRssParagraph` for selectable text. The Home shelf refreshes in place when it can preserve the existing cards.
 
+The refresh interval saves automatically when stepped or committed, accepts whole minutes from 1 to 1,440, and reschedules the refresh timer. Under External tools, Open links in internal browser opens the reader’s Open original action in the launcher. The switch defaults to off and the action then uses the system browser.
+
 The Home shelf header links to RSS feed settings and refreshes all enabled feeds through the shared scheduler. Its empty state distinguishes a library with no subscriptions from one with no articles. Refresh is disabled during a check and when all feeds are disabled or absent. Feed settings use compact switches beside the subscription actions.
 
 - **Depends on** the profile's `RssSubscription` and refresh preferences, `RssReader`, `RssMarkup` block types, `RssArticleImage`, the launcher background work gates, and the common field, menu, and Home shelf helpers.

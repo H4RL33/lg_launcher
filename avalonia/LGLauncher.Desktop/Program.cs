@@ -36,7 +36,7 @@ internal static class Program
             IsUpdateRestart = true;
             if (UpdateInstallVerification.IsRunning) return UpdateInstallVerification.Complete(restart, _updateWorkerPid, _setupUpdateRestart);
         }
-        if (args is ["--verify-migration" or "--verify-existing" or "--verify-mods-ui" or "--verify-setup", var data, var preview])
+        if (args is ["--verify-migration" or "--verify-existing" or "--verify-mods-ui" or "--verify-web" or "--verify-setup", var data, var preview])
         {
             VerificationMode = args[0];
             DataDirectory = Path.GetFullPath(data);

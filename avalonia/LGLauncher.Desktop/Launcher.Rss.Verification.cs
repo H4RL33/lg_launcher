@@ -80,14 +80,35 @@ internal sealed partial class Launcher
             "The RSS interval did not use the shared number field and step buttons.");
         await VerifyNumberSpinnerInsets(interval, preview);
         steps.Single(button => button.Name == "PART_IncreaseButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Require(interval.Value == 31, "The themed number field did not increment.");
+        Require(interval.Value == 31 && _store.Load().Preferences.RssRefreshMinutes == 31 &&
+            _rssTimer.Interval == TimeSpan.FromMinutes(31), "The themed number field did not save after incrementing.");
         steps.Single(button => button.Name == "PART_DecreaseButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        Require(interval.Value == 30, "The themed number field did not decrement.");
-        interval.Value = 12;
-        PageBody.GetVisualDescendants().OfType<Button>().Single(button => button.Content as string == "Save interval")
-            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(interval.Value == 30 && _store.Load().Preferences.RssRefreshMinutes == 30 &&
+            _rssTimer.Interval == TimeSpan.FromMinutes(30), "The themed number field did not save after decrementing.");
+        var intervalText = interval.GetVisualDescendants().OfType<TextBox>().Single();
+        intervalText.Focus();
+        intervalText.Text = "1";
+        Require(_store.Load().Preferences.RssRefreshMinutes == 30, "A partial edit changed the saved RSS interval.");
+        intervalText.Text = "12";
+        intervalText.RaiseEvent(new KeyEventArgs { RoutedEvent = KeyDownEvent, Key = Key.Enter });
         Require(_store.Load().Preferences.RssRefreshMinutes == 12 && _rssTimer.Interval == TimeSpan.FromMinutes(12),
-            "Changing the interval did not save and update the timer.");
+            "Submitting a typed interval did not save and update the timer.");
+        intervalText.Text = "60";
+        feedUrl.Focus();
+        Require(_store.Load().Preferences.RssRefreshMinutes == 60 && _rssTimer.Interval == TimeSpan.FromMinutes(60),
+            "Leaving the interval field did not save and update the timer.");
+        intervalText.Focus();
+        intervalText.Text = "";
+        feedUrl.Focus();
+        Require(interval.Value == 60 && _store.Load().Preferences.RssRefreshMinutes == 60 &&
+            _rssTimer.Interval == TimeSpan.FromMinutes(60), "Leaving an empty interval changed the saved setting.");
+        Require(!PageBody.GetVisualDescendants().OfType<Button>().Any(button => Equals(button.Content, "Save interval")),
+            "RSS settings still showed a separate interval save action.");
+
+        var internalBrowser = RssBrowserPreference();
+        Require(internalBrowser.IsChecked == false,
+            "RSS links did not default to the system browser.");
+        internalBrowser.IsChecked = true;
 
         var path = Path.Combine(Program.DataDirectory, "rss-fixture.xml");
         File.WriteAllText(path, RssFixture);
@@ -124,6 +145,21 @@ internal sealed partial class Launcher
         Require(Canvas.GetLeft(switchThumb) == thumbTravel, "The feed switch animated with reduced motion enabled.");
         remoteToggle.IsChecked = false;
 
+        var settingsWidth = Width;
+        try
+        {
+            foreach (var width in new[] { MinWidth, 1230, 1600 })
+            {
+                Width = width;
+                UpdateLayout();
+                Capture(Path.Combine(Path.GetDirectoryName(preview)!, $"rss-settings-{width}.png"));
+            }
+        }
+        finally
+        {
+            Width = settingsWidth;
+            UpdateLayout();
+        }
         Capture(Path.Combine(Path.GetDirectoryName(preview)!, "rss-settings.png"));
         Navigate(Page.Home);
         var shelfHost = _homeRssHost;
@@ -232,11 +268,31 @@ internal sealed partial class Launcher
         }
         catch (XmlException) { }
 
+        var fixtureAddress = new Uri("http://127.0.0.1:1/articles/build");
+        var fixtureArticle = _rssSnapshots[fileFeed.Id].Articles[0] with { Link = fixtureAddress.AbsoluteUri };
+        Navigate(new ViewLocation(Page.RssArticle, Article: new ArticleView(fileFeed.Id, "Developer news", fixtureArticle)));
+        UpdateLayout();
+        PageBody.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Open original"))
+            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(_page == Page.Web && _webView == WebView.Browser && _webAddress?.Text == fixtureAddress.AbsoluteUri,
+            "Open original did not send the RSS article to the launcher's Browser.");
+
         Navigate(Page.RssSettings);
+        UpdateLayout();
+        var savedInternalBrowser = RssBrowserPreference();
+        Require(savedInternalBrowser.IsChecked == true &&
+            _store.Load().Preferences.OpenRssLinksInInternalBrowser,
+            "The internal browser preference was not restored in RSS settings.");
+        savedInternalBrowser.IsChecked = false;
+        Require(!_store.Load().Preferences.OpenRssLinksInInternalBrowser,
+            "Turning off the RSS browser preference did not persist.");
         RemoveRssFeed(remote);
         RemoveRssFeed(fileFeed);
         Require(_store.Load().Preferences.RssFeeds.Count == 0, "Removing feeds did not persist.");
     }
+
+    private ToggleSwitch RssBrowserPreference() => PageBody.GetVisualDescendants().OfType<ToggleSwitch>()
+        .Single(toggle => AutomationProperties.GetName(toggle) == "Open links in internal browser");
 
     private Button VerifyHomeRssHeader(string? emptyText)
     {
