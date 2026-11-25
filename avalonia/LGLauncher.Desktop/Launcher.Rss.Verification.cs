@@ -43,6 +43,8 @@ internal sealed partial class Launcher
         VerifyRssMarkupLimits();
         VerifyRssTransferMarkup();
         await VerifyRssTorrentDescriptors();
+        await VerifyRssEnclosureLimit();
+        await VerifyRssCacheWriteLimit();
         RssNav.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Require(_page == Page.Rss && RssNav.Classes.Contains("selected"), "The sidebar RSS button did not open the reader.");
         Navigate(Page.Home);
@@ -462,6 +464,54 @@ internal sealed partial class Launcher
         markup.Value = "<ul><li><p>One</p></li><li><p>Two</p></li></ul>";
         Require(RssMarkup.PlainText(RssMarkup.Read(markup, html: true, origin: null)) == "• One\n• Two",
             "Paragraphs inside list items separated list markers from their text.");
+    }
+
+    private async Task VerifyRssEnclosureLimit()
+    {
+        var path = Path.Combine(Program.DataDirectory, "rss-enclosures.xml");
+        var enclosures = Enumerable.Range(0, 20).Select(index => new XElement("enclosure",
+            new XAttribute("url", $"http://127.0.0.1/files/release-{index}.torrent")));
+        new XElement("rss", new XElement("channel", new XElement("title", "Downloads"), new XElement("item",
+            new XElement("title", "Versions"),
+            new XElement("enclosure", new XAttribute("url", "http://127.0.0.1/files/release-0.torrent#duplicate")),
+            enclosures))).Save(path);
+        var feed = new RssSubscription { Id = Guid.NewGuid(), IsFile = true, Location = path };
+        var article = (await _rssReader.Refresh(feed, CancellationToken.None)).Snapshot?.Articles.Single();
+        Require(article?.Transfers is { Length: 16 } transfers && transfers[15].EndsWith("release-15.torrent", StringComparison.Ordinal),
+            "RSS did not bound distinct enclosure destinations in input order.");
+
+        var cached = article! with { Transfers = enclosures.Select(enclosure => enclosure.Attribute("url")!.Value).ToArray() };
+        Navigate(new ViewLocation(Page.RssArticle, Article: new ArticleView(feed.Id, "Downloads", cached)));
+        UpdateLayout();
+        Require(PageBody.GetVisualDescendants().OfType<Button>().Count(button => Equals(button.Content, "Open .torrent file")) == 16,
+            "The RSS reader rendered more enclosure actions than allowed from an existing snapshot.");
+        Navigate(Page.Home);
+        _rssReader.RemoveCache(feed.Id);
+    }
+
+    private static async Task VerifyRssCacheWriteLimit()
+    {
+        var path = Path.Combine(Program.DataDirectory, "rss-cache-size.xml");
+        var feed = new RssSubscription { Id = Guid.NewGuid(), IsFile = true, Location = path };
+        var reader = new RssReader(Program.DataDirectory, maximumCacheBytes: 1024);
+        SaveFeed("Cached release", "Short release notes");
+        var initial = await reader.Refresh(feed, CancellationToken.None);
+        Require(initial.Error == null, "A small RSS snapshot did not save.");
+        SaveFeed("New release", new string('a', 2_048));
+        var oversized = await reader.Refresh(feed, CancellationToken.None);
+        Require(oversized.Snapshot?.Articles.Single().Title == "New release" && oversized.Error != null,
+            "An oversized RSS snapshot did not remain available for this session with a cache warning.");
+        File.Delete(path);
+        var offline = await reader.Refresh(feed, CancellationToken.None);
+        Require(offline.Snapshot?.Articles.Single().Title == "Cached release" && offline.Error != null,
+            "An oversized RSS snapshot replaced the readable offline copy.");
+        var cacheDirectory = Path.Combine(Program.DataDirectory, "rss");
+        Require(Directory.GetFiles(cacheDirectory, $"{feed.Id:N}.json.*.tmp").Length == 0,
+            "A failed RSS cache write left a temporary file.");
+        reader.RemoveCache(feed.Id);
+
+        void SaveFeed(string title, string description) => new XElement("rss", new XElement("channel",
+            new XElement("item", new XElement("title", title), new XElement("description", description)))).Save(path);
     }
 
     private ToggleSwitch RssTransferPreference() => PageBody.GetVisualDescendants().OfType<ToggleSwitch>()

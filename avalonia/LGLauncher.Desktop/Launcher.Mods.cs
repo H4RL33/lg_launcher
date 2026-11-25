@@ -656,9 +656,17 @@ internal sealed partial class Launcher
         }
         if (provider == ModProviderId.SpecialK || provider == ModProviderId.ReShade && record.ReShadeVulkan ||
             record.RecipeId != null && provider is ModProviderId.ReFramework or ModProviderId.OptiScaler) return null;
-        var preferred = _modPackages.Preferred(provider, _checkedModDownloads.GetValueOrDefault(provider));
-        return preferred.Key.Variant == installed.Variant && ModPackageStore.IsNewer(provider, preferred.Key.Version, installed.Version)
-            ? preferred : null;
+        try
+        {
+            var preferred = _modPackages.Preferred(provider, _checkedModDownloads.GetValueOrDefault(provider));
+            return preferred.Key.Variant == installed.Variant && ModPackageStore.IsNewer(provider, preferred.Key.Version, installed.Version)
+                ? preferred : null;
+        }
+        catch (Exception error) when (ModUiFailure(error))
+        {
+            Debug.WriteLine(error);
+            return null;
+        }
     }
 
     private static bool RenoDxReplaces(ModRenoDxOption option, ModPackageKey current) =>
@@ -765,8 +773,28 @@ internal sealed partial class Launcher
         _gameModStatuses = statuses;
         _legacyGameModRows = legacyRows;
         _gameModWarnings = (warnings, count, messages);
-        list.Closed += (_, _) =>
+        list.Closed += (_, _) => ClearList();
+        try
         {
+            RefreshGameModList(game);
+            list.InitialFocus = rows.Children.SelectMany(row => row == legacyRows ? legacyRows.Children : [row])
+                .OfType<Button>().FirstOrDefault(row => row.IsEnabled) ?? list.InitialFocus;
+            var closed = ShowModal(list);
+            if (_page == Page.Game) _ = RefreshSelectedModStatus();
+            else _ = InspectManagedList();
+            await closed;
+        }
+        catch (Exception error) when (ModUiFailure(error))
+        {
+            list.Close();
+            ClearList();
+            if (!_closed) await Notice("Mods", error.Message);
+        }
+        finally { ClearList(); }
+
+        void ClearList()
+        {
+            if (_gameModRows != rows) return;
             _gameModStatuses = null;
             _modListGame = null;
             _modListOrphan = null;
@@ -775,14 +803,7 @@ internal sealed partial class Launcher
             _legacyGameModRows = null;
             _gameModWarnings = null;
             _visibleLegacyGameMods = [];
-        };
-        RefreshGameModList(game);
-        list.InitialFocus = rows.Children.SelectMany(row => row == legacyRows ? legacyRows.Children : [row])
-            .OfType<Button>().FirstOrDefault(row => row.IsEnabled) ?? list.InitialFocus;
-        var closed = ShowModal(list);
-        if (_page == Page.Game) _ = RefreshSelectedModStatus();
-        else _ = InspectManagedList();
-        await closed;
+        }
 
         async Task InspectManagedList()
         {
@@ -955,7 +976,7 @@ internal sealed partial class Launcher
             setup.Body.Children.Add(offlineRow);
             var planner = new ModInstallPlanner(_modsCompatibility, _modPackages, _modTransactions.Vulkan);
             var addonPackage = provider == ModProviderId.ReFramework
-                ? _modPackages.Preferred(provider, _checkedModDownloads.GetValueOrDefault(provider)) : null;
+                ? _modPackages.PreferredForSetup(provider, _checkedModDownloads.GetValueOrDefault(provider)) : null;
             (ModPackageKey Key, byte[] Bytes)? downloaded = null;
             await ShowModSetupPreview(setup, list, game, snapshot, offline, $"{name} setup",
                 token => planner.PreviewAddonAsync(snapshot, root, executable, offline.IsChecked == true, existing,
@@ -1124,7 +1145,7 @@ internal sealed partial class Launcher
         setup.Body.Children.Add(Label("Local checks can miss anti-cheat. Follow the OptiScaler guidance for your game.", muted: true));
         setup.Body.Children.Add(offlineRow);
         var optiScalerPackage = verified ? ModPackageStore.Approved(ModProviderId.OptiScaler)
-            : _modPackages.Preferred(ModProviderId.OptiScaler, _checkedModDownloads.GetValueOrDefault(ModProviderId.OptiScaler));
+            : _modPackages.PreferredForSetup(ModProviderId.OptiScaler, _checkedModDownloads.GetValueOrDefault(ModProviderId.OptiScaler));
         await ShowModSetupPreview(setup, list, game, snapshot, offline, "OptiScaler setup", token =>
             buildPreview(new(snapshot, root, executable, loader, verified,
                 offline.IsChecked == true, spoofing, existing, report, optiScalerPackage), token),

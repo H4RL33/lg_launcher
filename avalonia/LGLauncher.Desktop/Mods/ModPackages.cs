@@ -228,6 +228,13 @@ internal sealed class ModPackageStore(string profile, HttpClient? http = null)
         return newest;
     }
 
+    internal ModPackageDescriptor PreferredForSetup(ModProviderId provider, ModPackageDescriptor? checkedPackage = null)
+    {
+        var cached = List(provider);
+        var preferred = Preferred(provider, cached: cached);
+        return cached.Any(package => package.Key == preferred.Key) ? preferred : checkedPackage ?? preferred;
+    }
+
     internal async Task DeleteAsync(ModPackageKey key, CancellationToken token)
     {
         await _operation.WaitAsync(token).ConfigureAwait(false);

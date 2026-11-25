@@ -1022,7 +1022,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Mods.cs",
-      "summary": "Groups shared packages and managed installations with symbolic actions. Manage and the game wrench open the same installed-first list with green ticks. The cached version chooser displays usage counts. The RenoDX Settings row offers catalog refresh and information. The game dialog downloads or imports the add-on for setup or update. Installed mods share update previews, uninstall, verification, and affected-file actions.",
+      "summary": "Groups shared packages and managed installations with symbolic actions. Manage and the game wrench open the same installed-first list with green ticks. The cached version chooser displays usage counts. Guided OptiScaler and REFramework setup prefers an eligible cached package. The RenoDX Settings row offers catalog refresh and information. The game dialog downloads or imports the add-on for setup or update. Installed mods share update previews, uninstall, verification, and affected-file actions.",
       "symbols": ["AvailableModProviders", "BuildMods", "RenderOptiScalerUpdateCheck", "CheckModUpdates", "RefreshRenoDxCatalog", "ModIcon", "ModPackageInfo", "ManagedModSettingsRow", "ModSettingsRow", "DownloadModPackage", "DeleteModPackage", "ModDeleteButton", "ModCacheDeleteButton", "RefreshGameModList", "RenderGameModWarnings", "RefreshModInspection", "ShowGameMods", "ShowGameManagedMod", "ShowGameOptiScaler", "ShowGameReShade", "ShowGameAddon", "ShowModSetup", "ShowModSetupPreview", "ShowModDownloads", "ShowModPlan", "ModFileRow", "ShowManagedMod", "UpgradeReShade", "ShowModVerification", "ShowAffectedModFiles", "DxgiSpoofingRow", "ConfirmModUninstall"],
       "related": ["pattern.desktop.game-details", "pattern.desktop.common-builders", "pattern.desktop.dialogs", "pattern.desktop.preference-controls", "helper.launcher-menus", "helper.lucide-icon-catalog", "style.button.settings-row", "style.button.destructive", "style.warning-panel", "style.choice-picker", "style.game-icon", "style.section", "style.tooltip", "style.progress-bar", "icon.wrench", "icon.info", "icon.check", "icon.refresh", "icon.download", "icon.delete", "icon.replace", "icon.edit", "token.modified"]
     },
@@ -1305,7 +1305,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Rss.cs",
-      "summary": "Displays RSS articles with selectable text, headings, quotes, code, and inline images. Magnet and .torrent links are clickable in article content, the main link, and enclosures. About release notes reuse the native text blocks.",
+      "summary": "Displays RSS articles with selectable text, headings, quotes, code, and inline images. Magnet and .torrent links are clickable in article content, the main link, and up to sixteen enclosure actions. About release notes reuse the native text blocks.",
       "symbols": [
         "RenderRssArticle",
         "ArticleText",
@@ -1418,7 +1418,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Browser.cs",
-      "summary": "Places the square address field and New tab icon above a full-height, evenly divided tab strip. Each tab contains its own close icon. The bookmark icon opens the saved list and current-page action. Opens the native WebView2 page on first navigation. Mouse Back and Forward follow the active tab’s history. The Magnet confirmation offers an Always open checkbox. Browser preferences control single-tab visibility, the homepage, address bar searches, ad blocking, and pop-ups.",
+      "summary": "Places the square address field and New tab icon above a full-height, evenly divided tab strip. Each tab contains its own close icon. The bookmark icon opens the saved list and current-page action. Opens the native WebView2 page on first navigation. Reload retries the last address when a tab’s controller fails. Mouse Back and Forward follow the active tab’s history. The Magnet confirmation offers an Always open checkbox. Browser preferences control single-tab visibility, the homepage, address bar searches, ad blocking, and pop-ups.",
       "symbols": [
         "BuildWebBrowser",
         "WebAddress",
@@ -1440,7 +1440,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Transfers.cs",
-      "summary": "Shows browser and BitTorrent transfers with left-aligned, resizable columns for text-only progress, size, speeds, ETA, and ratio. The flush top bar accepts Magnet and HTTPS .torrent links. The table scrolls horizontally when needed. Every cell and gap in a row opens the animated menu with Start, Stop, Remove, Open target folder, and Open in Files for completed downloads. A timed amber warning appears below the address bar for invalid submissions. Rows highlight on hover and use an accent tint while the menu is open.",
+      "summary": "Shows browser and BitTorrent transfers with left-aligned, resizable columns for text-only progress, size, speeds, ETA, and ratio. The flush top bar accepts Magnet and HTTPS .torrent links. The table scrolls horizontally when needed. Every cell and gap in a row opens the animated menu with Start, Stop, Remove, Open target folder, and Open in Files for completed downloads. Start can resume a browser download after a recoverable interruption. A timed amber warning appears below the address bar for invalid submissions. Rows highlight on hover and use an accent tint while the menu is open.",
       "symbols": [
         "BuildWebTransfers",
         "WebMagnetInput",
@@ -1488,7 +1488,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Files.Operations.cs",
-      "summary": "Provides item and background menus for file operations. Holding Shift switches Delete to the red Destroy command with a confirmation. Executables can be run after confirmation.",
+      "summary": "Provides item and background menus for file operations. Protects files in an active transfer and permits access to abandoned visible partial folders. Holding Shift switches Delete to the red Destroy command with a confirmation. Executables can be run after confirmation.",
       "symbols": ["WebFileRowMenu", "WebFileListingMenu", "WebFileDelete", "WebFilesPaste", "WebFilesNewDirectory", "WebFilesGoBack"],
       "related": ["pattern.desktop.web-files", "helper.launcher-menus", "component.modal-dialog"]
     },
