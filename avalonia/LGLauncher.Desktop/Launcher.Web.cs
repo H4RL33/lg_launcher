@@ -388,9 +388,10 @@ internal sealed partial class Launcher
 
     private bool IsWebDownloadIncomplete(string path)
     {
-        return IsWebFileStagingPath(path) || WebTransfers.IsIncompletePath(path) ||
-            path.EndsWith(".crdownload", StringComparison.OrdinalIgnoreCase) ||
-            path.EndsWith(".part", StringComparison.OrdinalIgnoreCase) ||
-            path.EndsWith(".!qb", StringComparison.OrdinalIgnoreCase);
+        if (IsWebFileStagingPath(path) || WebTransfers.IsIncompletePath(path, out var insideVisibleStage)) return true;
+
+        return !insideVisibleStage && (path.EndsWith(".crdownload", StringComparison.OrdinalIgnoreCase) ||
+                path.EndsWith(".part", StringComparison.OrdinalIgnoreCase) ||
+                path.EndsWith(".!qb", StringComparison.OrdinalIgnoreCase)) && File.Exists(path);
     }
 }

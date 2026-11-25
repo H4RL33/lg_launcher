@@ -18,6 +18,7 @@ namespace LGLauncher;
 internal sealed partial class Launcher
 {
     private const int MaximumWebTabs = 12;
+    private const string WebStartupError = "The Microsoft Edge WebView2 Runtime could not start. Reload to try again.";
     private sealed class BrowserTab(Button select, Grid header)
     {
         public Button Select { get; } = select;
@@ -28,6 +29,7 @@ internal sealed partial class Launcher
         public Action<CoreWebView2?>? CompletePopup { get; set; }
         public bool IsPopup { get; set; }
         public Uri? PendingAddress { get; set; }
+        public Uri? LastAddress { get; set; }
         public string Status { get; set; } = "";
         public int ActiveDownloads { get; set; }
         public bool Closed { get; set; }
@@ -78,7 +80,7 @@ internal sealed partial class Launcher
 
         _webBack = WebIconButton("Back", "LG.Icon.ChevronLeft", () => MoveInWebHistory(-1));
         _webForward = WebIconButton("Forward", "LG.Icon.Chevron", () => MoveInWebHistory(1));
-        _webReload = WebIconButton("Reload", "LG.Icon.Refresh", () => _activeWebTab?.Browser?.Refresh());
+        _webReload = WebIconButton("Reload", "LG.Icon.Refresh", ReloadWebTab);
         _webShowBookmarks = WebIconButton("Bookmarks", "LG.Icon.Library", ToggleWebBookmarks, "bookmark");
         _webShowBookmarks.MinHeight = 0;
         _webShowBookmarks.Margin = new Thickness(0, 3);
@@ -263,7 +265,15 @@ internal sealed partial class Launcher
     private void RemoveWebTabBrowser(BrowserTab tab)
     {
         CompleteWebPopup(tab, null);
-        tab.Unsubscribe?.Invoke();
+        try
+        {
+            tab.Unsubscribe?.Invoke();
+        }
+        catch (Exception error) when (error is COMException or InvalidOperationException)
+        {
+            // WebView2 may have already closed the controller and released its handlers.
+            Trace.TraceInformation("WebView2 handlers could not be detached: {0}", error.Message);
+        }
         tab.Unsubscribe = null;
         tab.Core = null;
         if (tab.Browser != null) _webNativeHost?.Children.Remove(tab.Browser);
@@ -334,6 +344,7 @@ internal sealed partial class Launcher
         CompleteWebPopup(tab, null);
         _showWebBookmarks = false;
         tab.PendingAddress = address;
+        tab.LastAddress = address;
         if (_activeWebTab == tab) SetWebAddressText(address.AbsoluteUri);
         if (!OperatingSystem.IsWindows())
         {
@@ -354,6 +365,16 @@ internal sealed partial class Launcher
         UpdateWebBrowserVisibility();
     }
 
+    private void ReloadWebTab()
+    {
+        if (_activeWebTab is not { } tab) return;
+        if (tab.Core != null) tab.Browser?.Refresh();
+        else if (CanRetryWebTab(tab) && tab.PendingAddress is { } address) NavigateWebAddress(tab, address);
+    }
+
+    private static bool CanRetryWebTab(BrowserTab tab) =>
+        !tab.Closed && !tab.Starting && tab.Browser == null && tab.PendingAddress != null;
+
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private async Task CreateWebTabBrowser(BrowserTab tab)
     {
@@ -370,10 +391,22 @@ internal sealed partial class Launcher
             return;
         }
 
-        tab.Starting = true;
         var runtimeDirectory = Path.Combine(WebDataDirectory, "Runtime");
-        _webEnvironment ??= CreateExtensionEnvironment(runtimeDirectory);
-        var environment = await _webEnvironment;
+        try
+        {
+            Directory.CreateDirectory(runtimeDirectory);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            Trace.TraceWarning("WebView2 profile directory is unavailable: {0}", error.Message);
+            CompleteWebPopup(tab, null);
+            SetWebTabStatus(tab, WebStartupError);
+            return;
+        }
+
+        tab.Starting = true;
+        var environmentTask = _webEnvironment ??= CreateExtensionEnvironment(runtimeDirectory);
+        var environment = await environmentTask;
         tab.Starting = false;
         if (_closed)
         {
@@ -383,6 +416,11 @@ internal sealed partial class Launcher
         if (tab.Closed) return;
 
         var view = new NativeWebView { AdapterPreference = [WebViewAdapterType.WebView2], IsVisible = _activeWebTab == tab };
+        var failureQueued = false;
+        // The native host can fail before the adapter publishes any error or creation event.
+        var startupTimeout = DispatcherTimer.RunOnce(() => BrowserStartFailed("The controller did not initialize in time."),
+            TimeSpan.FromSeconds(15), DispatcherPriority.Background);
+        view.DetachedFromVisualTree += (_, _) => startupTimeout.Dispose();
         AutomationProperties.SetName(view, "Web page");
         view.EnvironmentRequested += (_, args) =>
         {
@@ -393,12 +431,21 @@ internal sealed partial class Launcher
                 windows.EnableDevTools = false;
             }
         };
+        view.PropertyChanged += (_, args) =>
+        {
+            if (args.Property == NativeWebView.AdapterInfoProperty &&
+                view.AdapterInfo is DetailedWebViewAdapterInfo { UnavailableReason: { Length: > 0 } reason })
+            {
+                BrowserStartFailed(reason);
+            }
+        };
         view.AdapterCreated += async (_, _) =>
         {
-            if (_closed || tab.Closed) return;
+            if (_closed || tab.Closed || failureQueued || tab.Browser != view) return;
+            startupTimeout.Dispose();
             if (view.TryGetPlatformHandle() is not IWindowsWebView2PlatformHandle handle)
             {
-                BrowserStartFailed();
+                BrowserStartFailed("Avalonia did not return a WebView2 platform handle.");
                 return;
             }
 
@@ -406,23 +453,29 @@ internal sealed partial class Launcher
             {
                 var core = CoreWebView2.CreateFromComICoreWebView2(handle.CoreWebView2);
                 if (environment != null) await ApplyWebAdBlocking(core);
-                if (!_closed && !tab.Closed && tab.Browser == view) ConnectWebTab(tab, core);
+                if (!_closed && !tab.Closed && !failureQueued && tab.Browser == view) ConnectWebTab(tab, core);
             }
             catch (Exception error) when (error is COMException or InvalidOperationException)
             {
-                BrowserStartFailed();
+                BrowserStartFailed(error.Message);
             }
         };
         tab.Browser = view;
         _webNativeHost.Children.Add(view);
 
-        void BrowserStartFailed()
+        void BrowserStartFailed(string reason)
         {
-            CompleteWebPopup(tab, null);
-            SetWebTabStatus(tab, "The Microsoft Edge WebView2 Runtime could not start.");
+            if (_closed || tab.Closed || failureQueued || tab.Browser != view) return;
+            failureQueued = true;
+            Trace.TraceWarning("WebView2 controller initialization failed: {0}", reason);
             Dispatcher.UIThread.Post(() =>
             {
-                if (tab.Browser == view) RemoveWebTabBrowser(tab);
+                if (_closed || tab.Browser != view) return;
+                // Re-attempt the extension environment on retry if even the fallback failed to start.
+                if (environment == null && _webEnvironment == environmentTask) _webEnvironment = null;
+                tab.PendingAddress ??= tab.LastAddress;
+                RemoveWebTabBrowser(tab);
+                SetWebTabStatus(tab, WebStartupError);
             });
         }
     }
@@ -435,7 +488,7 @@ internal sealed partial class Launcher
             return await WebContentBlocking.CreateEnvironment(runtimeDirectory);
         }
         catch (Exception error) when (error is COMException or DllNotFoundException or EntryPointNotFoundException or
-            InvalidOperationException or ArgumentException or NotImplementedException)
+            InvalidOperationException or ArgumentException or NotImplementedException or IOException or UnauthorizedAccessException)
         {
             Trace.TraceWarning("Could not start an extension-enabled WebView2 environment: {0}", error);
             if (!_library.Preferences.DisableWebAdBlocker) _webAdBlockError = "uBO Lite could not start.";
@@ -508,6 +561,7 @@ internal sealed partial class Launcher
         core.SourceChanged += Changed;
         core.DocumentTitleChanged += Changed;
         core.HistoryChanged += Changed;
+        core.ProcessFailed += ProcessFailed;
         core.NewWindowRequested += NewWindow;
         core.WindowCloseRequested += WindowClose;
         core.LaunchingExternalUriScheme += ExternalLink;
@@ -519,6 +573,7 @@ internal sealed partial class Launcher
             core.SourceChanged -= Changed;
             core.DocumentTitleChanged -= Changed;
             core.HistoryChanged -= Changed;
+            core.ProcessFailed -= ProcessFailed;
             core.NewWindowRequested -= NewWindow;
             core.WindowCloseRequested -= WindowClose;
             core.LaunchingExternalUriScheme -= ExternalLink;
@@ -559,6 +614,32 @@ internal sealed partial class Launcher
 
         void Changed(object? sender, object args) => RefreshWebTab(tab);
 
+        void ProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs args)
+        {
+            if (_closed || tab.Core != core) return;
+            if (args.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessExited)
+            {
+                SetWebTabStatus(tab, "The page stopped. Reload to try again.");
+                return;
+            }
+            if (args.ProcessFailedKind != CoreWebView2ProcessFailedKind.BrowserProcessExited) return;
+
+            var failedView = tab.Browser;
+            tab.Core = null;
+            tab.PendingAddress ??= tab.LastAddress;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_closed) return;
+                if (tab.Browser == failedView)
+                {
+                    RemoveWebTabBrowser(tab);
+                    if (!tab.Closed) SetWebTabStatus(tab, "The browser stopped. Reload to try again.");
+                }
+                _webTransfers?.PollBrowserDownloads();
+                _refreshWebTransferPage?.Invoke();
+            });
+        }
+
         void NewWindow(object? sender, CoreWebView2NewWindowRequestedEventArgs args)
         {
             args.Handled = true;
@@ -590,7 +671,7 @@ internal sealed partial class Launcher
             if (args.IsUserInitiated && WebAddress.IsMagnet(args.Uri)) QueueMagnetPrompt(args.Uri);
         }
 
-        void Download(object? sender, CoreWebView2DownloadStartingEventArgs args) => StartWebDownload(tab, args);
+        void Download(object? sender, CoreWebView2DownloadStartingEventArgs args) => StartWebDownload(tab, core, args);
     }
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
@@ -639,14 +720,16 @@ internal sealed partial class Launcher
     {
         if (tab.Closed) return;
 
+        var address = PageAddress(tab);
+        if (address != null) tab.LastAddress = new Uri(address);
         var title = tab.Core?.DocumentTitle;
-        if (string.IsNullOrWhiteSpace(title)) title = PageAddress(tab) ?? "New tab";
+        if (string.IsNullOrWhiteSpace(title)) title = address ?? "New tab";
         if (tab.Select.Content is TextBlock label) label.Text = title;
         AutomationProperties.SetName(tab.Select, title);
         ToolTip.SetTip(tab.Select, title);
         if (_activeWebTab == tab)
         {
-            if (PageAddress(tab) is { } address && _webAddress != null &&
+            if (address != null && _webAddress != null &&
                 (!_webAddress.IsFocused || _webAddress.Text == _shownWebAddress))
             {
                 SetWebAddressText(address);
@@ -692,7 +775,7 @@ internal sealed partial class Launcher
         var address = PageAddress(_activeWebTab);
         _webBack.IsEnabled = core?.CanGoBack == true;
         _webForward.IsEnabled = core?.CanGoForward == true;
-        _webReload.IsEnabled = address != null;
+        _webReload.IsEnabled = address != null || _activeWebTab is { } tab && CanRetryWebTab(tab);
         _webSaveBookmark.IsEnabled = address != null && !_webBookmarks.Any(bookmark => bookmark.Url == address);
         _webShowBookmarks.Classes.Set("selected", _showWebBookmarks);
         _webStatus.Text = _activeWebTab?.Status is { Length: > 0 } status ? status : _webAdBlockError;
@@ -821,7 +904,18 @@ internal sealed partial class Launcher
         }
     }
 
-    private void StartWebDownload(BrowserTab tab, CoreWebView2DownloadStartingEventArgs args)
+    private static WebDownloadState BrowserDownloadState(CoreWebView2DownloadState nativeState,
+        CoreWebView2DownloadInterruptReason reason, bool canResume, bool paused, bool cancelRequested) => nativeState switch
+        {
+            CoreWebView2DownloadState.Completed => WebDownloadState.Completed,
+            CoreWebView2DownloadState.InProgress => WebDownloadState.Active,
+            _ when cancelRequested => WebDownloadState.Cancelled,
+            _ when paused || canResume => WebDownloadState.Stopped,
+            _ when reason == CoreWebView2DownloadInterruptReason.UserCanceled => WebDownloadState.Cancelled,
+            _ => WebDownloadState.Failed,
+        };
+
+    private void StartWebDownload(BrowserTab tab, CoreWebView2 core, CoreWebView2DownloadStartingEventArgs args)
     {
         args.Handled = true;
         if (tab.Closed || _closed || _stoppingWebTransfers)
@@ -838,9 +932,11 @@ internal sealed partial class Launcher
             args.ResultFilePath = path;
             var paused = false;
             var resuming = false;
+            var cancelRequested = false;
             var sampleTimestamp = Stopwatch.GetTimestamp();
             var sampledBytes = operation.BytesReceived;
             long? downloadRate = null;
+            var progress = new WebDownloadProgress(sampledBytes, null, WebDownloadState.Active);
             WebTransferQueue.TrackBrowserDownload(path, Snapshot, CancelDownload, PauseDownload, ResumeDownload, ReleaseDownload);
             tab.ActiveDownloads++;
             operation.StateChanged += DownloadStateChanged;
@@ -848,20 +944,21 @@ internal sealed partial class Launcher
 
             WebDownloadProgress Snapshot()
             {
+                if (tab.Core != core)
+                {
+                    return progress with { State = WebDownloadState.Failed, Detail = "The browser stopped.", DownloadRate = null };
+                }
+
                 var nativeState = operation.State;
                 if (nativeState == CoreWebView2DownloadState.InProgress && resuming)
                 {
                     paused = false;
                     resuming = false;
                 }
-                var state = nativeState switch
-                {
-                    CoreWebView2DownloadState.Completed => WebDownloadState.Completed,
-                    CoreWebView2DownloadState.InProgress => WebDownloadState.Active,
-                    _ when paused => WebDownloadState.Stopped,
-                    _ when operation.InterruptReason == CoreWebView2DownloadInterruptReason.UserCanceled => WebDownloadState.Cancelled,
-                    _ => WebDownloadState.Failed,
-                };
+                var interrupted = nativeState == CoreWebView2DownloadState.Interrupted;
+                var reason = interrupted ? operation.InterruptReason : CoreWebView2DownloadInterruptReason.None;
+                var canResume = interrupted && !paused && !cancelRequested && operation.CanResume;
+                var state = BrowserDownloadState(nativeState, reason, canResume, paused, cancelRequested);
                 var total = operation.TotalBytesToReceive;
                 var received = operation.BytesReceived;
                 var timestamp = Stopwatch.GetTimestamp();
@@ -879,8 +976,10 @@ internal sealed partial class Launcher
                     sampledBytes = received;
                 }
 
-                return new WebDownloadProgress(received, total is <= long.MaxValue ? (long?)total : null, state,
-                    state == WebDownloadState.Failed ? operation.InterruptReason.ToString() : null, DownloadRate: downloadRate);
+                var detail = state == WebDownloadState.Failed || state == WebDownloadState.Stopped && !paused ? reason.ToString() : null;
+                progress = new WebDownloadProgress(received, total is <= long.MaxValue ? (long?)total : null, state,
+                    detail, DownloadRate: downloadRate);
+                return progress;
             }
 
             void PauseDownload()
@@ -900,6 +999,7 @@ internal sealed partial class Launcher
             void CancelDownload()
             {
                 operation.Cancel();
+                cancelRequested = true;
                 paused = false;
                 resuming = false;
             }

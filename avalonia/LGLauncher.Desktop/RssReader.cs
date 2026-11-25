@@ -14,12 +14,14 @@ internal sealed record RssSnapshot(string Title, RssArticle[] Articles, string? 
     int MarkupVersion = 0);
 internal sealed record RssSource(string Location, string? Name = null, bool IsFile = false);
 
-internal sealed class RssReader(string profile, HttpClient? client = null)
+internal sealed class RssReader(string profile, HttpClient? client = null, long maximumCacheBytes = RssReader.MaximumCacheBytes)
 {
     internal const int DefaultMinutes = 30;
     internal const int MaximumMinutes = 1440;
+    internal const int MaximumArticleEnclosures = 16;
     private const int CurrentMarkupVersion = 1;
     private const int MaximumFeedBytes = 4 * 1024 * 1024;
+    private const long MaximumCacheBytes = 6L * MaximumFeedBytes;
     private static readonly HttpClient Client = new(new HttpClientHandler
     {
         AutomaticDecompression = DecompressionMethods.All,
@@ -176,7 +178,7 @@ internal sealed class RssReader(string profile, HttpClient? client = null)
                 if (!blocks.Any(block => block.Image != null) && ArticleImage(item, atom, origin ?? articleOrigin) is { } image)
                     blocks = [.. blocks, image];
                 var transfers = ArticleTransfers(item, atom, origin ?? articleOrigin)
-                    .Where(address => address != link).Distinct(StringComparer.Ordinal).ToArray();
+                    .Where(address => address != link).Distinct(StringComparer.Ordinal).Take(MaximumArticleEnclosures).ToArray();
                 return new RssArticle(title.Length == 0 ? "Untitled article" : title,
                     link, RssMarkup.PlainText(blocks), published, blocks, transfers.Length > 0 ? transfers : null);
             }).ToArray();
@@ -257,7 +259,7 @@ internal sealed class RssReader(string profile, HttpClient? client = null)
         try
         {
             var file = new FileInfo(CachePath(id));
-            if (!file.Exists || file.Length > 6L * MaximumFeedBytes) return null;
+            if (!file.Exists || file.Length > maximumCacheBytes) return null;
             using var stream = file.OpenRead();
             var saved = JsonSerializer.Deserialize<RssSnapshot>(stream);
             return saved?.Articles != null ? saved : null;
@@ -269,9 +271,36 @@ internal sealed class RssReader(string profile, HttpClient? client = null)
     {
         var path = CachePath(id);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temp = path + ".tmp";
-        using (var stream = File.Create(temp)) JsonSerializer.Serialize(stream, snapshot);
-        File.Move(temp, path, overwrite: true);
+        var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var stream = new CacheWriteStream(temporary, maximumCacheBytes)) JsonSerializer.Serialize(stream, snapshot);
+            File.Move(temporary, path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+
+    private sealed class CacheWriteStream(string path, long limit) : FileStream(path, FileMode.CreateNew, FileAccess.Write)
+    {
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            CheckSize(buffer.Length);
+            base.Write(buffer);
+        }
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+            CheckSize(count);
+            base.Write(buffer, offset, count);
+        }
+
+        private void CheckSize(int count)
+        {
+            if (count > limit - Position) throw new IOException("The offline RSS snapshot exceeds the cache size limit.");
+        }
     }
 
     internal void RemoveCache(Guid id)

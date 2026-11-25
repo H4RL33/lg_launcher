@@ -358,20 +358,24 @@ internal sealed partial class Launcher
         {
             foreach (var path in Directory.EnumerateFileSystemEntries(parent))
             {
-                if (ValidateWebFileOperationItem(path).HasFlag(FileAttributes.Directory)) pending.Push(path);
+                if (ValidateWebFileOperationItem(path, allowEmptyTransferRoot: true).HasFlag(FileAttributes.Directory)) pending.Push(path);
             }
         }
         return source;
     }
 
-    private FileAttributes ValidateWebFileOperationItem(string path)
+    private FileAttributes ValidateWebFileOperationItem(string path, bool allowEmptyTransferRoot = false)
     {
-        if (IsWebDownloadIncomplete(path)) throw new WebFileInProgressException();
         var attributes = File.GetAttributes(path);
         if (attributes.HasFlag(FileAttributes.ReparsePoint))
         {
             throw new IOException("This operation cannot include symbolic links or junctions.");
         }
+        if (allowEmptyTransferRoot && attributes.HasFlag(FileAttributes.Directory) &&
+            WebQuickAccessPathComparer.Equals(Path.GetFileName(path), WebTransfers.StagingDirectoryName) &&
+            !Directory.EnumerateFileSystemEntries(path).Any()) return attributes;
+
+        if (IsWebDownloadIncomplete(path)) throw new WebFileInProgressException();
         return attributes;
     }
 
@@ -464,11 +468,11 @@ internal sealed partial class Launcher
             pending.Push((source, temporary));
             while (pending.TryPop(out var folder))
             {
-                var attributes = ValidateWebFileOperationItem(folder.Source);
+                var attributes = ValidateWebFileOperationItem(folder.Source, allowEmptyTransferRoot: true);
                 foreach (var path in Directory.EnumerateFileSystemEntries(folder.Source))
                 {
                     var child = Path.Combine(folder.Target, Path.GetFileName(path));
-                    if (ValidateWebFileOperationItem(path).HasFlag(FileAttributes.Directory))
+                    if (ValidateWebFileOperationItem(path, allowEmptyTransferRoot: true).HasFlag(FileAttributes.Directory))
                     {
                         CreateWebDirectoryPath(child);
                         pending.Push((path, child));

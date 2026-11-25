@@ -540,7 +540,7 @@ internal sealed partial class Launcher
         using var target = OpenWebFilePath(localPath);
         const uint ntVolumeName = 2;
         var finalTarget = Path.TrimEndingDirectorySeparator(WindowsFinalPath(target, ntVolumeName));
-        if (IsWebFileStagingPath(finalTarget) || WebTransfers.IsIncompletePath(finalTarget)) throw new WebFileInProgressException();
+        if (IsWebFileStagingPath(finalTarget)) throw new WebFileInProgressException();
 
         using var stagingHandle = OpenWindowsFileHandle(staging);
         var stagingError = Marshal.GetLastPInvokeError();
@@ -561,6 +561,7 @@ internal sealed partial class Launcher
         // Browse and launch through the resolved target so an alias cannot be redirected after validation.
         var resolved = NormalizeWebFilePathInput(WindowsFinalPath(target, 0));
         ValidateWindowsFilePath(resolved);
+        if (WebTransfers.IsIncompletePath(resolved)) throw new WebFileInProgressException();
         return resolved;
     }
 
