@@ -16,8 +16,9 @@ internal sealed partial class Launcher
     {
         PageTitle.Text = "Home";
         RenderHomeRss();
-        var games = _library.Games.OrderBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase).ToArray();
-        var recent = games.Where(game => game.LastPlayedUtc.HasValue).OrderByDescending(game => game.LastPlayedUtc).Take(3).ToArray();
+        var games = SortedGames(_library.Games, _librarySort).ToArray();
+        var recent = _library.Games.Where(game => game.LastPlayedUtc.HasValue).OrderByDescending(game => game.LastPlayedUtc)
+            .ThenBy(game => game.Title, StringComparer.CurrentCultureIgnoreCase).Take(3).ToArray();
         var collections = _library.Collections.OrderBy(collection => collection.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
 
         if (recent.Length == 0)

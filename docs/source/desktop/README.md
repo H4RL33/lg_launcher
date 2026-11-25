@@ -11,6 +11,7 @@ The Windows production build enters through `Program.Main`, then Avalonia's clas
 | [Game artwork and Steam metadata](steam.md) | Artwork framing, shared glass, icons, logo cache, genres, tags, or Steam refresh. |
 | [Preferences and dialogs](settings.md) | Appearance, settings dependencies, app behaviour, edit game, and modal workflows. |
 | [Managed mods](mods.md) | Package cache, OptiScaler compatibility, ReShade setup and upgrades, game-folder transactions, and verification. |
+| [Web workspace](web.md) | Windows browser tabs, bookmarks, downloads, Magnet links, and local files. |
 | [RSS and Atom](rss.md) | Subscriptions, imports, parsing, article views, caching, and images. |
 | [Official updates](updates.md) | Feed validation, download, Windows executable replacement, or rollback. |
 | [Desktop verification](verification.md) | Isolated profile fixtures, visual smoke tests, and the updater test worker. |

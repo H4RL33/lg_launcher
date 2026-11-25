@@ -1828,7 +1828,7 @@ internal sealed partial class Launcher
             _modInspectionTasks.Clear();
             _modInspections.Clear();
             RefreshManagedGameStatus();
-            if (_page is Page.Home or Page.Library or Page.Collections) Render();
+            if (_page is Page.Home or Page.Collections) Render();
             RefreshGameMods();
             _ = RefreshSelectedModStatus();
             RefreshModsSettings();

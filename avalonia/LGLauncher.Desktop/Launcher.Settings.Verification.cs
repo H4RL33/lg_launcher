@@ -379,21 +379,18 @@ internal sealed partial class Launcher
         await ChoosePreference(minimumWidth, "32 px");
         Require(_store.Load().Preferences is { TileColumns: 10, TileMinimumWidth: 32 },
             "Changing the game tile layout did not save both preferences.");
+        var collection = _library.Collections.First(candidate => candidate.Includes(game));
         (Width, Height) = (730, 510);
-        Navigate(Page.Library);
+        Navigate(Page.Collections, collection);
         UpdateLayout();
-        var allGames = _cardGrid;
-        Require(allGames is { Columns: 10 } && Math.Abs(allGames.Bounds.Width - PageBody.Bounds.Width) <= 1,
-            "The full Library did not fill the available space with ten columns.");
-        var playedTile = allGames!.Children.OfType<Border>().Select(host => host.Child).OfType<GameCard>().First(card => card.ShowPlaytime);
+        var members = _cardGrid;
+        Require(members is { Columns: 10 } && Math.Abs(members.Bounds.Width - PageBody.Bounds.Width) <= 1,
+            "Collection members did not fill the available space with ten columns.");
+        var playedTile = members!.Children.OfType<Border>().Select(host => host.Child).OfType<GameCard>().First(card => card.ShowPlaytime);
         var caption = playedTile.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "PlaytimePill");
         Require(caption.Bounds.Width > 0 && caption.Bounds.Width <= playedTile.Bounds.Width,
             "A dense game tile's playtime caption overflowed the tile.");
-        Capture(Path.Combine(Path.GetDirectoryName(preview)!, "library-game-columns-10-730.png"));
-        Navigate(Page.Collections, _library.Collections.First(collection => collection.Includes(game)));
-        UpdateLayout();
-        Require(_cardGrid is { Columns: 10 } members && Math.Abs(members.Bounds.Width - PageBody.Bounds.Width) <= 1,
-            "Collection members did not use the saved game column count.");
+        Capture(Path.Combine(Path.GetDirectoryName(preview)!, "collection-game-columns-10-730.png"));
         Navigate(Page.Home);
         UpdateLayout();
         var homeLibrary = PageBody.Children.OfType<ItemsControl>().Single(view => view.Name == "HomeLibraryGrid");
@@ -414,10 +411,10 @@ internal sealed partial class Launcher
                 $"Tile sizing skipped the {count}-column threshold.");
         }
         (Width, Height) = (730, 510);
-        Navigate(Page.Library);
-        await WaitFor(() => _cardGrid?.Columns == 2, "The narrow Library did not reduce columns at the higher minimum tile width.");
+        Navigate(Page.Collections, collection);
+        await WaitFor(() => _cardGrid?.Columns == 2, "The narrow collection did not reduce columns at the higher minimum tile width.");
         (Width, Height) = librarySize;
-        await WaitFor(() => _cardGrid?.Columns > 2, "The Library did not restore columns at the wider size.");
+        await WaitFor(() => _cardGrid?.Columns > 2, "The collection did not restore columns at the wider size.");
         Navigate(Page.LibrarySettings);
         UpdateLayout();
         await ChoosePreference(Picker("Columns"), "6");

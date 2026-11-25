@@ -51,7 +51,7 @@ internal sealed partial class Launcher
             }
             var updated = genres.Result != null || tags.Result != null || details.Result != null || hero.Result != null || header.Result != null ||
                 portrait.Result != null || icon.Result != null || logoUpdated;
-            if (updated && (icon.Result != null || _page is Page.Home or Page.Collections or Page.Library or Page.Game)) Render();
+            if (updated && (icon.Result != null || _page is Page.Home or Page.Collections or Page.Game)) Render();
             if ((hero.Result != null || header.Result != null) && _page == Page.Game && _game is { } selected && selected.SteamId == id && !_editingArtwork)
                 LoadDetailsArtwork(selected, reload: true);
             if (tagsSaved && genresSaved && detailsSaved)

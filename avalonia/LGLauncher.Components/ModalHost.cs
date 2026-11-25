@@ -108,8 +108,10 @@ public sealed class ModalHost : Panel
 
 public sealed class ModalDialog : Border
 {
+    private readonly Border _contentClip = new() { ClipToBounds = true };
+
     public ModalDialog(string title, double width, Control? header = null, Control? footerLeading = null, Control? content = null,
-        Control? headingTrailing = null)
+        Control? headingTrailing = null, Border? footerPanel = null)
     {
         Classes.Add("lg-modal");
         Width = width;
@@ -149,7 +151,8 @@ public sealed class ModalDialog : Border
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
-        var top = new StackPanel { Children = { headingContent } };
+        var top = new StackPanel();
+        if (title.Length > 0 || headingTrailing != null) top.Children.Add(headingContent);
         if (header != null)
         {
             header.Margin = new Thickness(22, 0, 22, 12);
@@ -163,7 +166,13 @@ public sealed class ModalDialog : Border
             Grid.SetColumn(Footer, 1);
             footer = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), Children = { footerLeading, Footer } };
         }
-        Child = new Grid { RowDefinitions = RowDefinitions.Parse("Auto,*,Auto"), Children = { top, body, footer } };
+        if (footerPanel != null)
+        {
+            footerPanel.Child = footer;
+            footer = footerPanel;
+        }
+        _contentClip.Child = new Grid { RowDefinitions = RowDefinitions.Parse("Auto,*,Auto"), Children = { top, body, footer } };
+        Child = _contentClip;
         Grid.SetRow(body, 1);
         Grid.SetRow(footer, 2);
     }
@@ -186,6 +195,41 @@ public sealed class ModalDialog : Border
 
     internal bool FocusInitial() => (InitialFocus ?? this).Focus();
     internal void NotifyClosed() => Closed?.Invoke(this, EventArgs.Empty);
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (_contentClip != null && change.Property == CornerRadiusProperty) UpdateContentClip();
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        UpdateContentClip();
+        return base.ArrangeOverride(finalSize);
+    }
+
+    private void UpdateContentClip()
+    {
+        var radius = CornerRadius;
+        var stroke = BorderThickness;
+        var padding = Padding;
+        if (UseLayoutRounding)
+        {
+            var scale = LayoutHelper.GetLayoutScale(this);
+            stroke = LayoutHelper.RoundLayoutThickness(stroke, scale);
+            padding = LayoutHelper.RoundLayoutThickness(padding, scale);
+        }
+        // Avalonia draws the stroke on the radius centerline and arranges content inside its inner edge.
+        _contentClip.CornerRadius = new CornerRadius(
+            InnerRadius(radius.TopLeft, stroke.Left, stroke.Top, padding.Left, padding.Top),
+            InnerRadius(radius.TopRight, stroke.Right, stroke.Top, padding.Right, padding.Top),
+            InnerRadius(radius.BottomRight, stroke.Right, stroke.Bottom, padding.Right, padding.Bottom),
+            InnerRadius(radius.BottomLeft, stroke.Left, stroke.Bottom, padding.Left, padding.Bottom));
+
+        static double InnerRadius(double outerRadius, double horizontalStroke, double verticalStroke,
+            double horizontalPadding, double verticalPadding) => Math.Max(0, outerRadius -
+                Math.Min(horizontalStroke / 2 + horizontalPadding, verticalStroke / 2 + verticalPadding));
+    }
 
     protected override void OnKeyDown(KeyEventArgs args)
     {

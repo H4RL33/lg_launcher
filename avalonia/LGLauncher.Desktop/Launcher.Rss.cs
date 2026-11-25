@@ -143,37 +143,34 @@ internal sealed partial class Launcher
         var interval = new NumericUpDown
         {
             Value = RssRefreshMinutes, Minimum = 1, Maximum = RssReader.MaximumMinutes,
-            Increment = 1, FormatString = "0", Width = 118, Classes = { "lg-number" }
+            Increment = 1, FormatString = "0", Width = 118, VerticalAlignment = VerticalAlignment.Center,
+            Classes = { "lg-number" }
         };
         AutomationProperties.SetName(interval, "Refresh interval in minutes");
         var intervalNotice = Label("", muted: true);
         intervalNotice.IsVisible = false;
-        var saveInterval = ActionButton("Save interval", () =>
+        WireNumberPreference(interval, value =>
         {
-            intervalNotice.IsVisible = true;
-            if (interval.Value is not { } value || value != Decimal.Truncate(value) ||
-                value < 1 || value > RssReader.MaximumMinutes)
-            {
-                intervalNotice.Text = "Enter a whole number from 1 to 1,440 minutes.";
-                return;
-            }
-            intervalNotice.Text = SetRssInterval((int)value) ? "Refresh interval saved." : "Could not save the refresh interval.";
+            string? error = null;
+            if (value != Decimal.Truncate(value) || value is < 1 or > RssReader.MaximumMinutes)
+                error = "Enter a whole number from 1 to 1,440 minutes.";
+            else if (!SetRssInterval((int)value))
+                error = "Could not save the refresh interval.";
+            intervalNotice.Text = error;
+            intervalNotice.IsVisible = error != null;
+            return error == null;
         });
         var intervalLabel = Label("Refresh interval (minutes)");
         intervalLabel.VerticalAlignment = VerticalAlignment.Center;
         intervalLabel.FontWeight = FontWeight.SemiBold;
         intervalLabel.FontSize = 17;
-        var intervalActions = new StackPanel
-        {
-            Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center,
-            Children = { interval, saveInterval }
-        };
-        Grid.SetColumn(intervalActions, 1);
+        Grid.SetColumn(interval, 1);
         var intervalRow = new Grid
         {
             ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 12,
-            Children = { intervalLabel, intervalActions }
+            Children = { intervalLabel, interval }
         };
+        var preferences = _library.Preferences;
         _rssFeedRows = new StackPanel { Spacing = 10 };
         _rssFeedControls.Clear();
         RenderRssSubscriptions();
@@ -192,6 +189,9 @@ internal sealed partial class Launcher
                     Classes = { "lg-panel" }, Padding = new Thickness(18),
                     Child = new StackPanel { Spacing = 8, Children = { intervalRow, intervalNotice } }
                 },
+                Section("External tools", PreferenceToggle("Open links in internal browser",
+                    "Applies to the Open original action in articles.", preferences.OpenRssLinksInInternalBrowser,
+                    value => preferences.OpenRssLinksInInternalBrowser = value)),
                 Section("Feeds", _rssFeedRows)
             }
         };
@@ -377,6 +377,11 @@ internal sealed partial class Launcher
         {
             actions.Children.Add(ActionButton("Open original", () =>
             {
+                if (_library.Preferences.OpenRssLinksInInternalBrowser)
+                {
+                    OpenRssLinkInWebBrowser(original);
+                    return;
+                }
                 try { Process.Start(new ProcessStartInfo(original.AbsoluteUri) { UseShellExecute = true })?.Dispose(); }
                 catch (Exception error) when (error is Win32Exception or InvalidOperationException)
                 { Status("Could not open the article in your browser."); }
