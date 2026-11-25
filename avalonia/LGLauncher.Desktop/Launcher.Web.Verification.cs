@@ -71,7 +71,7 @@ internal sealed partial class Launcher
                 "The mouse Forward button did not work over the native WebView2 renderer.");
             SendWebRendererHistoryButton(forward: false);
             await WaitFor(() => first.Core?.DocumentTitle == "Web fixture one", "The mouse Back button did not work over the native WebView2 renderer.");
-            await VerifyWebBrowserOptions(root, first, captures);
+            await VerifyWebBrowserOptions(root, first);
 
             AddWebTab();
             var second = _activeWebTab!;
@@ -183,6 +183,7 @@ internal sealed partial class Launcher
                     Math.Abs(closeTab.Bounds.Right - first.Select.Bounds.Right) < 1 &&
                     Math.Abs(closeTab.Bounds.Height - first.Select.Bounds.Height) < 1,
                     "The tab actions were not inside the active tab and address bar.");
+                await VerifyWebLinkHover(first.Core!);
                 Capture(Path.Combine(directory, $"web-browser-{width}.png"));
                 using (var page = File.Create(Path.Combine(directory, $"web-page-{width}.png")))
                 {
@@ -1101,7 +1102,7 @@ internal sealed partial class Launcher
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
 
-    private async Task VerifyWebBrowserOptions(string root, BrowserTab first, string captures)
+    private async Task VerifyWebBrowserOptions(string root, BrowserTab first)
     {
         var preferences = _library.Preferences;
         var browser = first.Core!;
@@ -1115,7 +1116,6 @@ internal sealed partial class Launcher
         preferences.HideWebSingleTab = false;
         UpdateWebTabStripVisibility();
         Require(_webTabBar?.IsVisible == true, "The tab strip did not show with the preference enabled.");
-        Require(!browser.Settings.IsStatusBarEnabled, "The native browser hover overlay was not disabled.");
         Require(WebAddress.ParseInput("two words", "Google", null)?.Query == "?q=two%20words" &&
             WebAddress.ParseInput("two words", "DDG-NOAI", null)?.Host == "noai.duckduckgo.com" &&
             WebAddress.ParseInput("two words", null, null) == null &&
@@ -1156,7 +1156,6 @@ internal sealed partial class Launcher
             first.Select.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             browser.Navigate(root + "/one");
             await WaitFor(() => browser.DocumentTitle == "Web fixture one", "The browser did not return from the pop-up fixture.");
-            await VerifyWebLinkPreview(browser, captures);
         }
         finally
         {
@@ -1166,51 +1165,36 @@ internal sealed partial class Launcher
         }
     }
 
-    private async Task VerifyWebLinkPreview(CoreWebView2 browser, string captures)
+    private async Task VerifyWebLinkHover(CoreWebView2 browser)
     {
-        var originalSize = (Width, Height);
+        var browserView = _webBrowser!;
         var host = _webNativeHost!;
-        var popup = _webLinkPreviewPopup!;
-        var preview = popup.Child!;
+        var rendererSize = host.Bounds.Size;
+        var position = await browser.ExecuteScriptAsync(
+            "(() => { const r = document.querySelector('a').getBoundingClientRect(); return [r.x + 8, r.y + 6]; })()");
+        var point = JsonSerializer.Deserialize<double[]>(position)!;
+        string? hoveredAddress = null;
+        browser.StatusBarTextChanged += RecordHover;
         try
         {
-            var position = await browser.ExecuteScriptAsync(
-                "(() => { const r = document.querySelector('a').getBoundingClientRect(); return [r.x + 8, r.y + 6]; })()");
-            var point = JsonSerializer.Deserialize<double[]>(position)!;
-            foreach (var (width, height) in new[] { (730, 510), (1230, 805), (1600, 900) })
-            {
-                Width = width;
-                Height = height;
-                await Task.Delay(160);
-                UpdateLayout();
-                var rendererSize = host.Bounds.Size;
-                await browser.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent", "{\"type\":\"mouseMoved\",\"x\":0,\"y\":0}");
-                await browser.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent",
-                    JsonSerializer.Serialize(new { type = "mouseMoved", x = point[0], y = point[1] }));
-                await WaitFor(() => popup.IsOpen && preview.IsAttachedToVisualTree() && preview.Bounds.Height > 0 &&
-                    _webLinkPreview?.Text?.EndsWith("/two", StringComparison.Ordinal) == true,
-                    $"At {width} dips, the link preview did not show the hovered link in Browser.");
-                Require(!popup.IsUsingOverlayLayer && !popup.IsHitTestVisible && host.Bounds.Size == rendererSize,
-                    "The link preview was not a click-through overlay over the full-size renderer.");
-                var bottom = new Point(0, host.Bounds.Height);
-                var hostBottom = host.PointToScreen(bottom);
-                var previewBottom = preview.PointToScreen(new Point(0, preview.Bounds.Height));
-                Require(host.TranslatePoint(bottom, _webBrowser!) is { Y: var edge } &&
-                    Math.Abs(edge - _webBrowser!.Bounds.Height) < 1, "The renderer left a gap at the bottom of Browser.");
-                Require(previewBottom == hostBottom,
-                    $"At {width} dips, the link preview was not flush with the renderer's bottom-left edge " +
-                    $"({previewBottom} vs. {hostBottom}).");
-                CaptureControl(preview, Path.Combine(captures, $"web-link-preview-{width}.png"));
-            }
-
-            SelectWebView(WebView.Files);
-            Require(!popup.IsOpen && _webLinkPreview?.Text == null, "The link preview remained visible when switching to Files.");
-            SelectWebView(WebView.Browser);
+            await browser.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent", """{"type":"mouseMoved","x":0,"y":0}""");
+            await browser.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent",
+                JsonSerializer.Serialize(new { type = "mouseMoved", x = point[0], y = point[1] }));
+            await WaitFor(() => hoveredAddress?.EndsWith("/two", StringComparison.Ordinal) == true,
+                "The WebView2 renderer did not register the link hover.");
+            Require(!browser.Settings.IsStatusBarEnabled, "The native browser hover overlay was not disabled.");
+            Require(!browserView.GetVisualDescendants().OfType<Popup>().Any(popup => popup.IsOpen),
+                "Hovering a link opened a launcher popup.");
+            var viewportBottom = host.TranslatePoint(new Point(0, host.Bounds.Height), browserView);
+            Require(host.Bounds.Size == rendererSize && viewportBottom is { Y: var edge } &&
+                Math.Abs(edge - browserView.Bounds.Height) < 1, "Hovering a link changed the browser viewport.");
         }
         finally
         {
-            (Width, Height) = originalSize;
+            browser.StatusBarTextChanged -= RecordHover;
         }
+
+        void RecordHover(object? sender, object args) => hoveredAddress = browser.StatusBarText;
     }
 
     private static async Task VerifyWebAdBlocking(CoreWebView2 browser)

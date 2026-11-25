@@ -1418,7 +1418,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Browser.cs",
-      "summary": "Places the square address field and New tab icon above a full-height, evenly divided tab strip. Each tab contains its own close icon. The bookmark icon opens the saved list and current-page action. Opens the native WebView2 page on first navigation. Mouse Back and Forward follow the active tab’s history. The Magnet confirmation offers an Always open checkbox. Browser preferences control single-tab visibility, the homepage, address bar searches, ad blocking, and pop-ups. The click-through link preview sits flush with the bottom-left corner of the full-height page.",
+      "summary": "Places the square address field and New tab icon above a full-height, evenly divided tab strip. Each tab contains its own close icon. The bookmark icon opens the saved list and current-page action. Opens the native WebView2 page on first navigation. Mouse Back and Forward follow the active tab’s history. The Magnet confirmation offers an Always open checkbox. Browser preferences control single-tab visibility, the homepage, address bar searches, ad blocking, and pop-ups.",
       "symbols": [
         "BuildWebBrowser",
         "WebAddress",
@@ -1426,8 +1426,7 @@
         "WebAddressBar",
         "WebNewTab",
         "WebBookmarkList",
-        "WebNativeHost",
-        "WebLinkPreview"
+        "WebNativeHost"
       ],
       "related": [
         "pattern.desktop.web-workspace",
