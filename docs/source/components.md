@@ -18,7 +18,7 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 [Source](../../avalonia/LGLauncher.Components/Widgets.cs)
 
-- **Purpose** — Defines the bindable contracts for `StatusIndicator`, `LibraryRow`, `GameCard`, `CollectionCard`, and `ArtworkToolbar`. Library rows accept a bitmap or a symbolic icon in the same rounded icon slot. The widgets derive portrait height from arranged width and the icon radius from its bounds. Feature actions belong to the host.
+- **Purpose** — Defines the bindable contracts for `StatusIndicator`, `LibraryRow`, `GameCard`, `CollectionCard`, and `ArtworkToolbar`. Library rows accept a bitmap or a symbolic icon in the same rounded icon slot. Game cards derive portrait height from their tile width. Home supplies the known column width before measurement, and every card updates when its arranged width changes. Library rows derive the icon radius from its bounds. Feature actions belong to the host.
 - **Depends on** — Avalonia styled properties, rendering types, and `ICommand`. Visual templates live in `Theme/Components.axaml`.
 - **Used by** — The Desktop window and its home, collections, search, artwork, and status views. Gallery also demonstrates the shared controls.
 
@@ -120,7 +120,7 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 The Web tables use `web-table-row` for the row background and select it with the accent tint. `LG.WebFileRowItem` gives the file viewer a plain item presenter so the table row owns the highlight.
 
-Shared text boxes use the darker `LG.FieldHover` fill and a white border on pointer hover. Under `lg-motion`, both brushes transition over 150 ms. Focused fields retain their focus treatment. Desktop derives the hover fill from the canvas for each non-Classic colourway.
+Shared single-line text fields center text and placeholders vertically. Shared text boxes use the darker `LG.FieldHover` fill and a white border on pointer hover. Under `lg-motion`, both brushes transition over 150 ms. Focused fields retain their focus treatment. Desktop derives the hover fill from the canvas for each non-Classic colourway.
 
 ## `avalonia/LGLauncher.Components/Theme/Inputs.axaml`
 

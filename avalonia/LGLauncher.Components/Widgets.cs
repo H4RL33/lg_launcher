@@ -67,10 +67,15 @@ public sealed class GameCard : TemplatedControl
     {
         SizeChanged += (_, args) =>
         {
-            if (!args.WidthChanged || args.NewSize.Width <= 2) return;
-            ArtworkHeight = (args.NewSize.Width - 2) * 1.5;
-            PseudoClasses.Set(":compact", args.NewSize.Width < 64);
+            if (args.WidthChanged) SizeArtworkForWidth(args.NewSize.Width);
         };
+    }
+
+    public void SizeArtworkForWidth(double width)
+    {
+        if (!double.IsFinite(width) || width <= 2) return;
+        ArtworkHeight = (width - 2) * 1.5;
+        PseudoClasses.Set(":compact", width < 64);
     }
 
     public string Title { get => GetValue(TitleProperty); set => SetValue(TitleProperty, value); }

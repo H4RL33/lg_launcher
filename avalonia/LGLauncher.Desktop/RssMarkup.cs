@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Markdig;
@@ -9,9 +10,11 @@ namespace LGLauncher;
 [Flags]
 internal enum RssTextStyle { Normal = 0, Bold = 1, Italic = 2, Underline = 4, Strike = 8, Code = 16 }
 internal enum RssBlockStyle { Paragraph, Heading, Quote, Code }
-internal sealed record RssRun(string Text, RssTextStyle Style);
+internal sealed record RssRun(string Text, RssTextStyle Style,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Transfer = null);
 internal sealed record RssBlock(RssRun[]? Runs = null, RssBlockStyle Style = RssBlockStyle.Paragraph,
-    string? Image = null, string? Alt = null);
+    string? Image = null, string? Alt = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Transfer = null);
 
 internal sealed class RssMarkup
 {
@@ -20,6 +23,7 @@ internal sealed class RssMarkup
     private const int MaximumDepth = 64;
     private const int MaximumRuns = 4096;
     private const int MaximumTextLength = 160_000;
+    private const int MaximumTransferTextLength = 160_000;
     private static readonly MarkdownPipeline MarkdownPipeline = new MarkdownPipelineBuilder().DisableHtml().Build();
     private const RegexOptions HtmlOptions = RegexOptions.NonBacktracking | RegexOptions.CultureInvariant;
     private static readonly Regex Tags = new(
@@ -39,8 +43,10 @@ internal sealed class RssMarkup
     private int _imageCount;
     private int _runCount;
     private int _textLength;
+    private int _transferTextLength;
     private bool _pendingSpace;
     private string? _listPrefix;
+    private string? _transfer;
 
     private bool IsFull => _blocks.Count >= MaximumBlocks || _runCount >= MaximumRuns || _textLength >= MaximumTextLength;
 
@@ -58,7 +64,7 @@ internal sealed class RssMarkup
     internal static RssBlock[] ReadMarkdown(string markdown)
     {
         var markup = new RssMarkup();
-        markup.ReadHtml(Markdown.ToHtml(markdown, MarkdownPipeline), origin: null);
+        markup.ReadHtml(Markdown.ToHtml(markdown, MarkdownPipeline), origin: null, allowTransfers: false);
         markup.Flush();
         return markup._blocks.ToArray();
     }
@@ -82,6 +88,7 @@ internal sealed class RssMarkup
                 if (tag == "img") AddImage((string?)child.Attribute("src"), (string?)child.Attribute("alt"), childOrigin);
                 else
                 {
+                    if (tag == "a") OpenAnchor((string?)child.Attribute("href"), childOrigin);
                     Open(tag);
                     ReadNodes(child, childOrigin, depth + 1);
                     Close(tag);
@@ -90,7 +97,7 @@ internal sealed class RssMarkup
         }
     }
 
-    private void ReadHtml(string html, Uri? origin)
+    private void ReadHtml(string html, Uri? origin, bool allowTransfers = true)
     {
         var offset = 0;
         var hidden = new Stack<string>();
@@ -129,6 +136,13 @@ internal sealed class RssMarkup
                 }
                 AddImage(source, alt, origin);
             }
+            else if (tag == "a" && allowTransfers)
+            {
+                var href = Attributes.Matches(match.Groups["attrs"].Value).FirstOrDefault(attribute =>
+                    attribute.Groups["key"].Value.Equals("href", StringComparison.OrdinalIgnoreCase));
+                OpenAnchor(href == null ? null : WebUtility.HtmlDecode(href.Groups["double"].Value +
+                    href.Groups["single"].Value + href.Groups["bare"].Value), origin);
+            }
             else Open(tag);
         }
         if (hidden.Count == 0) AppendText(WebUtility.HtmlDecode(html[offset..]), preserveWhitespace: offset == 0);
@@ -153,6 +167,9 @@ internal sealed class RssMarkup
     private static bool IsHeading(string tag) => tag is "h1" or "h2" or "h3" or "h4" or "h5" or "h6";
     private static bool IsParagraph(string tag) =>
         tag is "p" or "div" or "section" or "article" or "header" or "footer" or "figcaption" or "figure" or "li" or "tr";
+
+    private void OpenAnchor(string? href, Uri? origin) =>
+        _transfer = RssReader.ResolveTransferAddress(href, origin)?.AbsoluteUri;
 
     private void Open(string tag)
     {
@@ -189,6 +206,7 @@ internal sealed class RssMarkup
         if (tag == "blockquote" && _quoteDepth > 0) _quoteDepth--;
         if (tag == "li") _listPrefix = null;
         if (tag is "ol" or "ul") _lists.TryPop(out _);
+        if (tag == "a") _transfer = null;
         if (InlineStyle(tag) == RssTextStyle.Normal) return;
         var index = _styles.FindLastIndex(entry => entry.Tag == tag);
         if (index >= 0) _styles.RemoveAt(index);
@@ -202,7 +220,7 @@ internal sealed class RssMarkup
         if (preserveWhitespace || _blockStyle == RssBlockStyle.Code)
         {
             if (!String.IsNullOrWhiteSpace(text)) AppendListPrefix();
-            AppendRun(preserveWhitespace && _blockStyle != RssBlockStyle.Code ? text.Trim() : text, style);
+            AppendRun(preserveWhitespace && _blockStyle != RssBlockStyle.Code ? text.Trim() : text, style, _transfer);
             return;
         }
         var normalized = Whitespace.Replace(text, " ");
@@ -212,19 +230,26 @@ internal sealed class RssMarkup
             AppendListPrefix();
             if ((_pendingSpace || normalized[0] == ' ') && _runs.Count > 0 &&
                 _runs[^1].Text[^1] is not ('\n' or ' '))
-                AppendRun(" ", _runs[^1].Style);
-            AppendRun(trimmed, style);
+                AppendRun(" ", _runs[^1].Style, _runs[^1].Transfer == _transfer ? _transfer : null);
+            AppendRun(trimmed, style, _transfer);
         }
         _pendingSpace = normalized[^1] == ' ';
     }
 
-    private void AppendRun(string text, RssTextStyle style)
+    private void AppendRun(string text, RssTextStyle style, string? transfer = null)
     {
         var length = Math.Min(text.Length, MaximumTextLength - _textLength);
         if (length <= 0 || IsFull) return;
         _runCount++;
         _textLength += length;
-        _runs.Add(new RssRun(text[..length], style));
+        _runs.Add(new RssRun(text[..length], style, KeepTransfer(transfer)));
+    }
+
+    private string? KeepTransfer(string? transfer)
+    {
+        if (transfer == null || transfer.Length > MaximumTransferTextLength - _transferTextLength) return null;
+        _transferTextLength += transfer.Length;
+        return transfer;
     }
 
     private void AppendListPrefix()
@@ -251,6 +276,7 @@ internal sealed class RssMarkup
         if (IsFull) return;
         _imageCount++;
         alt = alt?.Trim();
-        _blocks.Add(new RssBlock(Image: address.AbsoluteUri, Alt: alt?.Length > 300 ? alt[..300] : alt));
+        _blocks.Add(new RssBlock(Image: address.AbsoluteUri, Alt: alt?.Length > 300 ? alt[..300] : alt,
+            Transfer: KeepTransfer(_transfer)));
     }
 }

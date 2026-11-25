@@ -213,6 +213,7 @@ namespace LGLauncher
         [DataMember(EmitDefaultValue = false)] public bool HideWebSingleTab { get; set; }
         [DataMember(EmitDefaultValue = false)] public string WebDownloadsDirectory { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool OpenRssLinksInInternalBrowser { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool OpenRssTransfersInternally { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool HideWebHiddenFiles { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool HideWebFileExtensions { get; set; }
         [DataMember(EmitDefaultValue = false)] public int RssRefreshMinutes { get; set; }
