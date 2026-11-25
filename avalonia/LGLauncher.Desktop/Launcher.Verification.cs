@@ -418,7 +418,9 @@ internal sealed partial class Launcher
         UpdateLayout();
         Require(!_chromeArtwork.IsVisible && Equals(LibrarySurface.Background, this.FindResource("LG.Sidebar")),
             "Settings retained the game's frosted artwork.");
-        Require(PageBody.Children.OfType<Button>().Count() == 6, "Settings did not show all six sections, including Mods.");
+        Require(PageBody.Children.OfType<Button>().Select(Avalonia.Automation.AutomationProperties.GetName).SequenceEqual(
+            ["Appearance", "App Behaviour", "Library", "RSS", "Browser", "Transfer Manager", "File Viewer", "Mods", "About"]),
+            "Settings did not show the expected sections.");
         Capture(Path.Combine(Path.GetDirectoryName(preview)!, "settings.png"));
         await VerifyMods(game, preview);
         await VerifyRss(preview);
@@ -453,8 +455,10 @@ internal sealed partial class Launcher
         var switches = PageBody.GetVisualDescendants().OfType<ToggleSwitch>().ToArray();
         Require(switches.Any(toggle => AutomationProperties.GetName(toggle) == "Contribution reminders" && toggle.IsChecked == true),
             "App Behaviour did not enable contribution reminders by default.");
-        var count = OperatingSystem.IsWindows() ? 8 : 6;
-        var uncheckedCount = OperatingSystem.IsWindows() ? 3 : 2;
+        Require(switches.Any(toggle => AutomationProperties.GetName(toggle) == "Always open Magnet links" && toggle.IsChecked == false),
+            "App Behaviour did not default to confirming Magnet links.");
+        var count = OperatingSystem.IsWindows() ? 9 : 7;
+        var uncheckedCount = OperatingSystem.IsWindows() ? 4 : 3;
         Require(switches.Length == count && switches.Count(toggle => toggle.IsChecked != true) == uncheckedCount && !_library.Preferences.AutomaticUpdates,
             "App Behaviour did not display its persisted options or enable updates by opt-in.");
         Require(PageBody.GetVisualDescendants().OfType<Button>().All(button => button.Content as string != "Check for new updates"),

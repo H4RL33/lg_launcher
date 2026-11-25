@@ -276,6 +276,9 @@
     <Style Selector="MenuItem.lg-menu-item.destructive /template/ ContentPresenter#PART_HeaderPresenter">
         <Setter Property="Foreground" Value="{DynamicResource LG.Warning}"/>
     </Style>
+    <Style Selector="MenuItem.lg-menu-item.web-file-delete.destructive /template/ ContentPresenter#PART_HeaderPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource LG.Error}"/>
+    </Style>
     <Style Selector="MenuItem.lg-menu-item:disabled, MenuFlyoutPresenter MenuItem:disabled">
         <Setter Property="Opacity" Value=".55"/>
     </Style>

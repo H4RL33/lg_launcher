@@ -37,6 +37,7 @@
     <EmbeddedResource Include="Markdig.LICENSE.txt" />
     <EmbeddedResource Include="ThemeAudio.LICENSE.txt" />
     <EmbeddedResource Include="Web.LICENSE.txt" />
+    <EmbeddedResource Include="uBOLite.edge.zip" LogicalName="LGLauncher.uBOLite.edge.zip" />
     <Compile Include="../../src/Library.cs;../../src/GameSessions.cs;../../src/SteamCatalog.cs;../../src/ArtworkFraming.cs" LinkBase="Core" />
   </ItemGroup>
 </Project>

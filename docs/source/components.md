@@ -74,7 +74,7 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 
 [Source](../../avalonia/LGLauncher.Components/ModalHost.cs)
 
-- **Purpose** — Defines `ModalHost` and `ModalDialog` so prompts remain inside the launcher window. Manages nested dialogs, underlay input, default and dismiss actions, focus restoration, and the accepted result. A dialog can show trailing content vertically centred beside the heading, additional header content below it, leading footer content alongside the actions, or a custom body control that manages its own scrolling.
+- **Purpose** — Defines `ModalHost` and `ModalDialog` so prompts remain inside the launcher window. Manages nested dialogs, underlay input, default and dismiss actions, focus restoration, and the accepted result. A dialog can show trailing content vertically centred beside the heading, additional header content below it, leading footer content alongside the actions, or a custom body control that manages its own scrolling. An empty title omits the heading. Callers can supply a border that wraps the footer and can name a titleless dialog for accessibility. The dialog clips its content to the inner edge of the themed frame, keeping its corner stroke and shadow visible.
 - **Depends on** — Avalonia panels, focus, routed keyboard events, and UI dispatch. Backdrop and dialog shell styles come from `Theme/Components.axaml`.
 - **Used by** — The Desktop window and its dialog, collection, settings, startup, and update flows. Desktop modal smoke checks call the host directly.
 
@@ -117,6 +117,8 @@ Desktop and Gallery load `Theme/Components.axaml` after Fluent. Shared component
 - **Purpose** — Serves as the shared theme entrypoint. Defines widget templates, the button variants, and common panels, list styles, labels, modal surfaces, and motion. `lg-game-icon` clips Library and Managed installations icons with a radius equal to 20% of the shorter side. `lg-muted` sets regular weight for supporting text, including inside controls with heavier labels. `lg-tabs` and `lg-tab` style native Avalonia tabs with the accent selection underline and shared focus treatment. The underline fades only under `lg-motion`. `lg-warning-panel` provides the amber shell, warning icon, title and count, and a chevron with an evenly inset hover face that uses `LG.ControlRadius`. `Button.lg.destructive` shares the filled red button treatment between mod uninstall and cached-package deletion.
 - **Depends on** — `Widgets.cs`, `SymbolIcon.cs`, Fluent Theme, and the sibling `Tokens.axaml`, `Icons.axaml`, and `Inputs.axaml` resources.
 - **Used by** — Desktop and Gallery application styles. Shared style changes can affect both hosts and several features at once.
+
+The Web tables use `web-table-row` for the row background and select it with the accent tint. `LG.WebFileRowItem` gives the file viewer a plain item presenter so the table row owns the highlight.
 
 Shared text boxes use the darker `LG.FieldHover` fill and a white border on pointer hover. Under `lg-motion`, both brushes transition over 150 ms. Focused fields retain their focus treatment. Desktop derives the hover fill from the canvas for each non-Classic colourway.
 

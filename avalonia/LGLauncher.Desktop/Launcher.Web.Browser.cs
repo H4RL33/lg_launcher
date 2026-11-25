@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Avalonia;
@@ -24,10 +25,13 @@ internal sealed partial class Launcher
         public NativeWebView? Browser { get; set; }
         public CoreWebView2? Core { get; set; }
         public Action? Unsubscribe { get; set; }
+        public Action<CoreWebView2?>? CompletePopup { get; set; }
+        public bool IsPopup { get; set; }
         public Uri? PendingAddress { get; set; }
         public string Status { get; set; } = "";
         public int ActiveDownloads { get; set; }
         public bool Closed { get; set; }
+        public bool Starting { get; set; }
     }
 
     private readonly List<BrowserTab> _webTabs = [];
@@ -35,13 +39,17 @@ internal sealed partial class Launcher
     private List<WebBookmark> _webBookmarks = [];
     private BrowserTab? _activeWebTab;
     private Grid? _webNativeHost;
+    private Control? _webBrowserChrome;
     private UniformGrid? _webTabStrip;
     private ScrollViewer? _webTabScroll;
+    private Border? _webTabBar;
     private StackPanel? _webBookmarkRows;
     private ScrollViewer? _webBookmarkPanel;
     private TextBox? _webAddress;
     private string _shownWebAddress = "";
     private TextBlock? _webStatus;
+    private TextBlock? _webLinkPreview;
+    private Popup? _webLinkPreviewPopup;
     private Button? _webBack;
     private Button? _webForward;
     private Button? _webReload;
@@ -49,12 +57,16 @@ internal sealed partial class Launcher
     private Button? _webShowBookmarks;
     private bool _showWebBookmarks;
     private bool _confirmingWebMagnet;
+    private Task<WebContentBlocking.EnvironmentHandle?>? _webEnvironment;
+    private readonly SemaphoreSlim _webAdBlockUpdates = new(1);
+    private bool? _webAdBlockEnabled;
+    private string? _webAdBlockError;
 
     private Control BuildWebBrowser()
     {
         _webAddress = TextField(null, "Web address");
         _webAddress.Name = "WebAddress";
-        _webAddress.PlaceholderText = "Enter a URL or Magnet link";
+        UpdateWebAddressPrompt();
         _webAddress.CornerRadius = default;
         _webAddress.BorderThickness = new Thickness(1, 0);
         _webAddress.VerticalAlignment = VerticalAlignment.Stretch;
@@ -66,10 +78,12 @@ internal sealed partial class Launcher
             SubmitWebAddress();
         };
 
-        _webBack = WebIconButton("Back", "LG.Icon.ChevronLeft", () => _activeWebTab?.Browser?.GoBack());
-        _webForward = WebIconButton("Forward", "LG.Icon.Chevron", () => _activeWebTab?.Browser?.GoForward());
+        _webBack = WebIconButton("Back", "LG.Icon.ChevronLeft", () => MoveInWebHistory(-1));
+        _webForward = WebIconButton("Forward", "LG.Icon.Chevron", () => MoveInWebHistory(1));
         _webReload = WebIconButton("Reload", "LG.Icon.Refresh", () => _activeWebTab?.Browser?.Refresh());
         _webShowBookmarks = WebIconButton("Bookmarks", "LG.Icon.Library", ToggleWebBookmarks, "bookmark");
+        _webShowBookmarks.MinHeight = 0;
+        _webShowBookmarks.Margin = new Thickness(0, 3);
         _webSaveBookmark = ActionButton("Add current page", AddWebBookmark);
         var go = WebIconButton("Go to address", "LG.Icon.Chevron", SubmitWebAddress, "arrow-right");
         var newTab = WebIconButton("New tab", "LG.Icon.Plus", () => AddWebTab());
@@ -98,8 +112,8 @@ internal sealed partial class Launcher
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
         _webTabScroll.ScrollChanged += (_, _) => SizeWebTabs();
-        var tabs = WebChromePanel(_webTabScroll, "LG.Surface", new Thickness(0, 1, 0, 0));
-        var chrome = WebChromePanel(new StackPanel { Children = { toolbar, tabs } }, "LG.Sidebar", new Thickness(0, 0, 0, 1));
+        _webTabBar = WebChromePanel(_webTabScroll, "LG.Surface", new Thickness(0, 1, 0, 0));
+        var chrome = WebChromePanel(new StackPanel { Children = { toolbar, _webTabBar } }, "LG.Sidebar", new Thickness(0, 0, 0, 1));
 
         _webStatus = Label("", muted: true);
         _webStatus.Name = "WebBrowserStatus";
@@ -115,7 +129,17 @@ internal sealed partial class Launcher
             IsVisible = false,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
         };
-        var viewport = WebChromePanel(new Grid { Children = { _webNativeHost, _webBookmarkPanel } }, "LG.Canvas", default);
+        var linkAnchor = new Border
+        {
+            Width = 1, Height = 1, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom,
+            IsHitTestVisible = false
+        };
+        _webLinkPreviewPopup = BuildWebLinkPreview(linkAnchor);
+        _webLinkPreviewPopup.Bind(MaxWidthProperty, _webNativeHost.GetObservable(BoundsProperty, bounds => Math.Clamp(bounds.Width, 1, 480)));
+        var viewport = WebChromePanel(new Grid { Children = { _webNativeHost, _webBookmarkPanel, linkAnchor, _webLinkPreviewPopup } },
+            "LG.Canvas", default);
+        _webBrowserChrome = chrome;
+
         var panel = new Grid
         {
             RowDefinitions = RowDefinitions.Parse("Auto,Auto,*"),
@@ -136,6 +160,35 @@ internal sealed partial class Launcher
         return panel;
     }
 
+    private Popup BuildWebLinkPreview(Control anchor)
+    {
+        _webLinkPreview = Label("", muted: true);
+        _webLinkPreview.Name = "WebLinkPreview";
+        _webLinkPreview.TextWrapping = TextWrapping.NoWrap;
+        _webLinkPreview.TextTrimming = TextTrimming.CharacterEllipsis;
+        var tooltip = WebChromePanel(_webLinkPreview, "LG.SurfaceRaised", new Thickness(1));
+        tooltip.Padding = new Thickness(8, 3);
+
+        // The native renderer sits above Avalonia content. Use an owned, click-through popup.
+        return new Popup
+        {
+            Child = tooltip,
+            PlacementTarget = anchor,
+            Placement = PlacementMode.TopEdgeAlignedLeft,
+            ShouldUseOverlayLayer = false,
+            TakesFocusFromNativeControl = false,
+            IsHitTestVisible = false,
+            WindowManagerAddShadowHint = false,
+        };
+    }
+
+    private void SetWebLinkPreview(string? text)
+    {
+        if (_webLinkPreview == null || _webLinkPreviewPopup == null) return;
+        _webLinkPreview.Text = text;
+        _webLinkPreviewPopup.IsOpen = IsWebBrowserDisplayed() && !string.IsNullOrEmpty(text);
+    }
+
     private Button WebIconButton(string name, string icon, Action action, string? lucide = null)
     {
         var button = ActionButton(name, action, "quiet");
@@ -150,7 +203,7 @@ internal sealed partial class Launcher
         return button;
     }
 
-    private BrowserTab? AddWebTab(Uri? address = null, bool focusAddress = true)
+    private BrowserTab? AddWebTab(Uri? address = null, bool focusAddress = true, bool useHomepage = true)
     {
         if (_webTabStrip == null) return null;
         if (_webTabs.Count >= MaximumWebTabs)
@@ -187,11 +240,21 @@ internal sealed partial class Launcher
         Click(close, () => CloseWebTab(tab));
         _webTabs.Add(tab);
         _webTabStrip.Children.Add(header);
-        SizeWebTabs();
+        UpdateWebTabStripVisibility();
         SelectWebTab(tab);
+        if (address == null && useHomepage && WebAddress.Parse(_library.Preferences.WebHomepage) is { Scheme: "http" or "https" } homepage)
+        {
+            address = homepage;
+        }
         if (address != null) NavigateWebAddress(tab, address);
-        else if (focusAddress) FocusWebAddress();
+        if (focusAddress && address == null) FocusWebAddress();
         return tab;
+    }
+
+    private void UpdateWebTabStripVisibility()
+    {
+        if (_webTabBar != null) _webTabBar.IsVisible = !_library.Preferences.HideWebSingleTab || _webTabs.Count > 1;
+        SizeWebTabs();
     }
 
     private void SizeWebTabs()
@@ -208,6 +271,7 @@ internal sealed partial class Launcher
 
         _activeWebTab = tab;
         _showWebBookmarks = false;
+        SetWebLinkPreview(null);
         foreach (var candidate in _webTabs)
         {
             candidate.Select.Classes.Set("selected", candidate == tab);
@@ -225,7 +289,7 @@ internal sealed partial class Launcher
 
         _webTabs.RemoveAt(index);
         _webTabStrip?.Children.Remove(tab.Header);
-        SizeWebTabs();
+        UpdateWebTabStripVisibility();
         tab.Closed = true;
         if (tab.ActiveDownloads > 0) _closedWebTabs.Add(tab);
         else RemoveWebTabBrowser(tab);
@@ -237,6 +301,7 @@ internal sealed partial class Launcher
 
     private void RemoveWebTabBrowser(BrowserTab tab)
     {
+        CompleteWebPopup(tab, null);
         tab.Unsubscribe?.Invoke();
         tab.Unsubscribe = null;
         tab.Core = null;
@@ -251,6 +316,10 @@ internal sealed partial class Launcher
         {
             RemoveWebTabBrowser(tab);
         }
+        if (OperatingSystem.IsWindows() && _webEnvironment is { IsCompletedSuccessfully: true } environment)
+        {
+            environment.Result?.Dispose();
+        }
     }
 
     private void FocusWebAddress()
@@ -259,12 +328,26 @@ internal sealed partial class Launcher
         _webAddress?.SelectAll();
     }
 
+    private void UpdateWebAddressPrompt()
+    {
+        if (_webAddress == null) return;
+
+        var preferences = _library.Preferences;
+        _webAddress.PlaceholderText = WebAddress.SearchTemplate(preferences.WebSearchEngine, preferences.WebSearchTemplate) != null
+            ? "Search or enter an address"
+            : "Enter a URL or Magnet link";
+    }
+
     private void SubmitWebAddress()
     {
         if (_activeWebTab == null) return;
-        if (WebAddress.Parse(_webAddress?.Text) is not { } address)
+
+        var preferences = _library.Preferences;
+        if (WebAddress.ParseInput(_webAddress?.Text, preferences.WebSearchEngine, preferences.WebSearchTemplate) is not { } address)
         {
-            SetWebBrowserStatus("Enter a valid HTTP or HTTPS address, or a Magnet link.");
+            SetWebBrowserStatus(WebAddress.SearchTemplate(preferences.WebSearchEngine, preferences.WebSearchTemplate) != null
+                ? "Enter a search term, a valid web address, or a Magnet link."
+                : "Enter a valid HTTP or HTTPS address, or a Magnet link.");
             return;
         }
         if (address.Scheme == "magnet")
@@ -275,8 +358,19 @@ internal sealed partial class Launcher
         NavigateWebAddress(_activeWebTab, address);
     }
 
+    private void OpenRssLinkInWebBrowser(Uri address)
+    {
+        if (_closed || !WebAddress.IsPage(address.AbsoluteUri)) return;
+        Navigate(Page.Web);
+        SelectWebView(WebView.Browser);
+        if (_activeWebTab is { } tab && (_webTabs.Count >= MaximumWebTabs || tab.Core == null && tab.PendingAddress == null))
+            NavigateWebAddress(tab, address);
+        else AddWebTab(address, focusAddress: false);
+    }
+
     private void NavigateWebAddress(BrowserTab tab, Uri address)
     {
+        CompleteWebPopup(tab, null);
         _showWebBookmarks = false;
         tab.PendingAddress = address;
         if (_activeWebTab == tab) SetWebAddressText(address.AbsoluteUri);
@@ -292,14 +386,15 @@ internal sealed partial class Launcher
             tab.PendingAddress = null;
             core.Navigate(address.AbsoluteUri);
         }
-        else if (tab.Browser == null)
+        else if (tab.Browser == null && !tab.Starting)
         {
-            CreateWebTabBrowser(tab);
+            _ = CreateWebTabBrowser(tab);
         }
         UpdateWebBrowserVisibility();
     }
 
-    private void CreateWebTabBrowser(BrowserTab tab)
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private async Task CreateWebTabBrowser(BrowserTab tab)
     {
         if (_webNativeHost == null) return;
 
@@ -309,9 +404,22 @@ internal sealed partial class Launcher
         }
         catch (Exception error) when (error is WebView2RuntimeNotFoundException or DllNotFoundException or COMException)
         {
+            CompleteWebPopup(tab, null);
             SetWebTabStatus(tab, "Install the Microsoft Edge WebView2 Runtime to use the browser.");
             return;
         }
+
+        tab.Starting = true;
+        var runtimeDirectory = Path.Combine(WebDataDirectory, "Runtime");
+        _webEnvironment ??= CreateExtensionEnvironment(runtimeDirectory);
+        var environment = await _webEnvironment;
+        tab.Starting = false;
+        if (_closed)
+        {
+            environment?.Dispose();
+            return;
+        }
+        if (tab.Closed) return;
 
         var view = new NativeWebView { AdapterPreference = [WebViewAdapterType.WebView2], IsVisible = _activeWebTab == tab };
         AutomationProperties.SetName(view, "Web page");
@@ -319,11 +427,12 @@ internal sealed partial class Launcher
         {
             if (args is WindowsWebView2EnvironmentRequestedEventArgs windows)
             {
-                windows.UserDataFolder = Path.Combine(WebDataDirectory, "Runtime");
+                windows.UserDataFolder = runtimeDirectory;
+                if (environment != null) windows.ExplicitEnvironment = environment.DangerousGetHandle();
                 windows.EnableDevTools = false;
             }
         };
-        view.AdapterCreated += (_, _) =>
+        view.AdapterCreated += async (_, _) =>
         {
             if (_closed || tab.Closed) return;
             if (view.TryGetPlatformHandle() is not IWindowsWebView2PlatformHandle handle)
@@ -335,7 +444,8 @@ internal sealed partial class Launcher
             try
             {
                 var core = CoreWebView2.CreateFromComICoreWebView2(handle.CoreWebView2);
-                ConnectWebTab(tab, core);
+                if (environment != null) await ApplyWebAdBlocking(core);
+                if (!_closed && !tab.Closed && tab.Browser == view) ConnectWebTab(tab, core);
             }
             catch (Exception error) when (error is COMException or InvalidOperationException)
             {
@@ -347,11 +457,79 @@ internal sealed partial class Launcher
 
         void BrowserStartFailed()
         {
+            CompleteWebPopup(tab, null);
             SetWebTabStatus(tab, "The Microsoft Edge WebView2 Runtime could not start.");
             Dispatcher.UIThread.Post(() =>
             {
                 if (tab.Browser == view) RemoveWebTabBrowser(tab);
             });
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private async Task<WebContentBlocking.EnvironmentHandle?> CreateExtensionEnvironment(string runtimeDirectory)
+    {
+        try
+        {
+            return await WebContentBlocking.CreateEnvironment(runtimeDirectory);
+        }
+        catch (Exception error) when (error is COMException or DllNotFoundException or EntryPointNotFoundException or
+            InvalidOperationException or ArgumentException or NotImplementedException)
+        {
+            Trace.TraceWarning("Could not start an extension-enabled WebView2 environment: {0}", error);
+            if (!_library.Preferences.DisableWebAdBlocker) _webAdBlockError = "uBO Lite could not start.";
+            if (!_closed) UpdateWebToolbar();
+            return null;
+        }
+    }
+
+    private void ApplyWebBrowserPreferences()
+    {
+        UpdateWebAddressPrompt();
+        if (!OperatingSystem.IsWindows() || _closed) return;
+
+        if (_webEnvironment is { IsCompletedSuccessfully: true, Result: null })
+        {
+            _webAdBlockError = _library.Preferences.DisableWebAdBlocker ? null : "uBO Lite could not start.";
+            UpdateWebToolbar();
+        }
+        else if (_webTabs.Concat(_closedWebTabs).FirstOrDefault(tab => tab.Core != null)?.Core is { } core)
+        {
+            _ = ApplyWebAdBlocking(core);
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private async Task ApplyWebAdBlocking(CoreWebView2 core)
+    {
+        await _webAdBlockUpdates.WaitAsync();
+        try
+        {
+            while (!_closed)
+            {
+                var enabled = !_library.Preferences.DisableWebAdBlocker;
+                if (_webAdBlockEnabled == enabled) return;
+
+                try
+                {
+                    await WebContentBlocking.SetEnabled(core.Profile, WebDataDirectory, enabled);
+                    _webAdBlockEnabled = enabled;
+                    _webAdBlockError = null;
+                }
+                catch (Exception error) when (error is COMException or IOException or InvalidOperationException or UnauthorizedAccessException or NotImplementedException)
+                {
+                    Trace.TraceWarning("Could not change uBO Lite state: {0}", error);
+                    _webAdBlockEnabled = null;
+                    _webAdBlockError = enabled ? "uBO Lite could not start." : "uBO Lite could not be disabled.";
+                }
+
+                if (_library.Preferences.DisableWebAdBlocker != enabled) break;
+            }
+            if (!_closed) UpdateWebToolbar();
+        }
+        finally
+        {
+            _webAdBlockUpdates.Release();
         }
     }
 
@@ -361,13 +539,17 @@ internal sealed partial class Launcher
         core.Settings.IsWebMessageEnabled = false;
         core.Settings.AreHostObjectsAllowed = false;
         core.Settings.AreDevToolsEnabled = false;
+        // WebView2's native hover popup can outlive the visible browser surface.
+        core.Settings.IsStatusBarEnabled = false;
 
         core.NavigationStarting += Navigating;
         core.NavigationCompleted += Navigated;
         core.SourceChanged += Changed;
         core.DocumentTitleChanged += Changed;
         core.HistoryChanged += Changed;
+        core.StatusBarTextChanged += LinkPreviewChanged;
         core.NewWindowRequested += NewWindow;
+        core.WindowCloseRequested += WindowClose;
         core.LaunchingExternalUriScheme += ExternalLink;
         core.DownloadStarting += Download;
         tab.Unsubscribe = () =>
@@ -377,10 +559,14 @@ internal sealed partial class Launcher
             core.SourceChanged -= Changed;
             core.DocumentTitleChanged -= Changed;
             core.HistoryChanged -= Changed;
+            core.StatusBarTextChanged -= LinkPreviewChanged;
             core.NewWindowRequested -= NewWindow;
+            core.WindowCloseRequested -= WindowClose;
             core.LaunchingExternalUriScheme -= ExternalLink;
             core.DownloadStarting -= Download;
         };
+        CompleteWebPopup(tab, core);
+        if (tab == _activeWebTab) UpdateWebBrowserVisibility();
         if (tab.PendingAddress is { } pending)
         {
             tab.PendingAddress = null;
@@ -389,6 +575,7 @@ internal sealed partial class Launcher
 
         void Navigating(object? sender, CoreWebView2NavigationStartingEventArgs args)
         {
+            if (tab == _activeWebTab) SetWebLinkPreview(null);
             if (WebAddress.IsPage(args.Uri))
             {
                 SetWebTabStatus(tab, "Loading…");
@@ -414,12 +601,34 @@ internal sealed partial class Launcher
 
         void Changed(object? sender, object args) => RefreshWebTab(tab);
 
+        void LinkPreviewChanged(object? sender, object args)
+        {
+            if (tab == _activeWebTab && IsWebBrowserDisplayed()) SetWebLinkPreview(core.StatusBarText);
+        }
+
         void NewWindow(object? sender, CoreWebView2NewWindowRequestedEventArgs args)
         {
             args.Handled = true;
-            if (!args.IsUserInitiated || tab != _activeWebTab || _page != Page.Web) return;
-            if (WebAddress.IsMagnet(args.Uri)) QueueMagnetPrompt(args.Uri);
-            else if (WebAddress.IsPage(args.Uri)) AddWebTab(new Uri(args.Uri));
+            if (tab != _activeWebTab || !IsWebBrowserDisplayed() || _closed) return;
+
+            var userInitiated = args.IsUserInitiated;
+            var allowAutomatic = _library.Preferences.DisableWebPopupBlocking;
+            if (!userInitiated && !allowAutomatic) return;
+
+            var address = args.Uri;
+            if (userInitiated && WebAddress.IsMagnet(address))
+            {
+                QueueMagnetPrompt(address);
+                return;
+            }
+            if (!WebAddress.IsPage(address) && address != "about:blank") return;
+
+            if (OperatingSystem.IsWindows()) OpenWebPopup(tab, args);
+        }
+
+        void WindowClose(object? sender, object args)
+        {
+            if (tab.IsPopup) Dispatcher.UIThread.Post(() => CloseWebTab(tab));
         }
 
         void ExternalLink(object? sender, CoreWebView2LaunchingExternalUriSchemeEventArgs args)
@@ -429,6 +638,48 @@ internal sealed partial class Launcher
         }
 
         void Download(object? sender, CoreWebView2DownloadStartingEventArgs args) => StartWebDownload(tab, args);
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private void OpenWebPopup(BrowserTab opener, CoreWebView2NewWindowRequestedEventArgs args)
+    {
+        var popup = AddWebTab(focusAddress: false, useHomepage: false);
+        if (popup == null) return;
+
+        // WebView2 needs a fresh controller in the same profile to preserve the window opener.
+        var deferral = args.GetDeferral();
+        popup.CompletePopup = core =>
+        {
+            try
+            {
+                using (deferral)
+                {
+                    if (core == null || _closed || opener.Closed) return;
+
+                    args.NewWindow = core;
+                    popup.IsPopup = true;
+                }
+            }
+            catch (Exception error) when (error is COMException or InvalidOperationException)
+            {
+                if (!_closed && !popup.Closed) SetWebTabStatus(popup, "The pop-up could not open.");
+            }
+        };
+        _ = CreateWebTabBrowser(popup);
+    }
+
+    private static void CompleteWebPopup(BrowserTab tab, CoreWebView2? core)
+    {
+        var completion = tab.CompletePopup;
+        tab.CompletePopup = null;
+        completion?.Invoke(core);
+    }
+
+    private void MoveInWebHistory(int direction)
+    {
+        if (_activeWebTab?.Core is not { } core) return;
+        if (direction < 0 && core.CanGoBack) core.GoBack();
+        if (direction > 0 && core.CanGoForward) core.GoForward();
     }
 
     private void RefreshWebTab(BrowserTab tab)
@@ -464,11 +715,15 @@ internal sealed partial class Launcher
         return WebAddress.IsPage(source) ? source : null;
     }
 
+    private bool IsWebBrowserDisplayed() =>
+        _page == Page.Web && _webView == WebView.Browser && !_showWebBookmarks && !DialogHost.IsVisible && !_stoppingWebTransfers;
+
     private void UpdateWebBrowserVisibility()
     {
         if (_webNativeHost == null) return;
 
-        _webNativeHost.IsVisible = !_showWebBookmarks && !DialogHost.IsVisible && !_stoppingWebTransfers;
+        _webNativeHost.IsVisible = IsWebBrowserDisplayed();
+        if (!_webNativeHost.IsVisible || _activeWebTab?.Core == null) SetWebLinkPreview(null);
         if (_webBookmarkPanel != null) _webBookmarkPanel.IsVisible = _showWebBookmarks;
         foreach (var tab in _webTabs.Concat(_closedWebTabs))
         {
@@ -488,7 +743,7 @@ internal sealed partial class Launcher
         _webReload.IsEnabled = address != null;
         _webSaveBookmark.IsEnabled = address != null && !_webBookmarks.Any(bookmark => bookmark.Url == address);
         _webShowBookmarks.Classes.Set("selected", _showWebBookmarks);
-        _webStatus.Text = _activeWebTab?.Status;
+        _webStatus.Text = _activeWebTab?.Status is { Length: > 0 } status ? status : _webAdBlockError;
         _webStatus.IsVisible = !string.IsNullOrEmpty(_webStatus.Text);
     }
 
@@ -580,12 +835,29 @@ internal sealed partial class Launcher
         _confirmingWebMagnet = true;
         try
         {
-            if (!await Confirm("Open Magnet link", "Add this Magnet link to Downloads? BitTorrent shares pieces with other peers while downloading.", "Add download") || _closed)
+            var preferences = _library.Preferences;
+            var rememberChoice = false;
+            if (!preferences.AlwaysOpenMagnetLinks)
             {
-                return;
+                var dialog = new ModalDialog("Open Magnet link", 453);
+                dialog.Body.Children.Add(Label("Add this Magnet link to Downloads? BitTorrent shares pieces with other peers while downloading.", muted: true));
+                var alwaysOpen = new CheckBox { Content = "Always open", IsChecked = false };
+                dialog.Body.Children.Add(alwaysOpen);
+                _ = DialogActions(dialog, "Add download", () => dialog.Close(true), defaultAction: false);
+                if (!await ShowModal(dialog) || _closed) return;
+
+                rememberChoice = alwaysOpen.IsChecked == true;
             }
-            await WebTransferQueue.AddMagnetAsync(address);
-            if (!_closed && _page == Page.Web) SelectWebView(WebView.Downloads);
+
+            var destination = await PickWebDownloadFolder();
+            if (destination == null || _closed) return;
+            await WebTransferQueue.AddMagnetAsync(address, destination);
+            if (_closed) return;
+            if (rememberChoice)
+            {
+                SavePreference(preferences.AlwaysOpenMagnetLinks, true, value => preferences.AlwaysOpenMagnetLinks = value, apply: null);
+            }
+            if (_page == Page.Web) SelectWebView(WebView.Downloads);
         }
         catch (Exception error) when (error is ArgumentException or IOException or InvalidOperationException or UnauthorizedAccessException)
         {
@@ -610,39 +882,99 @@ internal sealed partial class Launcher
         try
         {
             var operation = args.DownloadOperation;
-            path = WebTransferQueue.ReserveBrowserPath(Path.GetFileName(args.ResultFilePath));
+            path = WebTransferQueue.ReserveBrowserPath(Path.GetFileName(args.ResultFilePath), WebDownloadDirectory);
             args.ResultFilePath = path;
-            WebTransferQueue.TrackBrowserDownload(path, Snapshot, operation.Cancel);
+            var paused = false;
+            var resuming = false;
+            var sampleTimestamp = Stopwatch.GetTimestamp();
+            var sampledBytes = operation.BytesReceived;
+            long? downloadRate = null;
+            WebTransferQueue.TrackBrowserDownload(path, Snapshot, CancelDownload, PauseDownload, ResumeDownload, ReleaseDownload);
             tab.ActiveDownloads++;
             operation.StateChanged += DownloadStateChanged;
             SetWebTabStatus(tab, "Download started.");
 
             WebDownloadProgress Snapshot()
             {
-                var state = operation.State switch
+                var nativeState = operation.State;
+                if (nativeState == CoreWebView2DownloadState.InProgress && resuming)
+                {
+                    paused = false;
+                    resuming = false;
+                }
+                var state = nativeState switch
                 {
                     CoreWebView2DownloadState.Completed => WebDownloadState.Completed,
                     CoreWebView2DownloadState.InProgress => WebDownloadState.Active,
+                    _ when paused => WebDownloadState.Stopped,
                     _ when operation.InterruptReason == CoreWebView2DownloadInterruptReason.UserCanceled => WebDownloadState.Cancelled,
                     _ => WebDownloadState.Failed,
                 };
                 var total = operation.TotalBytesToReceive;
-                return new WebDownloadProgress(operation.BytesReceived, total is <= long.MaxValue ? (long?)total : null, state,
-                    state == WebDownloadState.Failed ? operation.InterruptReason.ToString() : null);
+                var received = operation.BytesReceived;
+                var timestamp = Stopwatch.GetTimestamp();
+                var elapsed = Stopwatch.GetElapsedTime(sampleTimestamp, timestamp);
+                if (state != WebDownloadState.Active)
+                {
+                    downloadRate = null;
+                    sampleTimestamp = timestamp;
+                    sampledBytes = received;
+                }
+                else if (elapsed >= TimeSpan.FromMilliseconds(250))
+                {
+                    downloadRate = (long)(Math.Max(0, received - sampledBytes) / elapsed.TotalSeconds);
+                    sampleTimestamp = timestamp;
+                    sampledBytes = received;
+                }
+
+                return new WebDownloadProgress(received, total is <= long.MaxValue ? (long?)total : null, state,
+                    state == WebDownloadState.Failed ? operation.InterruptReason.ToString() : null, DownloadRate: downloadRate);
             }
 
-            void DownloadStateChanged(object? sender, object eventArgs)
+            void PauseDownload()
             {
-                if (operation.State == CoreWebView2DownloadState.InProgress) return;
+                operation.Pause();
+                paused = true;
+                resuming = false;
+            }
 
-                operation.StateChanged -= DownloadStateChanged;
+            void ResumeDownload()
+            {
+                if (!operation.CanResume) throw new InvalidOperationException("The site no longer allows this download to resume.");
+                operation.Resume();
+                resuming = true;
+            }
+
+            void CancelDownload()
+            {
+                operation.Cancel();
+                paused = false;
+                resuming = false;
+            }
+
+            void DownloadStateChanged(object? sender, object eventArgs) =>
                 Dispatcher.UIThread.Post(() =>
                 {
                     if (_closed) return;
                     WebTransferQueue.PollBrowserDownloads();
-                    tab.ActiveDownloads--;
-                    if (tab.Closed && tab.ActiveDownloads == 0) RemoveWebTabBrowser(tab);
+                    _refreshWebTransferPage?.Invoke();
                 });
+
+            void ReleaseDownload()
+            {
+                try
+                {
+                    operation.StateChanged -= DownloadStateChanged;
+                }
+                catch (Exception error) when (error is COMException or InvalidOperationException)
+                {
+                    // The renderer may have already released its native operation.
+                }
+                tab.ActiveDownloads--;
+                if (!_closed && tab.Closed && tab.ActiveDownloads == 0)
+                {
+                    Dispatcher.UIThread.Post(() => RemoveWebTabBrowser(tab));
+                }
             }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or COMException or InvalidOperationException)

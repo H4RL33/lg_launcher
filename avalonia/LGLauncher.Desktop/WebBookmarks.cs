@@ -38,6 +38,48 @@ internal static class WebBookmarks
 
 internal static class WebAddress
 {
+    public static Uri? ParseInput(string? value, string? engine, string? customTemplate)
+    {
+        value = value?.Trim();
+        var address = Parse(value);
+        var template = SearchTemplate(engine, customTemplate);
+        if (template == null || string.IsNullOrEmpty(value)) return address;
+
+        if (address != null && (address.Scheme == "magnet" || address.IsLoopback ||
+            value.IndexOfAny(['.', ':', '/', '?', '#']) >= 0))
+        {
+            return address;
+        }
+
+        var schemeEnd = value.IndexOf("://", StringComparison.Ordinal);
+        if (Uri.TryCreate(value, UriKind.Absolute, out _) || value.StartsWith('/') || value.StartsWith('\\') ||
+            (schemeEnd > 0 && Uri.CheckSchemeName(value[..schemeEnd])))
+        {
+            return null;
+        }
+
+        var search = template.Replace("%s", Uri.EscapeDataString(value), StringComparison.Ordinal);
+        return IsPage(search) ? new Uri(search) : null;
+    }
+
+    public static string? SearchTemplate(string? engine, string? customTemplate) => engine switch
+    {
+        "Google" => "https://www.google.com/search?q=%s",
+        "DDG" => "https://duckduckgo.com/?q=%s",
+        "DDG-NOAI" => "https://noai.duckduckgo.com/?q=%s",
+        "Startpage" => "https://www.startpage.com/sp/search?query=%s",
+        "Custom" when IsSearchTemplate(customTemplate) => customTemplate?.Trim(),
+        _ => null,
+    };
+
+    public static bool IsSearchTemplate(string? value)
+    {
+        value = value?.Trim();
+        return !string.IsNullOrEmpty(value) && !value.Any(char.IsWhiteSpace) &&
+            value.Contains("%s", StringComparison.Ordinal) &&
+            IsPage(value.Replace("%s", "search", StringComparison.Ordinal));
+    }
+
     public static Uri? Parse(string? value)
     {
         value = value?.Trim();

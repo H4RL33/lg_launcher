@@ -1312,7 +1312,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Rss.cs",
-      "summary": "Groups feed URL input and file import, refresh interval with number spinner, subscription switches, and per-feed feedback.",
+      "summary": "Groups feed URL input and import, an autosaving refresh interval, the internal-browser preference, subscription switches, and per-feed feedback.",
       "symbols": [
         "BuildRssSettings",
         "BuildRssFeedRow",
@@ -1391,7 +1391,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Web.cs",
-      "summary": "Switches among Browser, Downloads, and Files through a symbolic right rail while keeping browser tabs attached for state and transfers.",
+      "summary": "Animates switches among Browser, Downloads, and Files through a symbolic right rail while keeping browser tabs attached for state and transfers.",
       "symbols": [
         "RenderWebWorkspace",
         "SelectWebView",
@@ -1409,7 +1409,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Browser.cs",
-      "summary": "Places the square address field and New tab icon above a full-height, evenly divided tab strip. Each tab contains its own close icon. The bookmark icon opens the saved list and current-page action. Opens the native WebView2 page on first navigation.",
+      "summary": "Places the square address field and New tab icon above a full-height, evenly divided tab strip. Each tab contains its own close icon. The bookmark icon opens the saved list and current-page action. Opens the native WebView2 page on first navigation. Mouse Back and Forward follow the active tab’s history. The Magnet confirmation offers an Always open checkbox. Browser preferences control single-tab visibility, the homepage, address bar searches, ad blocking, and pop-ups. The link preview overlays the full-height page.",
       "symbols": [
         "BuildWebBrowser",
         "WebAddress",
@@ -1417,7 +1417,8 @@
         "WebAddressBar",
         "WebNewTab",
         "WebBookmarkList",
-        "WebNativeHost"
+        "WebNativeHost",
+        "WebLinkPreview"
       ],
       "related": [
         "pattern.desktop.web-workspace",
@@ -1431,7 +1432,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Transfers.cs",
-      "summary": "Shows download progress and cancellation for browser files and Magnet transfers and opens completed downloads in Files.",
+      "summary": "Shows browser and BitTorrent transfers with left-aligned, resizable columns for text-only progress, size, speeds, ETA, and ratio. The flush top bar accepts Magnet and HTTPS .torrent links. The table scrolls horizontally when needed. Every cell and gap in a row opens the animated menu with Start, Stop, Remove, Open target folder, and Open in Files for completed downloads. A timed amber warning appears below the address bar for invalid submissions. Rows highlight on hover and use an accent tint while the menu is open.",
       "symbols": [
         "BuildWebTransfers",
         "WebMagnetInput",
@@ -1441,7 +1442,6 @@
       "related": [
         "pattern.desktop.web-workspace",
         "pattern.desktop.web-files",
-        "style.progress-bar",
         "style.text-box"
       ]
     },
@@ -1450,7 +1450,7 @@
       "kind": "pattern",
       "scope": "desktop",
       "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Files.cs",
-      "summary": "Browses local folders starting from launcher downloads. Can select a completed transfer and open local files with the Windows shell.",
+      "summary": "Browses local folders in a table with left-aligned, resizable name, type, size, and modification columns. The top path bar has symbolic actions. The left Quick Access sidebar lists Downloads and user-pinned folders. Mouse Back and Forward follow the current session’s folder history. Directory navigation slides the listing across. Rows use the Transfers tint for selections and open context menus. Empty space or Escape clears the selection. Hidden and cut entries are dimmed, and folder icons use the active colourway’s yellow.",
       "symbols": [
         "BuildWebFiles",
         "WebFilesPath",
@@ -1463,6 +1463,44 @@
         "style.text-box",
         "component.modal-dialog"
       ]
+    },
+    {
+      "id": "style.web-table-row",
+      "kind": "style",
+      "scope": "shared-avalonia",
+      "source": "avalonia/LGLauncher.Components/Theme/Components.axaml",
+      "summary": "Draws the same hover and selection fills for transfers and files. File list items let the table row draw the highlight.",
+      "selectors": ["Border.web-table-row", "ListBox.web-file-list ListBoxItem"],
+      "classes": ["web-table-row", "web-file-list"],
+      "resourceKeys": ["LG.WebFileRowItem", "LG.WebRowContextTint"],
+      "related": ["pattern.desktop.web-files", "pattern.desktop.web-downloads"]
+    },
+    {
+      "id": "pattern.desktop.web-file-actions",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Files.Operations.cs",
+      "summary": "Provides item and background menus for file operations. Holding Shift switches Delete to the red Destroy command with a confirmation. Executables can be run after confirmation.",
+      "symbols": ["WebFileRowMenu", "WebFileListingMenu", "WebFileDelete", "WebFilesPaste", "WebFilesNewDirectory", "WebFilesGoBack"],
+      "related": ["pattern.desktop.web-files", "helper.launcher-menus", "component.modal-dialog"]
+    },
+    {
+      "id": "pattern.desktop.web-settings",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Settings.cs",
+      "summary": "Adds settings pages with browser privacy and single-tab controls, inline homepage and search URL, provider icons, torrent connection and ratio controls, file visibility, and a folder picker for the downloads directory.",
+      "symbols": ["BuildBrowserSettings", "BuildTransferSettings", "BuildFileViewerSettings"],
+      "related": ["pattern.desktop.web-browser", "pattern.desktop.web-downloads", "pattern.desktop.web-files"]
+    },
+    {
+      "id": "pattern.desktop.web-quick-access",
+      "kind": "pattern",
+      "scope": "desktop",
+      "source": "avalonia/LGLauncher.Desktop/Launcher.Web.Files.QuickAccess.cs",
+      "summary": "Shows Downloads and saved folder pins in Files. Shared animated menus add a folder or remove its pin.",
+      "symbols": ["BuildWebQuickAccess", "WebFilesQuickAccess", "WebFilesQuickAccessDownloads", "WebFilesQuickAccessPin"],
+      "related": ["pattern.desktop.web-files", "helper.launcher-menus", "style.button.nav"]
     },
     {
       "id": "pattern.desktop.store-tags",

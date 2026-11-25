@@ -198,6 +198,21 @@ namespace LGLauncher
         [DataMember(EmitDefaultValue = false)] public bool AutomaticUpdates { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool UsePreviewUpdates { get; set; }
         [DataMember(EmitDefaultValue = false)] public bool DisableContributionReminders { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool AlwaysOpenMagnetLinks { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool DisableWebAdBlocker { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool DisableWebPopupBlocking { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebHomepage { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebSearchEngine { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebSearchTemplate { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool DisableWebDht { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebTorrentBindAddress { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebTorrentProtocol { get; set; }
+        [DataMember(EmitDefaultValue = false)] public double? WebTorrentStopRatio { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool HideWebSingleTab { get; set; }
+        [DataMember(EmitDefaultValue = false)] public string WebDownloadsDirectory { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool OpenRssLinksInInternalBrowser { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool HideWebHiddenFiles { get; set; }
+        [DataMember(EmitDefaultValue = false)] public bool HideWebFileExtensions { get; set; }
         [DataMember(EmitDefaultValue = false)] public int RssRefreshMinutes { get; set; }
         [DataMember(EmitDefaultValue = false)] public List<RssSubscription> RssFeeds { get; set; }
 

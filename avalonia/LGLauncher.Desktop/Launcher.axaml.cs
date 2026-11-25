@@ -17,7 +17,11 @@ namespace LGLauncher;
 
 internal sealed partial class Launcher : Window
 {
-    private enum Page { Home, Web, Collections, Discoveries, Rss, RssArticle, Settings, Appearance, Widgets, Behaviour, RssSettings, LibrarySettings, Mods, About, Game }
+    private enum Page
+    {
+        Home, Web, Collections, Discoveries, Rss, RssArticle, Settings, Appearance, Widgets, Behaviour, RssSettings,
+        LibrarySettings, BrowserSettings, TransferSettings, FileViewerSettings, Mods, About, Game
+    }
 
     private readonly LibraryStore _store;
     private readonly Library _library;
@@ -255,8 +259,11 @@ internal sealed partial class Launcher : Window
         CollectionsNav.Classes.Set("selected", _page == Page.Collections);
         var webPage = _page == Page.Web;
         WebNav.Classes.Set("selected", webPage);
+        if (!webPage && WebWorkspaceHost.IsVisible) ClearWebFileSelection();
         WebWorkspaceHost.IsVisible = webPage;
-        var settingsPage = _page is Page.Settings or Page.Appearance or Page.Widgets or Page.Behaviour or Page.RssSettings or Page.LibrarySettings or Page.Mods or Page.About;
+        UpdateWebBrowserVisibility();
+        var settingsPage = _page is Page.Settings or Page.Appearance or Page.Widgets or Page.Behaviour or Page.RssSettings or
+            Page.LibrarySettings or Page.BrowserSettings or Page.TransferSettings or Page.FileViewerSettings or Page.Mods or Page.About;
         RssNav.Classes.Set("selected", _page is Page.Rss or Page.RssArticle);
         SettingsNav.Classes.Set("selected", settingsPage);
         SearchSurface.IsVisible = !webPage && !settingsPage && !_editingArtwork && _page != Page.RssArticle;
@@ -289,6 +296,9 @@ internal sealed partial class Launcher : Window
             Page.Widgets => "Widget Customisation",
             Page.Behaviour => "App Behaviour",
             Page.RssSettings => "RSS settings",
+            Page.BrowserSettings => "Browser",
+            Page.TransferSettings => "Transfer Manager",
+            Page.FileViewerSettings => "File Viewer",
             Page.LibrarySettings => "Library settings",
             Page.Mods => "Mods",
             Page.About => "About",
@@ -316,6 +326,11 @@ internal sealed partial class Launcher : Window
                 PageBody.Children.Add(SettingsRow("App Behaviour", "LG.Icon.Controls", Page.Behaviour));
                 PageBody.Children.Add(SettingsRow("Library", "LG.Icon.Library", Page.LibrarySettings));
                 PageBody.Children.Add(SettingsRow("RSS", "LG.Icon.Rss", Page.RssSettings));
+                var browserIcon = Symbol("LG.Icon.ExternalLink", 19);
+                browserIcon.Data = LucideIconCatalog.Find("globe")?.Geometry ?? browserIcon.Data;
+                PageBody.Children.Add(SettingsRow("Browser", browserIcon, () => Navigate(Page.BrowserSettings)));
+                PageBody.Children.Add(SettingsRow("Transfer Manager", "LG.Icon.Download", Page.TransferSettings));
+                PageBody.Children.Add(SettingsRow("File Viewer", "LG.Icon.FolderOpen", Page.FileViewerSettings));
                 if (OperatingSystem.IsWindows()) PageBody.Children.Add(SettingsRow("Mods", "LG.Icon.Wrench", Page.Mods));
                 PageBody.Children.Add(SettingsRow("About", "LG.Icon.Info", Page.About));
                 break;
@@ -343,6 +358,14 @@ internal sealed partial class Launcher : Window
                 PageTitle.Text = "Library settings";
                 PageBody.Children.Add(SettingsBack());
                 PageBody.Children.Add(BuildLibrarySettings());
+                break;
+            case Page.BrowserSettings:
+            case Page.TransferSettings:
+            case Page.FileViewerSettings:
+                PageTitle.Text = settingsTitle;
+                PageBody.Children.Add(SettingsBack());
+                PageBody.Children.Add(_page == Page.BrowserSettings ? BuildBrowserSettings() :
+                    _page == Page.TransferSettings ? BuildTransferSettings() : BuildFileViewerSettings());
                 break;
             case Page.Mods:
                 PageTitle.Text = "Mods";

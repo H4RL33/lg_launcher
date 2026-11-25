@@ -128,7 +128,7 @@ The theme playback fixture uses a silent WAV to check the selection delay, inter
 
 ## `avalonia/LGLauncher.Desktop/Launcher.Rss.Verification.cs`
 
-Tests RSS settings, file and OPML import, enablement, saved refresh interval, offline reuse, the Home shelf, article history, rendering, and image viewport loading. Local data and injected HTTP responses exercise Atom and RSS parsing, conditional requests, restricted web links, and bounded markup.
+Tests RSS settings, file and OPML import, enablement, automatic refresh-interval saves, persisted internal-browser routing, offline reuse, the Home shelf, article history, rendering, and image viewport loading. Local data and injected HTTP responses exercise Atom and RSS parsing, conditional requests, restricted web links, and bounded markup.
 
 The image fixture opens game details from a scrolled article, checks that the decoded image detaches, then returns to the article through history and captures it at narrow, typical, and wider widths.
 

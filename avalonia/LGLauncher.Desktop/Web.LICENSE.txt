@@ -163,3 +163,17 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ---------------------------------------------------------
+
+uBlock Origin Lite 2026.1124.1811
+
+LG Launcher includes the unmodified official Microsoft Edge archive.
+uBlock Origin Lite is licensed under the GNU General Public License,
+version 3. The archive includes the full license and third-party notices.
+
+Release and archive SHA-256:
+https://github.com/uBlockOrigin/uBOL-home/releases/tag/2026.1124.1811
+9f40380e26662ef755848106862dce7820c3f4541a21abc16778e5832a08b647
+
+Corresponding source and build instructions:
+https://github.com/uBlockOrigin/uBOL-home/tree/2026.1124.1811
+https://github.com/gorhill/uBlock/tree/d717684ad6a2b635a192564d27c081c9365c9577
